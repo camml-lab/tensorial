@@ -29,6 +29,7 @@ dependencies = [
     'jaxlib',
     'jraph',
     'orbax-checkpoint',
+    'pytray',
     'e3nn-jax',
     "equinox",
 ]
