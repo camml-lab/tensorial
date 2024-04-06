@@ -13,6 +13,11 @@ def path_from_str(path_str: Union[str, tuple], delimiter='.') -> TreePath:
     return tuple(path_str.split(delimiter))
 
 
+def path_to_str(path: TreePath, delimiter='.') -> str:
+    """Return a string representation of a tree path"""
+    return delimiter.join(path)
+
+
 class UpdateDict(collections.abc.MutableMapping):
     """This class can be used to make updates to a dictionary without modifying the passed dictionary.
     Once all the updates are made, a new dictionary that is the result of the modifications can be retrieved using the
