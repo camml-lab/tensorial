@@ -44,7 +44,7 @@ def graph_batch() -> jraph.GraphsTuple:
 
 def test_loss(graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
-    loss_fn = losses.Loss('globals.energy_prediction', 'globals.energy', loss_fn=optax_loss)
+    loss_fn = losses.Loss('globals.energy_prediction', 'globals.energy', optax_loss)
 
     loss = loss_fn(graph_batch)
     assert loss == optax_loss(graph_batch.globals['energy_prediction'], graph_batch.globals['energy']).mean()
@@ -52,13 +52,16 @@ def test_loss(graph_batch: jraph.GraphsTuple):
 
 def test_weighted_loss(graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
-    loss_fns = [(1., losses.Loss('globals.energy_prediction', 'globals.energy', loss_fn=optax_loss)),
-                (10., losses.Loss('nodes.force_predictions', 'nodes.forces'))]
+    weights = [1., 10.]
+    loss_fns = [
+        losses.Loss('globals.energy_prediction', 'globals.energy', loss_fn=optax_loss),
+        losses.Loss('nodes.force_predictions', 'nodes.forces', loss_fn=optax_loss)
+    ]
 
-    loss_fn = losses.WeightedLoss(loss_fns)
+    loss_fn = losses.WeightedLoss(weights, loss_fns)
 
     loss = loss_fn(graph_batch)
     total_loss = 0.
-    for weight, loss_fn in loss_fns:
+    for weight, loss_fn in zip(weights, loss_fns):
         total_loss += weight * loss_fn(graph_batch)
     assert loss == total_loss

@@ -9,11 +9,14 @@ import jraph
 import optax.losses
 from pytray import tree
 
+import tensorial
+
 from . import utils
 
-__all__ = ('SimpleLossFn', 'GraphLoss', 'WeightedLoss')
+__all__ = ('PureLossFn', 'GraphLoss', 'WeightedLoss', 'Loss')
 
-SimpleLossFn = Callable[[jax.Array, jax.Array], jax.Array]
+# A pure loss function that doesn't know about graphs, just takes arrays and produces a loss array
+PureLossFn = Callable[[jax.Array, jax.Array], jax.Array]
 
 
 class GraphLoss(equinox.Module):
@@ -40,32 +43,32 @@ class GraphLoss(equinox.Module):
 class Loss(GraphLoss):
     """Simple loss function that passes values from the graph to a function taking numerical values such as optax
     losses"""
-    _loss_fn: SimpleLossFn
+    _loss_fn: PureLossFn
     _prediction_field: utils.TreePath
     _target_field: utils.TreePath
     _reduction: str
 
     def __init__(
         self,
-        prediction_field: str,
+        field: str,
         target_field: str = None,
-        loss_fn: Union[str, SimpleLossFn] = optax.squared_error,
+        loss_fn: Union[str, PureLossFn] = optax.squared_error,
         reduction: str = 'mean',
         label: str = None
     ):
         if reduction not in ('sum', 'mean', None):
             raise ValueError(f"Invalid reduction, must be one of 'sum', 'mean', `None`, got {reduction}")
 
-        self._loss_fn = _get_loss_fn(loss_fn)
-        self._prediction_field = utils.path_from_str(prediction_field)
-        self._target_field = utils.path_from_str(target_field or prediction_field)
+        self._loss_fn = _get_pure_loss_fn(loss_fn)
+        self._prediction_field = utils.path_from_str(field)
+        self._target_field = utils.path_from_str(target_field or field)
         self._reduction = reduction
         super().__init__(label or utils.path_to_str(self._prediction_field))
 
     def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> jax.Array:
         loss = self._loss_fn(
-            tree.get_by_path(predictions._asdict(), self._prediction_field),
-            tree.get_by_path(targets._asdict(), self._target_field),
+            tensorial.as_array(tree.get_by_path(predictions._asdict(), self._prediction_field)),
+            tensorial.as_array(tree.get_by_path(targets._asdict(), self._target_field)),
         )
         if self._reduction == 'mean':
             loss = loss.mean()
@@ -81,15 +84,18 @@ class WeightedLoss(GraphLoss):
 
     def __init__(
         self,
-        losses: Sequence,
+        weights: Sequence[float],
+        loss_fns: Sequence[GraphLoss],
     ):
         super().__init__('weighted loss')
-        weights = []
-        loss_fns = []
-        for loss in losses:
-            weight, loss_fn = _loss_and_weight(loss)
-            weights.append(weight)
-            loss_fns.append(loss_fn)
+        for loss in loss_fns:
+            if not isinstance(loss, GraphLoss):
+                raise ValueError(f'loss_fns must all be subclasses of GraphLoss, got {type(loss).__name__}')
+
+        if len(weights) != len(loss_fns):
+            raise ValueError(
+                f'the number of weights and loss functions must be equal, got {len(weights)} and {len(loss_fns)}'
+            )
 
         self._weights = jnp.array(weights)
         self._loss_fns = loss_fns
@@ -109,17 +115,10 @@ class WeightedLoss(GraphLoss):
         return jnp.dot(self._weights, losses), contribs
 
 
-def _loss_and_weight(entry: Union[Tuple[float, GraphLoss], dict]) -> Tuple[float, GraphLoss]:
-    if isinstance(entry, tuple):
-        return entry
-    if isinstance(entry, dict):
-        return entry['weight'], entry['fn']
-
-    raise ValueError(f'Unknown loss and weight type: {type(entry).__name__}')
-
-
-def _get_loss_fn(loss_fn: SimpleLossFn):
+def _get_pure_loss_fn(loss_fn: Union[str, PureLossFn]) -> PureLossFn:
     if isinstance(loss_fn, str):
         return getattr(optax.losses, loss_fn)
+    if isinstance(loss_fn, Callable):
+        return loss_fn
 
-    return loss_fn
+    raise ValueError(f'Unknown loss function type: {type(loss_fn).__name__}')

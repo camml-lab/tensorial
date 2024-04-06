@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import functools
-from typing import Any, Dict, List, Mapping, Optional, Type, Union
+from typing import Any, Dict, List, Mapping, Type, Union
 
 import e3nn_jax as e3j
 import equinox
@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import numpy as np
 
 __all__ = 'IrrepsObj', 'IrrepsTree', 'Attr', 'create', 'create_tensor', 'irreps', 'get', \
-    'Tensorial', 'tensorial_attrs', 'from_tensor'
+    'Tensorial', 'tensorial_attrs', 'from_tensor', 'as_array'
 
 Array = Union[np.array, jax.Array]
 
@@ -31,7 +31,7 @@ class Attr(equinox.Module):
     """Irreps object attribute"""
     irreps: e3j.Irreps
 
-    def __init__(self, irreps) -> None:
+    def __init__(self, irreps) -> None:  # pylint: disable=redefined-outer-name
         self.irreps = e3j.Irreps(irreps)
 
     def create_tensor(self, value: Any) -> e3j.IrrepsArray:
@@ -116,7 +116,7 @@ def create_tensor(tensorial: Tensorial, value: ValueType) -> e3j.IrrepsArray:
         # issubclass can fail if the value is not a class, so we guard against that here
         # and raise later with a more meaningful message
         is_subclass = issubclass(tensorial, IrrepsObj)
-    except TypeError as exc:
+    except TypeError as _exc:
         pass  # Will raise at bottom of function
     else:
         if is_subclass:
@@ -137,11 +137,11 @@ def _create_tensor(tensorial: dict, value) -> e3j.IrrepsArray:
 
 @create_tensor.register
 def _create_tensor(tensorial: linen.FrozenDict, value):
-    return create_tensor(tensorial._dict, value)
+    return create_tensor(tensorial.unfreeze(), value)
 
 
 @create_tensor.register
-def _create_tensor(irreps: e3j.Irreps, value: Array) -> e3j.IrrepsArray:
+def _create_tensor(irreps: e3j.Irreps, value: Array) -> e3j.IrrepsArray:  # pylint: disable=redefined-outer-name
     return e3j.IrrepsArray(irreps, value)
 
 
@@ -157,7 +157,7 @@ def from_tensor(tensorial: Tensorial, value) -> ValueType:
         # issubclass can fail if the value is a class, so we guard against that here
         # and raise later with a more meaningful message
         is_subclass = issubclass(tensorial, IrrepsObj)
-    except TypeError as exc:
+    except TypeError as _exc:
         pass  # Will raise at bottom of function
     else:
         if is_subclass:
@@ -186,11 +186,11 @@ def _from_tensor(tensorial: dict, value: Array) -> Dict[str, ValueType]:
 
 @from_tensor.register
 def _from_tensor(tensorial: linen.FrozenDict, value):
-    return from_tensor(tensorial._dict, value)
+    return from_tensor(tensorial.unfreeze(), value)
 
 
 @from_tensor.register
-def _from_tensor(irreps: e3j.Irreps, value: e3j.IrrepsArray) -> e3j.IrrepsArray:
+def _from_tensor(irreps: e3j.Irreps, value: e3j.IrrepsArray) -> e3j.IrrepsArray:  # pylint: disable=redefined-outer-name
     # Nothing to do
     if not irreps == value.irreps:
         raise ValueError(f'Irreps mismatch: {irreps} != {value.irreps}')
@@ -204,11 +204,10 @@ def _from_tensor(attr: Attr, value) -> e3j.IrrepsArray:
 
 @functools.singledispatch
 def tensorial_attrs(irreps_obj) -> Dict[str, Tensorial]:
-    try:
-        if issubclass(irreps_obj, IrrepsObj):
-            return {name: val for name, val in vars(irreps_obj).items() if not (name.startswith('_') or callable(val))}
-    except TypeError:
-        raise TypeError(irreps_obj.__class__.__name__) from None
+    if issubclass(irreps_obj, IrrepsObj):
+        return {name: val for name, val in vars(irreps_obj).items() if not (name.startswith('_') or callable(val))}
+
+    raise TypeError(irreps_obj.__class__.__name__)
 
 
 @tensorial_attrs.register
@@ -226,7 +225,7 @@ def _tensorial_attrs(irreps_obj: dict) -> Dict[str, Tensorial]:
 
 @tensorial_attrs.register
 def _tensorial_attrs(irreps_obj: linen.FrozenDict) -> Dict[str, Tensorial]:
-    return tensorial_attrs(irreps_obj._dict)
+    return tensorial_attrs(irreps_obj.unfreeze())
 
 
 def get(irreps_obj: Type[IrrepsObj], tensor: Array, attr_name: str = None) -> Array:
