@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import abc
-from typing import Callable, Dict, Sequence, Tuple, Union
+from typing import Callable, Dict, Optional, Sequence, Tuple, Union
 
 import equinox
 import jax
@@ -46,6 +46,7 @@ class Loss(GraphLoss):
     _loss_fn: PureLossFn
     _prediction_field: utils.TreePath
     _target_field: utils.TreePath
+    _mask_field: Optional[utils.TreePath]
     _reduction: str
 
     def __init__(
@@ -54,7 +55,8 @@ class Loss(GraphLoss):
         target_field: str = None,
         loss_fn: Union[str, PureLossFn] = optax.squared_error,
         reduction: str = 'mean',
-        label: str = None
+        label: str = None,
+        mask_field: str = None,
     ):
         if reduction not in ('sum', 'mean', None):
             raise ValueError(f"Invalid reduction, must be one of 'sum', 'mean', `None`, got {reduction}")
@@ -62,14 +64,21 @@ class Loss(GraphLoss):
         self._loss_fn = _get_pure_loss_fn(loss_fn)
         self._prediction_field = utils.path_from_str(field)
         self._target_field = utils.path_from_str(target_field or field)
+        if mask_field is not None:
+            self._mask_field = utils.path_from_str(mask_field)
+        else:
+            self._mask_field = None
         self._reduction = reduction
         super().__init__(label or utils.path_to_str(self._prediction_field))
 
     def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> jax.Array:
-        loss = self._loss_fn(
-            tensorial.as_array(tree.get_by_path(predictions._asdict(), self._prediction_field)),
-            tensorial.as_array(tree.get_by_path(targets._asdict(), self._target_field)),
-        )
+        _predictions = tensorial.as_array(tree.get_by_path(predictions._asdict(), self._prediction_field))
+        _targets = tensorial.as_array(tree.get_by_path(targets._asdict(), self._target_field))
+        if self._mask_field:
+            mask = tensorial.as_array(tree.get_by_path(targets._asdict(), self._mask_field))
+        else:
+            mask = jnp.ones_like(_predictions, dtype=bool)
+        loss = self._loss_fn(_predictions[mask], _targets[mask])
         if self._reduction == 'mean':
             loss = loss.mean()
         elif self._reduction == 'sum':

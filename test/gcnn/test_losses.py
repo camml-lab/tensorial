@@ -50,6 +50,18 @@ def test_loss(graph_batch: jraph.GraphsTuple):
     assert loss == optax_loss(graph_batch.globals['energy_prediction'], graph_batch.globals['energy']).mean()
 
 
+def test_masked_loss(graph_batch: jraph.GraphsTuple):
+    optax_loss = optax.squared_error
+    graph_batch.nodes['mask'] = jnp.linalg.norm(graph_batch.nodes['forces'], axis=-1) > 0.5
+    loss_fn = losses.Loss('nodes.force_predictions', 'nodes.forces', optax_loss, mask_field='nodes.mask')
+
+    loss = loss_fn(graph_batch)
+    assert loss == optax_loss(
+        graph_batch.nodes['force_predictions'][graph_batch.nodes['mask']],
+        graph_batch.nodes['forces'][graph_batch.nodes['mask']]
+    ).mean()
+
+
 def test_weighted_loss(graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
     weights = [1., 10.]
