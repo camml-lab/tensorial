@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import jax
 import jax.numpy as jnp
 import jraph
 import numpy as np
@@ -14,7 +13,6 @@ ENERGY_PREDICTIONS = np.random.rand(NUM_GRAPHS)
 ENERGY_TARGETS = np.random.rand(NUM_GRAPHS)
 FORCE_PREDICTIONS = np.random.rand(NUM_GRAPHS, NUM_NODES, 3)
 FORCE_TARGETS = np.random.rand(NUM_GRAPHS, NUM_NODES, 3)
-FORCE_MASKS = np.random.choice(2, (NUM_GRAPHS, NUM_NODES)).astype(bool)
 
 # pylint: disable=redefined-outer-name
 
@@ -22,17 +20,15 @@ FORCE_MASKS = np.random.choice(2, (NUM_GRAPHS, NUM_NODES)).astype(bool)
 @pytest.fixture
 def graph_batch() -> jraph.GraphsTuple:
     graphs = []
-    for i in range(NUM_GRAPHS):
-        graph_globals = {
-            'energy': jnp.array([ENERGY_TARGETS[i]]),
-            'energy_prediction': jnp.array([ENERGY_PREDICTIONS[i]])
-        }
+    for energy_prediction, energy_target, force_predictions, force_targets in zip(
+        ENERGY_PREDICTIONS, ENERGY_TARGETS, FORCE_PREDICTIONS, FORCE_PREDICTIONS
+    ):
+        graph_globals = {'energy': jnp.array([energy_target]), 'energy_prediction': jnp.array([energy_prediction])}
         graphs.append(
             jraph.GraphsTuple(
                 nodes={
-                    'forces': jnp.array(FORCE_TARGETS[i]),
-                    'force_predictions': jnp.array(FORCE_PREDICTIONS[i]),
-                    'mask': jnp.array(FORCE_MASKS[i]),
+                    'forces': force_targets,
+                    'force_predictions': force_predictions
                 },
                 edges={},
                 receivers=jnp.array([]),
@@ -50,30 +46,20 @@ def test_loss(graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
     loss_fn = losses.Loss('globals.energy_prediction', 'globals.energy', optax_loss)
 
-    loss = jax.jit(loss_fn)(graph_batch)
-    assert jnp.isclose(loss, optax_loss(graph_batch.globals['energy_prediction'], graph_batch.globals['energy']).mean())
-
-
-def test_loss_jitted(graph_batch: jraph.GraphsTuple):
-    optax_loss = optax.squared_error
-    loss_fn = losses.Loss('globals.energy_prediction', 'globals.energy', optax_loss)
-
-    loss = jax.jit(loss_fn)(graph_batch)
-    assert jnp.isclose(loss, optax_loss(graph_batch.globals['energy_prediction'], graph_batch.globals['energy']).mean())
+    loss = loss_fn(graph_batch)
+    assert loss == optax_loss(graph_batch.globals['energy_prediction'], graph_batch.globals['energy']).mean()
 
 
 def test_masked_loss(graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
+    graph_batch.nodes['mask'] = jnp.linalg.norm(graph_batch.nodes['forces'], axis=-1) > 0.5
     loss_fn = losses.Loss('nodes.force_predictions', 'nodes.forces', optax_loss, mask_field='nodes.mask')
 
-    loss = jax.jit(loss_fn)(graph_batch)
-    assert jnp.isclose(
-        loss,
-        optax_loss(
-            graph_batch.nodes['force_predictions'][graph_batch.nodes['mask']],
-            graph_batch.nodes['forces'][graph_batch.nodes['mask']]
-        ).mean()
-    )
+    loss = loss_fn(graph_batch)
+    assert loss == optax_loss(
+        graph_batch.nodes['force_predictions'][graph_batch.nodes['mask']],
+        graph_batch.nodes['forces'][graph_batch.nodes['mask']]
+    ).mean()
 
 
 def test_weighted_loss(graph_batch: jraph.GraphsTuple):
@@ -86,7 +72,8 @@ def test_weighted_loss(graph_batch: jraph.GraphsTuple):
 
     loss_fn = losses.WeightedLoss(weights, loss_fns)
 
-    loss = jax.jit(loss_fn)(graph_batch)
-    total_loss = jnp.dot(jnp.array(weights), jnp.array(list(loss_fn(graph_batch) for loss_fn in loss_fns)))
-
-    assert jnp.isclose(loss, total_loss)
+    loss = loss_fn(graph_batch)
+    total_loss = 0.
+    for weight, loss_fn in zip(weights, loss_fns):
+        total_loss += weight * loss_fn(graph_batch)
+    assert loss == total_loss

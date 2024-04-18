@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
+import logging
 from typing import Dict, Optional, Tuple, Union
 
 import e3nn_jax as e3j
+import equinox
 import jax
 import jax.numpy as jnp
 import jraph
@@ -9,6 +11,8 @@ import jraph
 from tensorial import distances
 
 from . import keys
+
+_LOGGER = logging.getLogger(__name__)
 
 __all__ = ('graph_from_points', 'with_edge_vectors')
 
@@ -71,16 +75,19 @@ def graph_from_points(
         pos[:, pbc] = (pos @ cell)[pbc]
 
     if any(pbc):
-        displacement = distances.periodic(cell, cutoff=r_max)
+        displacement = distances.PeriodicBoundary(cell, cutoff=r_max)
     else:
-        displacement = distances.free(cutoff=r_max)
+        displacement = distances.OpenBoundary(cutoff=r_max)
 
-    from_idx, to_idx, _edge_vectors, cell_shifts = distances.get_neighbour_list(
-        displacement,
-        pos,
-        self_interaction=self_interaction,
-        strict_self_interaction=strict_self_interaction,
-    )
+    get_neighbours = equinox.filter_jit(displacement.get_neighbours)
+    neighbour_list = get_neighbours(pos, max_neighbours=displacement.estimate_neighbours(pos))
+    if neighbour_list.did_overflow:
+        _LOGGER.info(
+            f'Neighbour list was too small ({neighbour_list.max_neighbours}) for amount of actual neighbours ({neighbour_list.actual_max_neighbours}), recalculating.'
+        )
+        neighbour_list = neighbour_list.reallocate(pos)
+
+    from_idx, to_idx, cell_shifts = neighbour_list.get_edges()
 
     nodes = nodes or {}
     nodes[keys.POSITIONS] = pos

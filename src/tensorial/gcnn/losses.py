@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import abc
+import math
 from typing import Callable, Dict, Optional, Sequence, Tuple, Union
 
 import equinox
@@ -43,7 +44,6 @@ class GraphLoss(equinox.Module):
 class Loss(GraphLoss):
     """Simple loss function that passes values from the graph to a function taking numerical values such as optax
     losses"""
-
     _loss_fn: PureLossFn
     _prediction_field: utils.TreePath
     _target_field: utils.TreePath
@@ -75,18 +75,13 @@ class Loss(GraphLoss):
     def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> jax.Array:
         _predictions = tensorial.as_array(tree.get_by_path(predictions._asdict(), self._prediction_field))
         _targets = tensorial.as_array(tree.get_by_path(targets._asdict(), self._target_field))
-
-        loss = self._loss_fn(_predictions, _targets)
-        num_elements = loss.size
-
         if self._mask_field:
             mask = tensorial.as_array(tree.get_by_path(targets._asdict(), self._mask_field))
-            loss = jnp.multiply(mask, loss.T).T  # Zero out the masked elements
-            # Now calculate the number of elements that were masked so that we get the correct mean
-            num_elements = jnp.array([mask.sum(), *loss.shape[1:]]).prod()
-
+        else:
+            mask = jnp.ones_like(_predictions, dtype=bool)
+        loss = self._loss_fn(_predictions[mask], _targets[mask])
         if self._reduction == 'mean':
-            loss = loss.sum() / num_elements
+            loss = loss.mean()
         elif self._reduction == 'sum':
             loss = loss.sum()
 
@@ -94,7 +89,7 @@ class Loss(GraphLoss):
 
 
 class WeightedLoss(GraphLoss):
-    _weights: Tuple[float, ...]
+    _weights: jax.Array
     _loss_fns: Sequence[GraphLoss]
 
     def __init__(
@@ -112,17 +107,13 @@ class WeightedLoss(GraphLoss):
                 f'the number of weights and loss functions must be equal, got {len(weights)} and {len(loss_fns)}'
             )
 
-        self._weights = tuple(weights)  # We have to use a list here, otherwise jax will treat this as a dynamic type
+        self._weights = jnp.array(weights)
         self._loss_fns = loss_fns
-
-    @property
-    def weights(self):
-        return jax.lax.stop_gradient(jnp.array(self._weights))
 
     def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> float:
         # Calculate the loss for each function
         losses = jnp.array(list(map(lambda loss_fn: loss_fn(predictions, targets), self._loss_fns)))
-        return jnp.dot(self.weights, losses)
+        return jnp.dot(self._weights, losses)
 
     def loss_with_contributions(self, predictions: jraph.GraphsTuple,
                                 target: jraph.GraphsTuple) -> Tuple[float, Dict[str, float]]:
@@ -131,7 +122,7 @@ class WeightedLoss(GraphLoss):
         # Group the contributions into a dictionary keyed by the label
         contribs = dict(zip(list(map(GraphLoss.label, self._loss_fns)), losses))
 
-        return jnp.dot(self.weights, losses), contribs
+        return jnp.dot(self._weights, losses), contribs
 
 
 def _get_pure_loss_fn(loss_fn: Union[str, PureLossFn]) -> PureLossFn:
