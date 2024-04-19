@@ -28,104 +28,6 @@ def sphere_volume(radius: float) -> float:
     return (4 / 3) * jnp.pi * radius**3
 
 
-class Periodic(equinox.Module):
-    _cell: jax.Array
-    _cutoff: float
-    _max_cell_multiples: int
-    _a: jax.Array
-    _b: jax.Array
-    _c: jax.Array
-    _volume: float
-
-    _a_cross_b: jax.Array
-    _a_cross_b_len: float
-    _a_cross_b_hat: jax.Array
-
-    _b_cross_c: jax.Array
-    _b_cross_c_len: float
-    _b_cross_c_hat: jax.Array
-
-    _a_cross_c: jax.Array
-    _a_cross_c_len: float
-    _a_cross_c_hat: jax.Array
-
-    def __init__(self, cell: jax.Array, cutoff: float, max_cell_multiples=100_000):
-        self._cell = cell
-        self._cutoff = cutoff
-        self._max_cell_multiples = max_cell_multiples
-
-        self._a = self._cell[0]
-        self._b = self._cell[1]
-        self._c = self._cell[2]
-        self._volume = jnp.abs(jnp.dot(self._a, jnp.cross(self._b, self._c)))
-
-        self._a_cross_b = jnp.cross(self._a, self._b)
-        self._a_cross_b_len = jnp.linalg.norm(self._a_cross_b)
-        self._a_cross_b_hat = self._a_cross_b / self._a_cross_b_len
-
-        self._b_cross_c = jnp.cross(self._b, self._c)
-        self._b_cross_c_len = jnp.linalg.norm(self._b_cross_c)
-        self._b_cross_c_hat = self._b_cross_c / self._b_cross_c_len
-
-        self._a_cross_c = jnp.cross(self._a, self._c)
-        self._a_cross_c_len = jnp.linalg.norm(self._a_cross_c)
-        self._a_cross_c_hat = self._a_cross_c / self._a_cross_c_len
-
-    def __call__(self, r1: jax.Array, r2: jax.Array):
-        cutoff = self._cutoff
-        vol = self._volume
-        # TODO: Wrap a, and b into the current unit cell
-        dr = r2 - r1
-
-        a_max = math.floor(
-            get_num_plane_repetitions_to_bound_sphere(
-                cutoff + jnp.fabs(jnp.dot(dr, self._b_cross_c_hat)),
-                vol,
-                self._b_cross_c_len,
-            )
-        )
-
-        b_max = math.floor(
-            get_num_plane_repetitions_to_bound_sphere(
-                cutoff + jnp.fabs(jnp.dot(dr, self._a_cross_c_hat)),
-                vol,
-                self._a_cross_c_len,
-            )
-        )
-
-        c_max = math.floor(
-            get_num_plane_repetitions_to_bound_sphere(
-                cutoff + jnp.fabs(jnp.dot(dr, self._a_cross_b_hat)),
-                vol,
-                self._a_cross_b_len,
-            )
-        )
-
-        a_max = min(a_max, self._max_cell_multiples)
-        b_max = min(b_max, self._max_cell_multiples)
-        c_max = min(c_max, self._max_cell_multiples)
-
-        cutoff_sq = cutoff * cutoff
-        vectors = []
-        cell_indices = []
-
-        for i in range(-a_max, a_max + 1):
-            ra = i * self._a
-            for j in range(-b_max, b_max + 1):
-                rab = ra + j * self._b
-                for k in range(-c_max, c_max + 1):
-                    displacement = rab + k * self._c
-                    out_vec = displacement + dr
-                    if jnp.dot(out_vec, out_vec) < cutoff_sq:
-                        vectors.append(out_vec)
-                        cell_indices.append(jnp.array([i, j, k]))
-
-        if not vectors:
-            return jnp.zeros((0, 3)), jnp.zeros((0, 3), dtype=int)
-
-        return jnp.vstack(vectors), jnp.vstack(cell_indices)
-
-
 class NeighbourList(equinox.Module):
     neighbours: jax.Array
     cell_indices: jax.Array
@@ -164,11 +66,8 @@ class NeighbourList(equinox.Module):
         `actual_max_neighbours`"""
         return self.actual_max_neighbours > self.max_neighbours
 
-    def get_edges(self, self_interaction=False) -> Edges:
+    def get_edges(self) -> Edges:
         mask = self.neighbours != MASK_VALUE
-        if not self_interaction:
-            mask = mask.at[:, 0].set(False)
-
         from_idx = jnp.repeat(jnp.arange(0, self.num_particles)[:, None], self.max_neighbours, axis=1)
         return Edges(from_idx[mask], self.neighbours[mask], self.cell_indices[mask])
 
@@ -195,10 +94,12 @@ class NeighbourFinder(equinox.Module):
 class OpenBoundary(NeighbourFinder):
     _cutoff: float
 
-    def __init__(self, cutoff: float):
+    def __init__(self, cutoff: float, self_interaction=False):
         self._cutoff = cutoff
+        self._self_interaction = self_interaction
 
     def get_neighbours(self, positions: jax.typing.ArrayLike, max_neighbours: int = None) -> NeighbourList:
+        # TODO: add self-interaction support
         positions = jnp.asarray(positions)
         max_neighbours = max_neighbours or self.estimate_neighbours(positions)
         # Get the neighbours mask
@@ -243,20 +144,23 @@ class PeriodicBoundary(NeighbourFinder):
 
     def get_neighbours(self, positions: jax.typing.ArrayLike, max_neighbours: int = None) -> NeighbourList:
         num_points = positions.shape[0]
-        # num_cells = self._cell_list.shape[0]
-        max_neighbours = max_neighbours or self.estimate_neighbours(positions)
+        num_cells = self._cell_list.shape[0]
+        max_neighbours = max_neighbours if max_neighbours is not None else self.estimate_neighbours(positions)
         print(max_neighbours)
 
         neighbours = jax.vmap(lambda shift: shift + positions)(self._grid_points).reshape(-1, 3)
 
         # Get the neighbours mask
         neigh_mask = jax.vmap(neighbours_mask_direct, (0, None, None))(positions, neighbours, self._cutoff)
-        # if not self._include_self or not self._include_images:
-        #     neigh_mask = neigh_mask.reshape(num_points, num_points, num_cells)
-        #     if not self._include_self:
-        #         mask = ~jnp.eye(num_points, dtype=bool)
-        #         neigh_mask = neigh_mask.at[:, self._self_cell, :].set(neigh_mask[:, self._self_cell, :] & mask)
-        #     neigh_mask = neigh_mask.reshape(num_points, num_cells * num_points)
+        if not self._include_self or not self._include_images:
+            neigh_mask2 = neigh_mask.reshape(num_points, num_cells, num_points)
+            mask = ~jnp.eye(num_points, dtype=bool)
+            if not self._include_images:
+                neigh_mask2 = neigh_mask2 & mask
+            if not self._include_self:
+                neigh_mask2 = neigh_mask2.at[:, self._self_cell, :].set(neigh_mask2[:, self._self_cell, :] & mask)
+
+            neigh_mask = neigh_mask2.reshape(num_points, num_cells * num_points)
 
         get_neighbours = functools.partial(jnp.argwhere, size=max_neighbours, fill_value=MASK_VALUE)
         to_idx = jax.vmap(get_neighbours)(neigh_mask)[..., 0]
@@ -274,7 +178,14 @@ class PeriodicBoundary(NeighbourFinder):
 
     def estimate_neighbours(self, positions: jax.typing.ArrayLike) -> int:
         density = positions.shape[0] / cell_volume(self._cell)
-        return int(1.25 * jnp.ceil(density * sphere_volume(self._cutoff)).item())
+        return int(1.25 * jnp.ceil(density * sphere_volume(self._cutoff) + 1.).item())
+
+
+def neighbour_finder(cutoff: float, cell: jax.typing.ArrayLike = None, **kwargs) -> NeighbourFinder:
+    if cell is not None:
+        return PeriodicBoundary(cell, cutoff, **kwargs)
+
+    return OpenBoundary(cutoff)
 
 
 def generate_positions(cell: jax.Array, positions: jax.Array, cell_shifts: jax.Array) -> jax.Array:
@@ -339,7 +250,7 @@ def neighbours_mask_aabb(centre: jax.typing.ArrayLike, neighbours: jax.typing.Ar
     centred = neighbours - centre
     # First find those that fit into the axis aligned bounding box that fits within the cutoff sphere
     definitely_neighbour = jnp.array(jnp.all((-diag < centred) & (centred < diag), axis=1), dtype=bool)
-    maybe_neighbour = (jnp.all(-cutoff < centred & centred < cutoff, axis=1) & ~definitely_neighbour)
+    maybe_neighbour = jnp.all(-cutoff < centred & centred < cutoff, axis=1) & ~definitely_neighbour
 
     # Now check the remaining ones that lie within the shell between the AABB that fits within the sphere and the AABB
     # that bounds the sphere
@@ -353,4 +264,4 @@ def neighbours_mask_direct(centre: jax.typing.ArrayLike, neighbours: jax.typing.
     """Get the indices of all points that are within a cutoff sphere centred on `centre` with a radius `cutoff` by
     calculating all distance vector norms and masking those within the cutoff"""
     centred = neighbours - centre
-    return jnp.array(jnp.sum(centred**2, axis=1) < (cutoff * cutoff), dtype=bool)
+    return jnp.array(jnp.sum(centred**2, axis=1) <= (cutoff * cutoff), dtype=bool)

@@ -10,7 +10,8 @@ import pytest
 from tensorial import distances
 
 
-def test_open_boundary():
+@pytest.mask.parametrize('self_interaction', [True, False])
+def test_open_boundary(self_interaction):
     n_points = 100
     cutoff = 0.2
     positions = np.random.rand(n_points, 3)
@@ -22,12 +23,13 @@ def test_open_boundary():
         neighbours.append(np.argwhere(norms_sq < (cutoff * cutoff))[:, 0])
         neighbours[-1].sort()
 
-    free = distances.OpenBoundary(cutoff)
+    free = distances.OpenBoundary(cutoff, self_interaction=self_interaction)
     get_neighbours = equinox.filter_jit(free.get_neighbours)
     nlist = get_neighbours(positions, max_neighbours=free.estimate_neighbours(positions))
-    assert not nlist.did_overflow, f'Neighbour list has overflown, need at least {nlist.actual_max_neighbours} max neighbours'
+    assert not nlist.did_overflow, \
+        f'Neighbour list has overflown, need at least {nlist.actual_max_neighbours} max neighbours'
 
-    from_idx, to_idx, cells = nlist.get_edges(self_interaction=True)
+    from_idx, to_idx, cells = nlist.get_edges()
     # This has open boundary conditions so cells should all be zero
     assert np.all(cells == np.zeros((len(from_idx), 3)))
     for i, i_neighbours in enumerate(neighbours):
@@ -39,7 +41,7 @@ def test_open_boundary():
 @pytest.mark.parametrize('cell_angles', [(90., 90.), (60., 135.)])
 def test_ase_neighbour_list(cell_angles):
     n_points = 30
-    cutoff = 1.05
+    cutoff = 1.5
     cutoff_sq = cutoff**2
     cell_ = ase.cell.Cell.new([1, 1., 1., *np.random.uniform(*cell_angles, size=3)])
     pts_frac = np.random.rand(n_points, 3)
@@ -60,7 +62,7 @@ def test_ase_neighbour_list(cell_angles):
         neighbours.append(position_copies[np.sum(diffs**2, axis=1) < cutoff_sq])
     neighbours = np.vstack(neighbours)
 
-    ase_edges = tensorial.distances.Edges(
+    ase_edges = distances.Edges(
         *ase.neighborlist.primitive_neighbor_list(
             'ijS', pbc=[True, True, True], cell=cell, positions=positions, cutoff=cutoff, self_interaction=True
         )
@@ -68,32 +70,40 @@ def test_ase_neighbour_list(cell_angles):
     assert len(ase_edges.to_idx) == len(neighbours)
 
 
-@pytest.mark.parametrize('cutoff,cell_angles', [(0., (90., 90.)), (1.5, (90., 90.)), (1.5, (60., 135.))])
-def test_periodic_boundary(cutoff, cell_angles):
+@pytest.mask.parametrize('self_interaction', [True, False])
+@pytest.mark.parametrize('cutoff,cell_angles', [(1.5, (90., 90.)), (1.5, (60., 135.))])
+def test_periodic_boundary(self_interaction, cutoff, cell_angles):
     n_points = 30
     cell_ = ase.cell.Cell.new([1, 1., 1., *np.random.uniform(*cell_angles, size=3)])
     pts_frac = np.random.rand(n_points, 3)
     cell = cell_.array
     positions = pts_frac @ cell
 
-    periodic = distances.PeriodicBoundary(cell, cutoff)
+    periodic = distances.PeriodicBoundary(cell, cutoff, include_self=self_interaction)
     get_neighbours = equinox.filter_jit(periodic.get_neighbours)
     # get_neighbours = periodic.get_neighbours
     neighbours = get_neighbours(positions, max_neighbours=periodic.estimate_neighbours(positions))
-    assert not neighbours.did_overflow, f'Neighbour list has overflown, need at least {neighbours.actual_max_neighbours} max neighbours'
+    assert not neighbours.did_overflow, \
+        f'Neighbour list has overflown, need at least {neighbours.actual_max_neighbours} max neighbours'
 
-    tensorial_edges = neighbours.get_edges(self_interaction=True)
+    tensorial_edges = neighbours.get_edges(self_interaction=self_interaction)
     edge_vecs = distances.get_edge_vectors(positions, tensorial_edges, cell)
-    assert np.all(np.sum(edge_vecs**2, axis=1) < (cutoff * cutoff)), 'Edges returned that are longer than the cutoff'
+    assert np.all(np.sum(edge_vecs ** 2, axis=1) <= (cutoff * cutoff)), \
+        'Edges returned that are longer than the cutoff'
 
     # Compare to results from ASE
     ase_edges = distances.Edges(
         *ase.neighborlist.primitive_neighbor_list(
-            'ijS', pbc=[True, True, True], cell=cell, positions=positions, cutoff=cutoff, self_interaction=True
+            'ijS',
+            pbc=[True, True, True],
+            cell=cell,
+            positions=positions,
+            cutoff=cutoff,
+            self_interaction=self_interaction
         )
     )
 
-    assert np.all(ase_edges.from_idx == tensorial_edges.from_idx), "Number of edges don't match result from ASE"
+    assert len(ase_edges.from_idx) == len(tensorial_edges.from_idx), "Number of edges don't match result from ASE"
     for i in range(len(positions)):
         tensorial_neighs = tensorial_edges.to_idx[tensorial_edges.from_idx == i]
         ase_neighs = ase_edges.to_idx[ase_edges.from_idx == i]

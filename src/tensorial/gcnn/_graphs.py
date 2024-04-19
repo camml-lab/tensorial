@@ -74,16 +74,15 @@ def graph_from_points(
         # already Cartesian)
         pos[:, pbc] = (pos @ cell)[pbc]
 
-    if any(pbc):
-        displacement = distances.PeriodicBoundary(cell, cutoff=r_max)
-    else:
-        displacement = distances.OpenBoundary(cutoff=r_max)
-
-    get_neighbours = equinox.filter_jit(displacement.get_neighbours)
-    neighbour_list = get_neighbours(pos, max_neighbours=displacement.estimate_neighbours(pos))
+    neighbour_finder = distances.neighbour_finder(
+        r_max, cell, include_self=self_interaction, include_images=strict_self_interaction
+    )
+    get_neighbours = equinox.filter_jit(neighbour_finder.get_neighbours)
+    neighbour_list = get_neighbours(pos, max_neighbours=neighbour_finder.estimate_neighbours(pos))
     if neighbour_list.did_overflow:
         _LOGGER.info(
-            f'Neighbour list was too small ({neighbour_list.max_neighbours}) for amount of actual neighbours ({neighbour_list.actual_max_neighbours}), recalculating.'
+            'Neighbour list was too small (%i) for amount of actual neighbours (%i), recalculating.',
+            neighbour_list.max_neighbours, neighbour_list.actual_max_neighbours
         )
         neighbour_list = neighbour_list.reallocate(pos)
 
