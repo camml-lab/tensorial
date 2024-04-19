@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
+import math
+
 import ase.cell
 import ase.neighborlist
 import equinox
 import numpy as np
+import pytest
 
 from tensorial import distances
-import tensorial.distances
 
 
 def test_open_boundary():
@@ -34,28 +36,60 @@ def test_open_boundary():
         assert np.all(from_neighbour_list == i_neighbours)
 
 
-def test_periodic_boundary():
+@pytest.mark.parametrize('cell_angles', [(90., 90.), (60., 135.)])
+def test_ase_neighbour_list(cell_angles):
     n_points = 30
     cutoff = 1.05
-    cell_ = ase.cell.Cell.new([1, 1., 1., *np.random.uniform(50., 145, size=3)])
+    cutoff_sq = cutoff**2
+    cell_ = ase.cell.Cell.new([1, 1., 1., *np.random.uniform(*cell_angles, size=3)])
+    pts_frac = np.random.rand(n_points, 3)
+    cell = cell_.array
+    positions = pts_frac @ cell
+
+    cell_list = distances.get_cell_list(cell, cutoff=cutoff)
+
+    position_copies = []
+    for grid_point in cell_list[1]:
+        position_copies.append(positions + grid_point)
+    position_copies = np.vstack(position_copies)
+
+    # Find neighbours from all points in original cell to all copies (including self)
+    neighbours = []
+    for position in positions:
+        diffs = position_copies - position
+        neighbours.append(position_copies[np.sum(diffs**2, axis=1) < cutoff_sq])
+    neighbours = np.vstack(neighbours)
+
+    ase_edges = tensorial.distances.Edges(
+        *ase.neighborlist.primitive_neighbor_list(
+            'ijS', pbc=[True, True, True], cell=cell, positions=positions, cutoff=cutoff, self_interaction=True
+        )
+    )
+    assert len(ase_edges.to_idx) == len(neighbours)
+
+
+@pytest.mark.parametrize('cutoff,cell_angles', [(0., (90., 90.)), (1.5, (90., 90.)), (1.5, (60., 135.))])
+def test_periodic_boundary(cutoff, cell_angles):
+    n_points = 30
+    cell_ = ase.cell.Cell.new([1, 1., 1., *np.random.uniform(*cell_angles, size=3)])
     pts_frac = np.random.rand(n_points, 3)
     cell = cell_.array
     positions = pts_frac @ cell
 
     periodic = distances.PeriodicBoundary(cell, cutoff)
-    # get_neighbours = equinox.filter_jit(periodic.get_neighbours)
-    get_neighbours = periodic.get_neighbours
+    get_neighbours = equinox.filter_jit(periodic.get_neighbours)
+    # get_neighbours = periodic.get_neighbours
     neighbours = get_neighbours(positions, max_neighbours=periodic.estimate_neighbours(positions))
     assert not neighbours.did_overflow, f'Neighbour list has overflown, need at least {neighbours.actual_max_neighbours} max neighbours'
 
     tensorial_edges = neighbours.get_edges(self_interaction=True)
-    edge_vecs = tensorial.distances.get_edge_vectors(positions, tensorial_edges, cell)
+    edge_vecs = distances.get_edge_vectors(positions, tensorial_edges, cell)
     assert np.all(np.sum(edge_vecs**2, axis=1) < (cutoff * cutoff)), 'Edges returned that are longer than the cutoff'
 
     # Compare to results from ASE
-    ase_edges = tensorial.distances.Edges(
+    ase_edges = distances.Edges(
         *ase.neighborlist.primitive_neighbor_list(
-            'ijS', pbc=[True, True, True], cell=cell, positions=positions, cutoff=cutoff, self_interaction=False
+            'ijS', pbc=[True, True, True], cell=cell, positions=positions, cutoff=cutoff, self_interaction=True
         )
     )
 
@@ -75,3 +109,23 @@ def test_neighbour_list_reallocate():
     # Try reallocating to see if we can get the correct number of neighbours
     nlist2 = nlist.reallocate(positions)
     assert not nlist2.did_overflow
+
+
+def test_get_max_cell_vector_repetitions():
+    abc = [1.0, 2.0, 3.0]
+    cutoff = 0.9
+    cell = np.array([[abc[0], 0., 0.], [0., abc[1], 0.], [0., 0., abc[2]]])
+
+    for cell_vector in range(3):
+        repetitions = distances.get_max_cell_vector_repetitions(cell, cell_vector, cutoff=cutoff)
+        assert np.isclose(repetitions, cutoff / abc[cell_vector])
+
+
+@pytest.mark.parametrize('cutoff', (0., 1.5))
+def test_get_cell_multipliers(cutoff):
+    abc = [1.0, 2.0, 3.0]
+    cell = np.array([[abc[0], 0., 0.], [0., abc[1], 0.], [0., 0., abc[2]]])
+
+    for cell_vector in range(3):
+        mul_range = distances.get_cell_multiple_range(cell, cell_vector, cutoff=cutoff)
+        assert mul_range == (-math.ceil(cutoff / abc[cell_vector]), math.ceil(cutoff / abc[cell_vector]) + 1)
