@@ -18,7 +18,7 @@ __all__ = ('graph_from_points', 'with_edge_vectors')
 
 
 def graph_from_points(
-    pos: jax.Array,
+    pos: jax.typing.ArrayLike,
     r_max: float,
     fractional_positions: bool = False,
     self_interaction: bool = False,
@@ -46,7 +46,8 @@ def graph_from_points(
     """
     if not pos.shape[-1] == 3:
         raise ValueError(f'pos must have shape [N, 3], got {pos.shape}')
-    pos = jnp.array(pos)
+    pos = jnp.asarray(pos)
+    nodes = nodes if nodes else {}
     num_nodes = len(pos)
 
     for name, value in nodes.items():
