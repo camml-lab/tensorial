@@ -136,13 +136,16 @@ class PeriodicBoundary(NeighbourFinder):
         self,
         cell: jax.typing.ArrayLike,
         cutoff: float,
+        pbc: Tuple[bool, bool, bool] = None,
         max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
         include_self=False,
         include_images=True,
     ):
         self._cell = jnp.asarray(cell)
         self._cutoff = cutoff
-        self._cell_list, self._grid_points = get_cell_list(self._cell, cutoff, max_cell_multiples=max_cell_multiples)
+        self._cell_list, self._grid_points = get_cell_list(
+            self._cell, cutoff, pbc, max_cell_multiples=max_cell_multiples
+        )
         self._self_cell = jnp.argwhere(jax.vmap(jnp.array_equal, (0, None))(self._cell_list,
                                                                             jnp.zeros(3, dtype=i32)))[0, 0].item()
         self._include_self = include_self
@@ -187,9 +190,11 @@ class PeriodicBoundary(NeighbourFinder):
         return int(1.25 * jnp.ceil(density * sphere_volume(self._cutoff) + 1.).item())
 
 
-def neighbour_finder(cutoff: float, cell: jax.typing.ArrayLike = None, **kwargs) -> NeighbourFinder:
-    if cell is not None:
-        return PeriodicBoundary(cell, cutoff, **kwargs)
+def neighbour_finder(
+    cutoff: float, cell: jax.typing.ArrayLike = None, pbc: Tuple[bool, bool, bool] = None, **kwargs
+) -> NeighbourFinder:
+    if pbc is not None and any(pbc):
+        return PeriodicBoundary(cell, cutoff, pbc, **kwargs)
 
     return OpenBoundary(cutoff)
 
@@ -198,13 +203,16 @@ def generate_positions(cell: jax.Array, positions: jax.Array, cell_shifts: jax.A
     return jax.vmap(lambda shift: (shift @ cell) + positions)(cell_shifts)
 
 
-def get_cell_list(cell: jax.typing.ArrayLike,
-                  cutoff: float,
-                  max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES) -> Tuple[jax.Array, jax.Array]:
+def get_cell_list(
+    cell: jax.typing.ArrayLike,
+    cutoff: float,
+    pbc: Tuple[bool, bool, bool] = (True, True, True),
+    max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES
+) -> Tuple[jax.Array, jax.Array]:
     cell = jnp.asarray(cell)
 
     # Get the multipliers for each cell direction
-    cell_ranges = get_cell_multiple_ranges(cell, cutoff=cutoff)
+    cell_ranges = get_cell_multiple_ranges(cell, cutoff=cutoff, pbc=pbc)
     # TODO: Check cell ranges are within MAX
 
     cell_grid = jnp.array(
@@ -229,8 +237,13 @@ def get_cell_multiple_range(cell: jax.typing.ArrayLike, cell_vector: int, cutoff
     return -math.ceil(multiplier), math.ceil(multiplier) + 1
 
 
-def get_cell_multiple_ranges(cell: jax.typing.ArrayLike, cutoff: float) -> Tuple[Tuple[int, int]]:
-    return tuple(map(functools.partial(get_cell_multiple_range, cell, cutoff=cutoff), (0, 1, 2)))
+def get_cell_multiple_ranges(
+    cell: jax.typing.ArrayLike, cutoff: float, pbc: Tuple[bool, bool, bool] = (True, True, True)
+) -> Tuple[Tuple[int, int]]:
+    return tuple(
+        get_cell_multiple_range(cell, cell_vector, cutoff=cutoff) if pbc[cell_vector] else (0, 1)
+        for cell_vector in (0, 1, 2)
+    )
 
 
 def get_max_cell_vector_repetitions(cell: jax.typing.ArrayLike, cell_vector: int, cutoff: float) -> float:

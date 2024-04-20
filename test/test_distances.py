@@ -76,14 +76,15 @@ def test_ase_neighbour_list(cell_angles):
 
 @pytest.mark.parametrize('self_interaction', [True, False])
 @pytest.mark.parametrize('cutoff,cell_angles', [(1.5, (90., 90.)), (1.5, (60., 135.))])
-def test_periodic_boundary(self_interaction, cutoff, cell_angles):
+@pytest.mark.parametrize('pbc', [(True, True, True), (True, False, True), (True, False, False)])
+def test_periodic_boundary(self_interaction, cutoff, cell_angles, pbc):
     n_points = 20
     cell_ = ase.cell.Cell.new([1, 1., 1., *np.random.uniform(*cell_angles, size=3)])
     pts_frac = np.random.rand(n_points, 3)
     cell = cell_.array
     positions = pts_frac @ cell
 
-    periodic = distances.PeriodicBoundary(cell, cutoff, include_self=self_interaction)
+    periodic = distances.PeriodicBoundary(cell, cutoff, pbc=pbc, include_self=self_interaction)
     get_neighbours = equinox.filter_jit(periodic.get_neighbours)
     # get_neighbours = periodic.get_neighbours
     neighbours = get_neighbours(positions, max_neighbours=periodic.estimate_neighbours(positions))
@@ -98,12 +99,7 @@ def test_periodic_boundary(self_interaction, cutoff, cell_angles):
     # Compare to results from ASE
     ase_edges = distances.Edges(
         *ase.neighborlist.primitive_neighbor_list(
-            'ijS',
-            pbc=[True, True, True],
-            cell=cell,
-            positions=positions,
-            cutoff=cutoff,
-            self_interaction=self_interaction
+            'ijS', pbc=pbc, cell=cell, positions=positions, cutoff=cutoff, self_interaction=self_interaction
         )
     )
 

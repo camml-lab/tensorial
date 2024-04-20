@@ -76,7 +76,7 @@ def graph_from_points(
         pos[:, pbc] = (pos @ cell)[pbc]
 
     neighbour_finder = distances.neighbour_finder(
-        r_max, cell, include_self=self_interaction, include_images=strict_self_interaction
+        r_max, cell, pbc=pbc, include_self=self_interaction, include_images=strict_self_interaction
     )
     get_neighbours = equinox.filter_jit(neighbour_finder.get_neighbours)
     neighbour_list = get_neighbours(pos, max_neighbours=neighbour_finder.estimate_neighbours(pos))
