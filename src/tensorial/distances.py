@@ -213,7 +213,8 @@ def get_cell_list(
 
     # Get the multipliers for each cell direction
     cell_ranges = get_cell_multiple_ranges(cell, cutoff=cutoff, pbc=pbc)
-    # TODO: Check cell ranges are within MAX
+    # Clamp the cell range
+    cell_ranges = tuple((max(nmin, -max_cell_multiples), min(nmax, max_cell_multiples)) for nmin, nmax in cell_ranges)
 
     cell_grid = jnp.array(
         jnp.meshgrid(
