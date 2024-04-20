@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
-import contextlib
 import itertools
-import math
-from typing import Any, Callable, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Iterable, Optional, Tuple
 import uuid
 
 import clu.metrics
@@ -10,11 +8,14 @@ from flax.training import train_state
 import jax
 import optax
 
+from tensorial import training
+
+__all__ = ('Trainer', 'TRAIN_MAX_EPOCHS')
+
 Batch = Tuple[Any, Any]
 Dataset = Iterable[Batch]
 
 TRAIN_MAX_EPOCHS = 'max_epochs'
-TRAIN_OVERFITTING = 'overfitting'
 TRAIN_STOP = 'stop'
 
 DEFAULT_MAX_EPOCHS = 30_000
@@ -24,119 +25,11 @@ JIT_TRAIN = 0b001
 JIT_EVAL = 0b010
 JIT_ALL = JIT_TRAIN | JIT_EVAL
 
-
-class TrainerListener:
-
-    def on_epoch_starting(self, trainer: 'Trainer', epoch_num: int):
-        """A training epoch has started"""
-
-    def on_epoch_finishing(self, trainer: 'Trainer', epoch_num: int):
-        """An epoch is finishing but the model state has not been updated yet"""
-
-    def on_epoch_finished(self, trainer: 'Trainer', epoch_num: int):
-        """An epoch has finished and the model state has been updated"""
-
-    def on_training_stopping(self, trainer: 'Trainer', stop_msg: str):
-        """A training run is stopping"""
-
-
-class EventGenerator:
-    """Manage listeners and fire events"""
-
-    def __init__(self):
-        self._event_listeners = {}
-
-    def add_listener(self, listener) -> Any:
-        handle = uuid.uuid4()
-        self._event_listeners[handle] = listener
-        return handle
-
-    def remove_listener(self, handle) -> Any:
-        return self._event_listeners.pop(handle)
-
-    def fire_event(self, event_fn: Callable, *args, **kwargs):
-        for listener in self._event_listeners.values():
-            getattr(listener, event_fn.__name__)(*args, **kwargs)
-
-    @contextlib.contextmanager
-    def listen_context(self, *listener: TrainerListener):
-        uuids = tuple()
-        try:
-            uuids = tuple(map(self.add_listener, listener))
-            yield
-        finally:
-            map(self.remove_listener, uuids)
-
-
-class TrainingLogger(TrainerListener):
-    """Log metrics for training and validation"""
-
-    def __init__(self, log_every_n_epochs: int = 1, log_on_stop: bool = True):
-        self._log: List[dict] = []
-        self._log_ever_n_epochs = log_every_n_epochs
-        self._log_on_stop = log_on_stop
-
-    def raw_log(self) -> List[dict]:
-        return self._log
-
-    def as_dataframe(self):
-        import pandas
-        return pandas.DataFrame(self._log)
-
-    def on_epoch_finished(self, trainer: 'Trainer', epoch_num: int):
-        if epoch_num % self._log_ever_n_epochs == 0:
-            self._save_log(trainer, epoch_num)
-
-    def _save_log(self, trainer: 'Trainer', epoch):
-        log_entry = {'epoch': epoch}
-        if trainer.train_metrics is not None:
-            log_entry.update({'training_' + key: value for key, value in trainer.train_metrics.items()})
-        if trainer.validate_metrics is not None:
-            log_entry.update({'validation_' + key: value for key, value in trainer.validate_metrics.items()})
-        self._log.append(log_entry)
-
-
-class EarlyStopping(TrainerListener):
-    """
-    Basic early stopping class.  If, during training, the chosen metric (defaults to loss) increases by `min_delta` for
-    `patience` steps in a row then the training is stopped.
-    """
-    _best_value = float('inf')
-
-    def __init__(self, patience: int, metric='loss', min_delta: float = 0.):
-        self._patience = patience
-        self._metric = metric
-        self._num_increases = 0
-        self._min_delta = min_delta
-        self._has_improved = False
-
-    @property
-    def patience(self) -> int:
-        return self._patience
-
-    @property
-    def has_improved(self) -> bool:
-        return self._has_improved
-
-    def on_epoch_finished(self, trainer: 'Trainer', epoch_num):
-        new_value = trainer.validate_metrics[self._metric]
-        if math.isinf(self._best_value) or self._best_value - new_value > self._min_delta:
-            # Reset
-            self._num_increases = 0
-            self._best_value = new_value
-            self._has_improved = True
-        else:
-            self._num_increases += 1
-            self._has_improved = False
-
-        if self._num_increases > self.patience:
-            trainer.stop(TRAIN_OVERFITTING)
-
-
 DefaultMetrics = clu.metrics.Collection.create(loss=clu.metrics.Average.from_output('loss'))
 
 
 class Trainer:
+    """Simple trainer with some convenience functionality built in"""
 
     def __init__(
         self,
@@ -158,7 +51,7 @@ class Trainer:
         self._train_data = train_data
         self._validate_data = validate_data
 
-        self._events = EventGenerator()
+        self._events = training.EventGenerator()
         self._stopping = False
         self._stop_msg = None
         self._train_metrics = None
@@ -170,9 +63,9 @@ class Trainer:
         self._train_state = train_state.TrainState.create(apply_fn=model, params=model_params, tx=opt)
         self._metrics = metrics or DefaultMetrics
 
-        self._logger = TrainingLogger(log_metrics_every)
+        self._logger = training.TrainingLogger(log_metrics_every)
         self.add_listener(self._logger)
-        self._overfitting = EarlyStopping(overfitting_window)
+        self._overfitting = training.EarlyStopping(overfitting_window)
 
         self._train_step = train_step
         self._eval_step = eval_step
@@ -206,7 +99,7 @@ class Trainer:
         return self._validate_metrics
 
     @property
-    def metrics_log(self) -> TrainingLogger:
+    def metrics_log(self) -> training.TrainingLogger:
         return self._logger
 
     def stop(self, reason: str):
@@ -214,7 +107,7 @@ class Trainer:
         self._stop_msg = reason
         self._stopping = True
 
-    def add_listener(self, listener: TrainerListener) -> uuid.UUID:
+    def add_listener(self, listener: training.TrainerListener) -> uuid.UUID:
         return self._events.add_listener(listener)
 
     def remove_listener(self, handle):
@@ -239,7 +132,7 @@ class Trainer:
             # Loop over epochs
             for local_epoch in iterator:
                 epoch = self._epoch
-                self._events.fire_event(TrainerListener.on_epoch_starting, self, epoch)
+                self._events.fire_event(training.TrainerListener.on_epoch_starting, self, epoch)
 
                 # Iterate over training batches
                 metrics = self._metrics.empty()
@@ -251,7 +144,7 @@ class Trainer:
                 # Now update out state
                 self._train_state = state
 
-                self._events.fire_event(TrainerListener.on_epoch_finishing, self, epoch)
+                self._events.fire_event(training.TrainerListener.on_epoch_finishing, self, epoch)
 
                 if self._validate_data is not None:
                     # Now do validation pass
@@ -265,7 +158,7 @@ class Trainer:
                 # Tell everyone that the epoch is finishing
                 self._epoch += 1
                 # And tell everyone that this epoch is over
-                self._events.fire_event(TrainerListener.on_epoch_finished, self, epoch)
+                self._events.fire_event(training.TrainerListener.on_epoch_finished, self, epoch)
 
                 if (min_epochs is not None and local_epoch > (min_epochs - 1)) and self._stopping:
                     break
@@ -273,7 +166,7 @@ class Trainer:
         stop_msg = TRAIN_MAX_EPOCHS if not self._stopping else self._stop_msg
 
         # Tell everyone that we are stopping
-        self._events.fire_event(TrainerListener.on_training_stopping, self, stop_msg)
+        self._events.fire_event(training.TrainerListener.on_training_stopping, self, stop_msg)
 
         return stop_msg
 

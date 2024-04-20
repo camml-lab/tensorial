@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import collections
+import logging
+
 import clu.metrics
 from flax import linen
 import jax
@@ -102,3 +105,19 @@ def test_trainer_logging(rng_key):
     assert log[0]['epoch'] == 0
     assert 'training_loss' in log[0]
     assert 'validation_loss' in log[0]
+
+
+def test_metrics_logger():
+    # Spoof a trainer
+    Trainer = collections.namedtuple('Trainer', ['metrics_log', 'train_metrics', 'validate_metrics'])
+    logger = training.TrainingLogger()
+    train_metrics = {}
+    validate_metrics = {}
+    trainer = Trainer(logger, train_metrics, validate_metrics)
+
+    lging = training.MetricsLogging(log_level=logging.WARNING, log_every=1)
+    for epoch in range(2):
+        train_metrics['loss'] = epoch**2
+        validate_metrics['loss'] = epoch**3
+        logger._save_log(trainer, epoch)  # pylint: disable=protected-access
+        lging.on_epoch_finished(trainer, epoch)

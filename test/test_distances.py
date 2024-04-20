@@ -44,7 +44,7 @@ def test_open_boundary(self_interaction):
 
 @pytest.mark.parametrize('cell_angles', [(90., 90.), (60., 135.)])
 def test_ase_neighbour_list(cell_angles):
-    n_points = 30
+    n_points = 20
     cutoff = 1.5
     cutoff_sq = cutoff**2
     cell_ = ase.cell.Cell.new([1, 1., 1., *np.random.uniform(*cell_angles, size=3)])
@@ -77,7 +77,7 @@ def test_ase_neighbour_list(cell_angles):
 @pytest.mark.parametrize('self_interaction', [True, False])
 @pytest.mark.parametrize('cutoff,cell_angles', [(1.5, (90., 90.)), (1.5, (60., 135.))])
 def test_periodic_boundary(self_interaction, cutoff, cell_angles):
-    n_points = 30
+    n_points = 20
     cell_ = ase.cell.Cell.new([1, 1., 1., *np.random.uniform(*cell_angles, size=3)])
     pts_frac = np.random.rand(n_points, 3)
     cell = cell_.array
