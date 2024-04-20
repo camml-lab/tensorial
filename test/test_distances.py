@@ -4,13 +4,14 @@ import math
 import ase.cell
 import ase.neighborlist
 import equinox
+import jax.numpy as jnp
 import numpy as np
 import pytest
 
 from tensorial import distances
 
 
-@pytest.mask.parametrize('self_interaction', [True, False])
+@pytest.mark.parametrize('self_interaction', [True, False])
 def test_open_boundary(self_interaction):
     n_points = 100
     cutoff = 0.2
@@ -20,10 +21,13 @@ def test_open_boundary(self_interaction):
     for i, r_i in enumerate(positions):
         r_j = positions - r_i
         norms_sq = np.sum(r_j**2, axis=1)
-        neighbours.append(np.argwhere(norms_sq < (cutoff * cutoff))[:, 0])
+        mask = norms_sq < (cutoff * cutoff)
+        if not self_interaction:
+            mask[i] = False
+        neighbours.append(np.argwhere(mask)[:, 0])
         neighbours[-1].sort()
 
-    free = distances.OpenBoundary(cutoff, self_interaction=self_interaction)
+    free = distances.OpenBoundary(cutoff, include_self=self_interaction)
     get_neighbours = equinox.filter_jit(free.get_neighbours)
     nlist = get_neighbours(positions, max_neighbours=free.estimate_neighbours(positions))
     assert not nlist.did_overflow, \
@@ -70,7 +74,7 @@ def test_ase_neighbour_list(cell_angles):
     assert len(ase_edges.to_idx) == len(neighbours)
 
 
-@pytest.mask.parametrize('self_interaction', [True, False])
+@pytest.mark.parametrize('self_interaction', [True, False])
 @pytest.mark.parametrize('cutoff,cell_angles', [(1.5, (90., 90.)), (1.5, (60., 135.))])
 def test_periodic_boundary(self_interaction, cutoff, cell_angles):
     n_points = 30
@@ -86,7 +90,7 @@ def test_periodic_boundary(self_interaction, cutoff, cell_angles):
     assert not neighbours.did_overflow, \
         f'Neighbour list has overflown, need at least {neighbours.actual_max_neighbours} max neighbours'
 
-    tensorial_edges = neighbours.get_edges(self_interaction=self_interaction)
+    tensorial_edges = neighbours.get_edges()
     edge_vecs = distances.get_edge_vectors(positions, tensorial_edges, cell)
     assert np.all(np.sum(edge_vecs ** 2, axis=1) <= (cutoff * cutoff)), \
         'Edges returned that are longer than the cutoff'
@@ -112,7 +116,7 @@ def test_periodic_boundary(self_interaction, cutoff, cell_angles):
 
 def test_neighbour_list_reallocate():
     positions = np.array([[0., 0., 0.], [1., 1., 1.]])
-    nlist = distances.OpenBoundary(cutoff=2.).get_neighbours(positions, max_neighbours=1)
+    nlist = distances.OpenBoundary(cutoff=2., include_self=True).get_neighbours(positions, max_neighbours=1)
     assert nlist.did_overflow
     assert nlist.max_neighbours == 1
 
@@ -138,4 +142,5 @@ def test_get_cell_multipliers(cutoff):
 
     for cell_vector in range(3):
         mul_range = distances.get_cell_multiple_range(cell, cell_vector, cutoff=cutoff)
-        assert mul_range == (-math.ceil(cutoff / abc[cell_vector]), math.ceil(cutoff / abc[cell_vector]) + 1)
+        expected = -math.ceil(cutoff / abc[cell_vector]), math.ceil(cutoff / abc[cell_vector]) + 1
+        assert jnp.all(mul_range == expected)

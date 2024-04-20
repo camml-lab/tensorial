@@ -41,8 +41,10 @@ class NeighbourList(equinox.Module):
         actual_max_neighbours: jax.Array = -1,
         finder: 'NeighbourFinder' = None,
     ):
-        # if neighbours.shape != cell_indices.shape[:2]:
-        #     raise ValueError("Cell indices and neighbours must have same shape")
+        if neighbours.shape != cell_indices.shape[:2]:
+            raise ValueError('Cell indices and neighbours must have same shape')
+        # checkify.check(neighbours.shape == cell_indices.shape[:2], "Cell indices and neighbours must have same shape")
+
         # if jnp.any(neighbours > neighbours.shape[0]):
         #     raise ValueError(
         #         "One or more entries in the neighbours array refers to an index higher than the maximum possible")
@@ -93,23 +95,27 @@ class NeighbourFinder(equinox.Module):
 
 class OpenBoundary(NeighbourFinder):
     _cutoff: float
+    _include_self: bool
 
-    def __init__(self, cutoff: float, self_interaction=False):
+    def __init__(self, cutoff: float, include_self=False):
         self._cutoff = cutoff
-        self._self_interaction = self_interaction
+        self._include_self = include_self
 
     def get_neighbours(self, positions: jax.typing.ArrayLike, max_neighbours: int = None) -> NeighbourList:
-        # TODO: add self-interaction support
         positions = jnp.asarray(positions)
+        num_points = positions.shape[0]
         max_neighbours = max_neighbours or self.estimate_neighbours(positions)
         # Get the neighbours mask
-        neigh_idx = jax.vmap(neighbours_mask_direct, (0, None, None))(positions, positions, self._cutoff)
+        neigh_mask = jax.vmap(neighbours_mask_direct, (0, None, None))(positions, positions, self._cutoff)
+
+        if not self._include_self:
+            neigh_mask &= ~jnp.eye(num_points, dtype=bool)
 
         get_neighbours = functools.partial(jnp.argwhere, size=max_neighbours, fill_value=-1)
-        to_idx = jax.vmap(get_neighbours)(neigh_idx)[..., 0]
+        to_idx = jax.vmap(get_neighbours)(neigh_mask)[..., 0]
 
         cell_indices = jnp.zeros((*to_idx.shape, 3), dtype=int)
-        return NeighbourList(to_idx, cell_indices, actual_max_neighbours=jnp.max(neigh_idx.sum(axis=1)), finder=self)
+        return NeighbourList(to_idx, cell_indices, actual_max_neighbours=jnp.max(neigh_mask.sum(axis=1)), finder=self)
 
     def estimate_neighbours(self, positions: jax.typing.ArrayLike) -> int:
         positions = jnp.asarray(positions)
