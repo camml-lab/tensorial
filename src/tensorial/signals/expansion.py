@@ -2,13 +2,13 @@
 """Module for functions performing expansion of functions with a basis"""
 import functools
 
-import bases
-import functions
 import jax.numpy as jnp
+
+from . import bases, functions
 
 
 @functools.singledispatch
-def expand(basis: bases.RadialSphericalBasis, function: functions.Function) -> jnp.array:
+def expand(basis: bases.RadialSphericalBasis, function: functions.Function) -> jnp.array:  # pylint: disable=unused-argument
     """Expand a function in the given basis"""
 
 
@@ -19,3 +19,5 @@ def expand_(basis: bases.SimpleRadialSphericalBasis, function: functions.Functio
 
     if isinstance(function, functions.Sum):
         return jnp.sum(expand(basis, function) for function in function.functions)
+
+    raise TypeError(f'Unsupported function {function.__class__.__name__}')

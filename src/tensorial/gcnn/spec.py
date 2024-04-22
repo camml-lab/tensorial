@@ -7,7 +7,6 @@ import jax.numpy as jnp
 import jraph
 
 import tensorial
-from tensorial import tensors
 
 
 class GraphSpec:
@@ -18,7 +17,7 @@ class GraphSpec:
         nodes: tensorial.IrrepsObj = None,
         edges: tensorial.Tensorial = None,
         globals: tensorial.Tensorial = None
-    ):
+    ):  # pylint: disable=redefined-builtin
         self._nodes = nodes
         self._edges = edges
         self._globals = globals
@@ -59,6 +58,6 @@ class SpeciesOneHot(tensorial.tensors.OneHot):
     def species(self) -> Tuple:
         return self._species
 
-    def create_tensor(self, value, dtype=None) -> jnp.array:
+    def create_tensor(self, value) -> jnp.array:
         # return self.species.index(value)
         return e3j.IrrepsArray(self.irreps, jax.nn.one_hot(value, self.num_classes))

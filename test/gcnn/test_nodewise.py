@@ -48,7 +48,7 @@ def test_nodewise_encoding(rng_key):
     out_field: Final[str] = 'out'
     n_nodes = 5
 
-    # Let's se a one-hot for testing
+    # Let's use a one-hot for testing
     one_hot = tensorial.tensors.OneHot(2)
     node_attrs = random.uniform(rng_key, (n_nodes,))
 
@@ -79,7 +79,7 @@ def test_nodewise_encoding_multiple(rng_key):
 
     keys = jax.random.split(rng_key, num=2)
 
-    # Let's se a one-hot for testing
+    # Let's use a one-hot for testing
     one_hot = tensorial.tensors.OneHot(2)
     one_hots = random.uniform(keys[0], (n_nodes,))
     scalars = random.uniform(keys[1], (n_nodes, 1))
@@ -99,7 +99,7 @@ def test_nodewise_encoding_multiple(rng_key):
     )
 
     encoding = gcnn.NodewiseEncoding({ont_hot_key: one_hot, scalar_key: scalar_irreps}, out_field=out_field)
-    vars = encoding.init(rng_key, graph)
+    _ = encoding.init(rng_key, graph)
     out_graph = encoding(graph)
     assert out_field in out_graph.nodes
     assert isinstance(out_graph.nodes[out_field], e3j.IrrepsArray)
@@ -112,7 +112,7 @@ def test_nodewise_encoding_compilation(rng_key):
     out_field: Final[str] = 'out'
     n_nodes = 5
 
-    # Let's se a one-hot for testing
+    # Let's use a one-hot for testing
     one_hot = tensorial.tensors.OneHot(2)
     node_attrs = random.uniform(rng_key, (n_nodes,))
 
@@ -131,12 +131,10 @@ def test_nodewise_encoding_compilation(rng_key):
 
     jitted = jax.jit(encoding.apply)
 
-    updated = jitted(params, graph)
-    updated = jitted(params, updated)
-    updated = jitted(params, updated)
-    updated = jitted(params, updated)
-
-    # print(updated)
+    updated = jitted(params, graph)  # pylint: disable=not-callable
+    updated = jitted(params, updated)  # pylint: disable=not-callable
+    updated = jitted(params, updated)  # pylint: disable=not-callable
+    updated = jitted(params, updated)  # pylint: disable=not-callable
 
 
 def test_nodewise_decoding(rng_key):
@@ -144,7 +142,7 @@ def test_nodewise_decoding(rng_key):
     out_field: Final[str] = 'out'
     n_nodes = 5
 
-    # Let's se a one-hot for testing
+    # Let's use a one-hot for testing
     cart = tensorial.CartesianTensor('ij=ji', i='1e')
     node_attrs = random.uniform(rng_key, (n_nodes, cart.irreps.dim))
 

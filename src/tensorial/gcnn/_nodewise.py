@@ -23,20 +23,21 @@ class NodewiseLinear(linen.Module):
     out_field: Optional[str] = keys.FEATURES
 
     def setup(self):
+        # pylint: disable=attribute-defined-outside-init
         self.linear = e3j.flax.Linear(
             irreps_out=self.irreps_out,
             irreps_in=self.irreps_in,
             force_irreps_out=True,
         )
 
-    def __call__(self, graph: jraph.GraphsTuple, key=None):
+    def __call__(self, graph: jraph.GraphsTuple):
         nodes = graph.nodes
         nodes[self.out_field] = self.linear(nodes[self.field])
         return graph._replace(nodes=nodes)
 
 
 class NodewiseReduce(linen.Module):
-    """Nodewise reduction operation.  Saved to a global value"""
+    """Nodewise reduction operation. Saved to a global value"""
 
     field: str
     out_field: Optional[str] = None
@@ -44,6 +45,7 @@ class NodewiseReduce(linen.Module):
     average_num_atoms: float = None
 
     def setup(self):
+        # pylint: disable=attribute-defined-outside-init
         if self.reduce not in ('sum', 'mean', 'normalized_sum'):
             raise ValueError(self.reduce)
 
@@ -86,7 +88,6 @@ class NodewiseEncoding(linen.Module):
     out_field: str = keys.ATTRIBUTES
 
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
-        # print(f"encoding: {list(map(str, list(((key, value.shape, value.dtype) for key, value in graph.globals.items()))))}")
         print(f'JAX compiling {self.__class__.__name__}')
 
         # Create the encoding

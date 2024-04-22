@@ -7,7 +7,38 @@ import jax.numpy as jnp
 
 from . import base
 
-__all__ = 'SphericalHarmonic', 'CartesianTensor', 'OneHot'
+__all__ = 'SphericalHarmonic', 'CartesianTensor', 'NoOp', 'OneHot', 'AsIrreps'
+
+
+class NoOp(base.Attr):
+    """An attribute that keeps IrrepsArrays with specified irreps unchanged"""
+
+    def _validate(self, value):
+        assert isinstance(value, e3j.IrrepsArray), 'Expected an IrrepsArray'
+        assert value.irreps == self.irreps, 'Irreps mismatch'
+
+    def create_tensor(self, value: e3j.IrrepsArray) -> e3j.IrrepsArray:
+        self._validate(value)
+        return value
+
+    def from_tensor(self, tensor: e3j.IrrepsArray) -> e3j.IrrepsArray:
+        self._validate(tensor)
+        return tensor
+
+
+class AsIrreps(base.Attr):
+
+    def _validate(self, value):
+        assert isinstance(value, jnp.ndarray), 'Expected a jnp.ndarray'
+        assert value.shape[-1] == self.irreps.dim, 'Dimension mismatch'
+
+    def create_tensor(self, value: jnp.ndarray) -> e3j.IrrepsArray:
+        self._validate(value)
+        return e3j.IrrepsArray(self.irreps, value)
+
+    def from_tensor(self, tensor: e3j.IrrepsArray) -> e3j.IrrepsArray:
+        assert tensor.irreps == self.irreps, 'Irreps mismatch'
+        return tensor
 
 
 class SphericalHarmonic(base.Attr):
@@ -47,9 +78,12 @@ class OneHot(base.Attr):
 
     @property
     def num_classes(self) -> int:
-        return self.irreps[0].mul
+        mul_irrep = self.irreps[0]
+        if isinstance(mul_irrep, e3j.MulIrrep):
+            return mul_irrep.mul
+        raise ValueError('Expected self.irreps to contain a MulIrrep.')
 
-    def create_tensor(self, value) -> jnp.array:
+    def create_tensor(self, value) -> jax.Array:
         return e3j.IrrepsArray(self.irreps, jax.nn.one_hot(value, self.num_classes))
 
 

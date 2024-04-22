@@ -40,16 +40,16 @@ class SphericalBasis(tensorial.Attr):
         # * math.sqrt(math.pi)
         return e3j.spherical_harmonics(self.irreps, x, normalize=True, normalization='integral')
 
-    def create_tensor(self, value, dtype=None) -> jnp.array:
+    def create_tensor(self, value) -> jnp.array:
         return self.evaluate(value)
 
 
 class RadialSphericalBasis(tensorial.Attr):
     """A combined basis of a set of radial functions and spherical harmonics"""
 
-    def create_tensor(self, value: jnp.array, dtype=None) -> jnp.array:
+    def create_tensor(self, value: jnp.array) -> jnp.array:
         """Create the signal that represents the expansion of the signal function in this basis"""
-        return self.evaluate(value, dtype=dtype)
+        return self.evaluate(value)
 
     @abc.abstractmethod
     def evaluate(self, value):
@@ -64,11 +64,11 @@ class SimpleRadialSphericalBasis(RadialSphericalBasis):
         num_radials = len(self.radial)
         super().__init__(spherical.irreps.repeat(num_radials))
 
-    def evaluate(self, x):
+    def evaluate(self, value):
         """Evaluate the basis functions at the given value
         """
-        angular = self.spherical.evaluate(x).array
-        r = jnp.linalg.norm(x, axis=-1)
+        angular = self.spherical.evaluate(value).array
+        r = jnp.linalg.norm(value, axis=-1)
         radial = self.radial.evaluate(r)
         return jnp.einsum('...i,...j->...ij', radial, angular)
 

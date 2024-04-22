@@ -26,6 +26,7 @@ def graph_from_points(
     cell: jax.Array = None,
     pbc: Optional[Union[bool, Tuple[bool, bool, bool]]] = None,
     nodes: Dict = None,
+    edges: Dict = None,
     graph_globals: Dict = None,
 ) -> jraph.GraphsTuple:
     """
@@ -50,6 +51,7 @@ def graph_from_points(
     nodes = nodes if nodes else {}
     num_nodes = len(pos)
 
+    nodes = nodes or {}
     for name, value in nodes.items():
         if value.shape[0] != num_nodes:
             raise ValueError(
@@ -57,16 +59,16 @@ def graph_from_points(
             )
 
     if pbc is None:
-        if cell is not None:
-            raise ValueError('A cell was provided without PBCs')
         # there are no PBC if cell and pbc are not provided
         pbc = False
+        if cell is not None:
+            raise ValueError('A cell was provided without PBCs')
 
     if isinstance(pbc, bool):
         pbc = (pbc,) * 3
-    else:
-        if not len(pbc) == 3:
-            raise ValueError(f'PBC must have length 3: {pbc}')
+
+    if len(pbc) != 3:
+        raise ValueError(f'PBC must have length 3: {pbc}')
 
     if fractional_positions:
         if cell is None:
@@ -89,19 +91,20 @@ def graph_from_points(
 
     from_idx, to_idx, cell_shifts = neighbour_list.get_edges()
 
-    nodes = nodes or {}
     nodes[keys.POSITIONS] = pos
 
     graph_globals = graph_globals or {}
     if pbc is not None:
         graph_globals[keys.PBC] = jnp.array(pbc, dtype=bool)
     graph_globals[keys.CELL] = cell
-
-    edges = {
-        keys.EDGE_CELL_SHIFTS: cell_shifts,
-    }
     # We have to pad out the globals to make things like batching work
     graph_globals = {key: jnp.expand_dims(value, 0) for key, value in graph_globals.items() if value is not None}
+
+    edges = edges or {}
+    edges = {key: value[from_idx, to_idx] for key, value in edges.items()}
+    # Make sure the edge arrays have array-like (rather than scalar) entries for each edge
+    edges = {key: jnp.expand_dims(value, -1) if value.ndim == 1 else value for key, value in edges.items()}
+    edges[keys.EDGE_CELL_SHIFTS] = cell_shifts
 
     return jraph.GraphsTuple(
         nodes=nodes,

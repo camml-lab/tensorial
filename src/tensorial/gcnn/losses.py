@@ -81,7 +81,7 @@ class Loss(GraphLoss):
 
         if self._mask_field:
             mask = tensorial.as_array(tree.get_by_path(targets._asdict(), self._mask_field))
-            loss = jnp.multiply(mask, loss.T).T  # Zero out the masked elements
+            loss = jnp.multiply(mask, loss.T).T  # Zero out the masked elements  # pylint: disable=not-callable
             # Now calculate the number of elements that were masked so that we get the correct mean
             num_elements = jnp.array([mask.sum(), *loss.shape[1:]]).prod()
 

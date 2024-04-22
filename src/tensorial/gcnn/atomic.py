@@ -33,9 +33,11 @@ def graph_from_ase(
     r_max: float,
     key_mapping: Optional[Dict[str, str]] = None,
     atom_include_keys: Optional[Iterable] = ('numbers',),
+    edge_include_keys: Optional[Iterable] = tuple(),
     global_include_keys: Optional[Iterable] = tuple(),
     cell: jax.Array = None,
     pbc: jax.Array = None,
+    **kwargs
 ) -> jraph.GraphsTuple:
     """
     Create a jraph Graph from an ase.Atoms object
@@ -49,6 +51,7 @@ def graph_from_ase(
     :param pbc: an optional periodic boundary conditions array [bool, bool, bool] (otherwise will be taken from ase.pbc)
     :return:
     """
+    # pylint: disable=too-many-branches
     from ase.calculators import singlepoint
     import ase.stress
 
@@ -69,6 +72,10 @@ def graph_from_ase(
     atoms = {}
     for key in atom_include_keys:
         get_attrs(atoms, ase_atoms.arrays, key, key_mapping)
+
+    edges = {}
+    for key in edge_include_keys:
+        get_attrs(edges, ase_atoms.arrays, key, key_mapping)
 
     if ase_atoms.calc is not None:
         if not isinstance(
@@ -106,7 +113,9 @@ def graph_from_ase(
         cell=cell.__array__(),
         pbc=pbc,
         nodes=atoms,
+        edges=edges,
         graph_globals=graph_globals,
+        **kwargs
     )
 
 
