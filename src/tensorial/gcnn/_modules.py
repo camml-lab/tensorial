@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 from typing import Hashable, Sequence, Union
 
 from flax import linen
@@ -7,6 +8,8 @@ import jraph
 from pytray import tree
 
 from . import utils
+
+_LOGGER = logging.getLogger(__name__)
 
 __all__ = ('Rescale',)
 
@@ -32,6 +35,14 @@ class Rescale(linen.Module):
 
         self._shift_fields = tuple(map(utils.path_from_str, shift_fields))
         self._scale_fields = tuple(map(utils.path_from_str, scale_fields))
+
+        if self.shift != 0.0:
+            for path in self._shift_fields:
+                if path[0] == 'globals':
+                    _LOGGER.warning(
+                        'Setting global shift %s to %d, this field will no longer be size extensive with '
+                        'the number of nodes/edges', utils.path_to_str(path), self.shift
+                    )
 
     @linen.compact
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
