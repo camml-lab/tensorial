@@ -137,5 +137,5 @@ class MetricsLogging(TrainerListener):
         self._log_every = log_every
 
     def on_epoch_finished(self, trainer: 'training.Trainer', epoch_num: int):
-        if epoch_num % self._log_level == 0:
+        if epoch_num % self._log_every == 0:
             _LOGGER.log(self._log_level, self._msg, trainer.metrics_log.raw_log()[-1])

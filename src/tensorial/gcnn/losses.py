@@ -10,8 +10,9 @@ import optax.losses
 from pytray import tree
 
 import tensorial
+from tensorial import nn_utils
 
-from . import utils
+from . import keys, utils
 
 __all__ = ('PureLossFn', 'GraphLoss', 'WeightedLoss', 'Loss')
 
@@ -73,15 +74,29 @@ class Loss(GraphLoss):
         super().__init__(label or utils.path_to_str(self._prediction_field))
 
     def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> jax.Array:
-        _predictions = tensorial.as_array(tree.get_by_path(predictions._asdict(), self._prediction_field))
+        predictions_dict = predictions._asdict()
+        mask = predictions_dict[self._prediction_field[0]].get(keys.DEFAULT_PAD_MASK_FIELD)
+
+        _predictions = tensorial.as_array(tree.get_by_path(predictions_dict, self._prediction_field))
         _targets = tensorial.as_array(tree.get_by_path(targets._asdict(), self._target_field))
 
         loss = self._loss_fn(_predictions, _targets)
         num_elements = loss.size
 
+        if mask is not None:
+            mask = nn_utils.prepare_mask(mask, loss)
+        # Check for the presence of a user-defined mask
         if self._mask_field:
-            mask = tensorial.as_array(tree.get_by_path(targets._asdict(), self._mask_field))
-            loss = jnp.multiply(mask, loss.T).T  # Zero out the masked elements  # pylint: disable=not-callable
+            user_mask = nn_utils.prepare_mask(
+                tensorial.as_array(tree.get_by_path(targets._asdict(), self._mask_field)), loss
+            )
+            if mask is None:
+                mask = user_mask
+            else:
+                mask = mask & user_mask
+
+        if mask is not None:
+            loss = jnp.where(mask, loss, 0.0)  # Zero out the masked elements
             # Now calculate the number of elements that were masked so that we get the correct mean
             num_elements = jnp.array([mask.sum(), *loss.shape[1:]]).prod()
 

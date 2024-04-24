@@ -59,6 +59,7 @@ class InteractionBlock(linen.Module):
         senders,
         receivers,
         node_species: Optional[jax.Array] = None,
+        edge_mask: Optional[jax.Array] = None,
     ) -> e3j.IrrepsArray:
         """
         # A NequIP interaction made up of the following steps
@@ -93,7 +94,13 @@ class InteractionBlock(linen.Module):
         )
 
         # Get weights for the tensor product from our full-connected MLP
+        if edge_mask is not None:
+            edge_length_embeddings = jnp.where(
+                nn_utils.prepare_mask(edge_mask, edge_length_embeddings), edge_length_embeddings, 0.
+            )
         weights = mlp(edge_length_embeddings)
+        if edge_mask is not None:
+            weights = jnp.where(nn_utils.prepare_mask(edge_mask, edge_length_embeddings), weights, 0.)
         messages = messages * weights
 
         # Pass the messages, summing those from edges onto nodes

@@ -119,7 +119,12 @@ class OpenBoundary(NeighbourFinder):
 
     def estimate_neighbours(self, positions: jax.typing.ArrayLike) -> int:
         positions = jnp.asarray(positions)
-        approx_density = positions.shape[0] / jnp.prod(jnp.max(positions, axis=0) - jnp.min(positions, axis=0))
+
+        dimensions = jnp.max(positions, axis=0) - jnp.min(positions, axis=0)
+        # Clamp the minimum otherwise we might get a div by zero
+        dimensions = jnp.where(dimensions == 0., 1., dimensions)
+
+        approx_density = positions.shape[0] / jnp.prod(dimensions)
         return int(3 * jnp.ceil(approx_density * sphere_volume(self._cutoff)).item())
 
 
@@ -155,7 +160,6 @@ class PeriodicBoundary(NeighbourFinder):
         num_points = positions.shape[0]
         num_cells = self._cell_list.shape[0]
         max_neighbours = max_neighbours if max_neighbours is not None else self.estimate_neighbours(positions)
-        print(max_neighbours)
 
         neighbours = jax.vmap(lambda shift: shift + positions)(self._grid_points).reshape(-1, 3)
 
@@ -221,6 +225,7 @@ def get_cell_list(
             jnp.arange(*cell_ranges[0]),
             jnp.arange(*cell_ranges[1]),
             jnp.arange(*cell_ranges[2]),
+            indexing='ij',
         )
     )
     reshaped = cell_grid.T.reshape(-1, 3)

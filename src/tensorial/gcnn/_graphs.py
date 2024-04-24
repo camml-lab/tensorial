@@ -8,7 +8,8 @@ import jax
 import jax.numpy as jnp
 import jraph
 
-from tensorial import distances
+from tensorial import distances, nn_utils
+import tensorial.gcnn.keys
 
 from . import keys
 
@@ -85,7 +86,8 @@ def graph_from_points(
     if neighbour_list.did_overflow:
         _LOGGER.info(
             'Neighbour list was too small (%i) for amount of actual neighbours (%i), recalculating.',
-            neighbour_list.max_neighbours, neighbour_list.actual_max_neighbours
+            neighbour_list.max_neighbours,
+            neighbour_list.actual_max_neighbours,
         )
         neighbour_list = neighbour_list.reallocate(pos)
 
@@ -140,10 +142,21 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
         )
         edge_vecs = edge_vecs + shift_vectors
 
+    edge_mask = graph.edges.get(tensorial.gcnn.keys.DEFAULT_PAD_MASK_FIELD)
+    if edge_mask is not None:
+        edge_mask = nn_utils.prepare_mask(edge_mask, edge_vecs)
+        edge_vecs = jnp.where(edge_mask, edge_vecs, 1.0)
     edges[keys.EDGE_VECTORS] = e3j.IrrepsArray('1o', edge_vecs)
 
+    # To allow grad to work, we need to mask off the padded edge vectors that are zero, see:
+    # * https://github.com/google/jax/issues/6484,
+    # * https://stackoverflow.com/questions/74864427/why-does-jax-gradlambda-v-jnp-linalg-normv-vjnp-ones2-produce-nans
     if with_lengths and keys.EDGE_LENGTHS not in edges:
-        edges[keys.EDGE_LENGTHS] = jnp.expand_dims(jnp.linalg.norm(edge_vecs, axis=-1), -1)
+        lengths = jnp.expand_dims(jnp.linalg.norm(edge_vecs, axis=-1), -1)
+        if edge_mask is not None:
+            lengths = jnp.where(edge_mask, lengths, 0.0)
+
+        edges[keys.EDGE_LENGTHS] = lengths
 
     graph = graph._replace(edges=edges)
     return graph

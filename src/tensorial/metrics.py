@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Optional, Type, Union
+from typing import Callable, ClassVar, Optional, Type, TypeVar, Union
 
 import clu.internal.utils
 import clu.metrics
@@ -7,26 +7,42 @@ import flax.struct
 import jax
 import jax.numpy as jnp
 
+from . import nn_utils
+
+Self = TypeVar('Self', bound='MetricWithCount')
+
 
 @flax.struct.dataclass
-class MeanSquaredError(clu.metrics.Metric):
+class MetricWithCount(clu.metrics.Metric):
+    """Helper class to group common functionality for metrics that can keep track using a total and count
+    accumulators"""
     total: jnp.array
     count: jnp.array
+    fn: ClassVar[Callable[[jax.typing.ArrayLike], jax.Array]]
 
     @classmethod
-    def empty(cls) -> 'MeanSquaredError':
-        return cls(total=jnp.array(0, jnp.float32), count=jnp.array(0, jnp.int32))
+    def empty(cls: Type[Self]) -> Self:
+        return cls(total=jnp.array(0.), count=jnp.array(0))
+
+    def merge(self: Self, other: Self) -> Self:
+        return type(self)(
+            total=self.total + other.total,
+            count=self.count + other.count,
+        )
+
+    def compute(self) -> jax.Array:
+        return self.total / self.count
 
     @classmethod
     def from_model_output(  # pylint: disable=arguments-differ
-            cls, predictions: jax.Array, targets: jax.Array, mask: Optional[jnp.array] = None, **_
-    ) -> 'MeanSquaredError':
+            cls: Self, predictions: jax.Array, targets: jax.Array, mask: Optional[jnp.array] = None, **_
+    ) -> Self:
         if predictions.ndim == 0:
             predictions = predictions[None]
         if targets.ndim == 0:
             targets = targets[None]
         if mask is None:
-            mask = jnp.ones_like(predictions)
+            mask = jnp.ones_like(predictions, dtype=bool)
 
         # Leading dimensions of mask and predictions must match.
         if mask.shape[0] != predictions.shape[0]:
@@ -36,9 +52,7 @@ class MeanSquaredError(clu.metrics.Metric):
                 f'and values of dimension {predictions.shape}.'
             )
 
-        # Broadcast mask to the same number of dimensions as values.
-        if mask.ndim < predictions.ndim:
-            mask = jnp.expand_dims(mask, axis=tuple(jnp.arange(mask.ndim, predictions.ndim)))
+        mask = nn_utils.prepare_mask(mask, predictions)
         mask = mask.astype(bool)
 
         clu.internal.utils.check_param(mask, dtype=bool, ndim=predictions.ndim)
@@ -47,75 +61,27 @@ class MeanSquaredError(clu.metrics.Metric):
         targets = jnp.where(mask, targets, jnp.zeros_like(targets))
 
         return cls(
-            total=jnp.square(predictions - targets).sum(),
+            total=cls.fn(predictions - targets).sum(),
             count=jnp.where(
-                mask, jnp.ones_like(predictions, dtype=jnp.int32), jnp.zeros_like(predictions, dtype=jnp.int32)
+                mask,
+                jnp.ones_like(predictions, dtype=jnp.int32),
+                jnp.zeros_like(predictions, dtype=jnp.int32),
             ).sum(),
         )
-
-    def merge(self, other: 'MeanSquaredError') -> 'MeanSquaredError':
-        return type(self)(
-            total=self.total + other.total,
-            count=self.count + other.count,
-        )
-
-    def compute(self) -> jax.Array:
-        return self.total / self.count
 
 
 @flax.struct.dataclass
-class MeanAbsoluteError(clu.metrics.Metric):
+class MeanSquaredError(MetricWithCount):
     total: jnp.array
     count: jnp.array
+    fn = jnp.square
 
-    @classmethod
-    def empty(cls) -> 'MeanAbsoluteError':
-        return cls(total=jnp.array(0, jnp.float32), count=jnp.array(0, jnp.int32))
 
-    @classmethod
-    def from_model_output(  # pylint: disable=arguments-differ
-            cls, predictions: jax.Array, targets: jax.Array, mask: Optional[jnp.array] = None, **_
-    ) -> 'MeanAbsoluteError':
-        if predictions.ndim == 0:
-            predictions = predictions[None]
-        if targets.ndim == 0:
-            targets = targets[None]
-        if mask is None:
-            mask = jnp.ones_like(predictions)
-
-        # Leading dimensions of mask and predictions must match.
-        if mask.shape[0] != predictions.shape[0]:
-            raise ValueError(
-                f'Argument `mask` must have the same leading dimension as `values`. '
-                f'Received mask of dimension {mask.shape} '
-                f'and values of dimension {predictions.shape}.'
-            )
-
-        # Broadcast mask to the same number of dimensions as values.
-        if mask.ndim < predictions.ndim:
-            mask = jnp.expand_dims(mask, axis=tuple(jnp.arange(mask.ndim, predictions.ndim)))
-        mask = mask.astype(bool)
-
-        clu.internal.utils.check_param(mask, dtype=bool, ndim=predictions.ndim)
-
-        predictions = jnp.where(mask, predictions, jnp.zeros_like(predictions))
-        targets = jnp.where(mask, targets, jnp.zeros_like(targets))
-
-        return cls(
-            total=jnp.abs(predictions - targets).sum(),
-            count=jnp.where(
-                mask, jnp.ones_like(predictions, dtype=jnp.int32), jnp.zeros_like(predictions, dtype=jnp.int32)
-            ).sum(),
-        )
-
-    def merge(self, other: 'MeanSquaredError') -> 'MeanSquaredError':
-        return type(self)(
-            total=self.total + other.total,
-            count=self.count + other.count,
-        )
-
-    def compute(self) -> jax.Array:
-        return self.total / self.count
+@flax.struct.dataclass
+class MeanAbsoluteError(MetricWithCount):
+    total: jnp.array
+    count: jnp.array
+    fn = jnp.abs
 
 
 @flax.struct.dataclass

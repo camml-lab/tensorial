@@ -6,11 +6,12 @@ import uuid
 import clu.metrics
 from flax.training import train_state
 import jax
+import jax.numpy as jnp
 import optax
 
 from tensorial import training
 
-__all__ = ('Trainer', 'TRAIN_MAX_EPOCHS')
+__all__ = ('Trainer', 'TRAIN_MAX_EPOCHS', 'Dataset', 'Batch')
 
 Batch = Tuple[Any, Any]
 Dataset = Iterable[Batch]
@@ -78,6 +79,15 @@ class Trainer:
     @property
     def train_data(self) -> Dataset:
         return self._train_data
+
+    @train_data.setter
+    def train_data(self, new_dataset: Dataset):
+        """Set the training data.
+
+        .. warning::
+            This should not be done while training is running
+        """
+        self._train_data = new_dataset
 
     @property
     def validate_data(self) -> Optional[Dataset]:
@@ -186,7 +196,9 @@ def train_step(state: train_state.TrainState, batch: Batch, loss_fn: Callable, m
     (loss, predictions), grads = grad_fn(state.params)
     state = state.apply_gradients(grads=grads)
 
-    update = metrics.single_from_model_output(loss=loss, labels=labels, predictions=predictions)
+    update = metrics.single_from_model_output(
+        loss=jnp.astype(loss, jnp.float32), labels=labels, predictions=predictions
+    )
     return state, loss, metrics.merge(update)
 
 
@@ -196,5 +208,7 @@ def eval_step(state: train_state.TrainState, batch: Batch, loss_fn: Callable,
     inputs, labels = batch
     predictions = state.apply_fn(state.params, inputs)
     loss = loss_fn(predictions, labels)
-    update = metrics.single_from_model_output(loss=loss, labels=labels, predictions=predictions)
+    update = metrics.single_from_model_output(
+        loss=jnp.astype(loss, jnp.float32), labels=labels, predictions=predictions
+    )
     return loss, metrics.merge(update)

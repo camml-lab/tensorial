@@ -54,8 +54,13 @@ class NequipLayer(linen.Module):
         :return: the output graph with node features updated
         """
         node_features = self._interaction_block(
-            graph.nodes[keys.FEATURES], graph.edges[keys.ATTRIBUTES], graph.edges[keys.RADIAL_EMBEDDINGS],
-            graph.senders, graph.receivers, graph.nodes.get(keys.SPECIES)
+            graph.nodes[keys.FEATURES],
+            graph.edges[keys.ATTRIBUTES],
+            graph.edges[keys.RADIAL_EMBEDDINGS],
+            graph.senders,
+            graph.receivers,
+            graph.nodes.get(keys.SPECIES),
+            edge_mask=graph.edges.get(keys.DEFAULT_PAD_MASK_FIELD, None)
         )
 
         # If enabled, perform ResNet operation by adding back the old node features

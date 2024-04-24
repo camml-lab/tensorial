@@ -20,11 +20,11 @@ def atleast_1d(arr) -> jnp.array:
     return arr if jnp.ndim(arr) >= 1 else jnp.reshape(arr, -1)
 
 
-def as_array(arr: Array) -> jax.Array:
-    if isinstance(arr, jax.Array):
-        return arr
+def as_array(arr: Union[np.array, jax.Array, e3j.IrrepsArray]) -> jax.Array:
+    if isinstance(arr, e3j.IrrepsArray):
+        return arr.array
 
-    return arr.array
+    return jnp.asarray(arr)
 
 
 class Attr(equinox.Module):

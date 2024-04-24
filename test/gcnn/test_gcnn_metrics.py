@@ -9,7 +9,7 @@ import jraph
 import optax
 import utils
 
-from tensorial.gcnn import metrics
+from tensorial.gcnn import datasets, metrics
 
 
 class Std(clu.metrics.Std):
@@ -21,7 +21,7 @@ class Std(clu.metrics.Std):
             values: jnp.array,
             mask: Optional[jnp.array] = None,
     ) -> Metric:
-        return clu.metrics.Std.from_model_output(values, mask=mask)
+        return clu.metrics.Std.from_model_output(jnp.astype(values, jnp.float32), mask=mask)
 
 
 def test_graph_metric(cube_graph: jraph.GraphsTuple, rng_key):
@@ -68,4 +68,11 @@ def test_graph_metric_per_node():
     # ...and with
     node_sizes_avg = metrics.graph_metric(clu.metrics.Average, 'graph.globals.num_nodes', _per_node=True)
     metr = node_sizes_avg.from_model_output(graph=random_graphs)
+    assert jnp.isclose(metr.compute(), 1.0)
+
+    node_sizes_avg = metrics.graph_metric(
+        clu.metrics.Average, 'graph.globals.num_nodes', mask='globals.pad_mask', _per_node=True
+    )
+    padded = tuple(datasets.generated_padded_graphs([(random_graphs, None)], add_mask=True))[0][0]
+    metr = node_sizes_avg.from_model_output(graph=padded)
     assert jnp.isclose(metr.compute(), 1.0)
