@@ -57,6 +57,7 @@ dev = [
     'pre-commit',
     'pylint',
     'black',
+    'tensorboardX'
 ]
 
 [tool.flit.module]

@@ -44,6 +44,9 @@ class EventGenerator:
 
 class TrainerListener:
 
+    def on_training_starting(self, trainer: 'training.Trainer'):
+        """A training run is starting"""
+
     def on_epoch_starting(self, trainer: 'training.Trainer', epoch_num: int):
         """A training epoch has started"""
 

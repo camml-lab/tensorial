@@ -80,15 +80,6 @@ class Trainer:
     def train_data(self) -> Dataset:
         return self._train_data
 
-    @train_data.setter
-    def train_data(self, new_dataset: Dataset):
-        """Set the training data.
-
-        .. warning::
-            This should not be done while training is running
-        """
-        self._train_data = new_dataset
-
     @property
     def validate_data(self) -> Optional[Dataset]:
         return self._validate_data
@@ -139,6 +130,8 @@ class Trainer:
         iterator = itertools.count() if max_epochs == -1 else range(max_epochs)
 
         with self._events.listen_context(self._overfitting):
+            self._events.fire_event(training.TrainerListener.on_training_starting, self)
+
             # Loop over epochs
             for local_epoch in iterator:
                 epoch = self._epoch
