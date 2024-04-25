@@ -36,7 +36,7 @@ def test_generate_batches():
 def test_generate_batches_with_mask():
     dataset_size = 5
     batch_size = 2
-    inputs = tuple(utils.random_spatial_graph(2, cutoff=5) for _ in range(dataset_size))
+    inputs = tuple(utils.random_spatial_graph(2, cutoff=3) for _ in range(dataset_size))
     batches = tuple(datasets.generate_batches(batch_size, inputs))
 
     padded = tuple(datasets.generated_padded_graphs(batches, add_mask=True))
@@ -77,7 +77,7 @@ def test_create_batches_from_graph_batch():
 
 def test_add_pading_mask():
     num_nodes = 3
-    graph = utils.random_spatial_graph(num_nodes, cutoff=5)
+    graph = utils.random_spatial_graph(num_nodes, cutoff=3)
     num_edges = graph.n_edge[0].item()
     mask_field = 'my_mask'
 
