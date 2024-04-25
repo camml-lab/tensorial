@@ -37,3 +37,8 @@ repos:
     -   id: pylint
         language: system
         exclude: *exclude_files
+
+-   repo: https://github.com/srstevenson/nb-clean
+    rev: 3.2.0
+    hooks:
+    - id: nb-clean

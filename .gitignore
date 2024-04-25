@@ -74,3 +74,5 @@ target/
 examples/*/
 
 .vscode/
+
+local/

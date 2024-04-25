@@ -51,6 +51,7 @@ docs = [
 dev = [
     'flit',
     'ipython',
+    'pandas',  # Needed because we optionally support this in some files
     'pytest',
     'pytest-cov',
     'pre-commit',
