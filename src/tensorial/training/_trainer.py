@@ -154,8 +154,6 @@ class Trainer:
                 # Now update out state
                 self._train_state = state
 
-                self._events.fire_event(training.TrainerListener.on_epoch_finishing, self, epoch)
-
                 if self._validate_data is not None:
                     # Now do validation pass
                     metrics = self._metrics.empty()
@@ -165,6 +163,7 @@ class Trainer:
                         )
                     self._validate_metrics = metrics.compute()
 
+                self._events.fire_event(training.TrainerListener.on_epoch_finishing, self, epoch)
                 # Tell everyone that the epoch is finishing
                 self._epoch += 1
                 # And tell everyone that this epoch is over

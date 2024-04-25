@@ -72,7 +72,7 @@ class TrainingLogger(TrainerListener):
         import pandas
         return pandas.DataFrame(self._log)
 
-    def on_epoch_finished(self, trainer: 'training.Trainer', epoch_num: int):
+    def on_epoch_finishing(self, trainer: 'training.Trainer', epoch_num: int):
         if epoch_num % self._log_ever_n_epochs == 0:
             self._save_log(trainer, epoch_num)
 
