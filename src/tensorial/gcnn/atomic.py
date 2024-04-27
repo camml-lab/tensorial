@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
-from typing import Any, Dict, Hashable, Iterable, List, Mapping, MutableMapping, Optional, Union
+from typing import Any, Dict, Hashable, Iterable, List, Mapping, MutableMapping, Optional
 
-import e3nn_jax as e3j
-from flax import linen
+import equinox
 import jax
 import jax.numpy as jnp
 import jraph
 
 from tensorial import base
 
-from . import _graphs
+from . import _graphs, _modules
 
 ENERGY_PER_ATOM = 'energy/atom'
 TOTAL_ENERGY = 'total_energy'
@@ -37,7 +36,7 @@ def graph_from_ase(
     global_include_keys: Optional[Iterable] = tuple(),
     cell: jax.Array = None,
     pbc: jax.Array = None,
-    **kwargs
+    **kwargs,
 ) -> jraph.GraphsTuple:
     """
     Create a jraph Graph from an ase.Atoms object
@@ -115,7 +114,7 @@ def graph_from_ase(
         nodes=atoms,
         edges=edges,
         graph_globals=graph_globals,
-        **kwargs
+        **kwargs,
     )
 
 
@@ -131,68 +130,39 @@ def get_attrs(store_in: MutableMapping, get_from: Mapping, key: Hashable, key_ma
     return True
 
 
-class SpeciesTransform(linen.Module):
+class SpeciesTransform(equinox.Module):
     """Take an ordered list of species and transform them into an integer corresponding to their position in the list"""
 
     atomic_numbers: List[int]
     field: str = ATOMIC_NUMBERS
     out_field: str = ATOMIC_TYPE_IDX
 
-    def setup(self):
-        self._atomic_numbers = jnp.array(self.atomic_numbers)  # pylint: disable=attribute-defined-outside-init
+    def __init__(self, atomic_numbers, field=ATOMIC_NUMBERS, out_field=ATOMIC_TYPE_IDX):
+        self.atomic_numbers = jnp.array(atomic_numbers)  # pylint: disable=attribute-defined-outside-init
+        self.field = field
+        self.out_field = out_field
 
     def __call__(self, graph: jraph.GraphsTuple):  # pylint: disable=arguments-differ
-        vwhere = jax.vmap(lambda num: jnp.argwhere(num == self._atomic_numbers, size=1)[0])
+        vwhere = jax.vmap(lambda num: jnp.argwhere(num == self.atomic_numbers, size=1)[0])
         nodes = graph.nodes
         nodes[self.out_field] = vwhere(nodes[self.field])[:, 0]
         return graph._replace(nodes=nodes)
 
 
-class PerSpeciesRescale(linen.Module):
-    shifts: jax.Array
-    scales: jax.Array
-    field: str = ENERGY_PER_ATOM
-    out_field: Optional[str] = None
-    scales_trainable: bool = False
-    shifts_trainable: bool = False
-    atomic_type_field: str = ATOMIC_TYPE_IDX
-
-    @staticmethod
-    def construct(
-        shifts: Union[jax.Array, float],
-        scales: Union[jax.Array, float],
-        n_types: int = None,
-        field: str = ENERGY_PER_ATOM,
-        out_field: Optional[str] = None,
-        scales_trainable: bool = False,
-        shifts_trainable: bool = False,
-        atomic_type_field: str = ATOMIC_TYPE_IDX,
-    ):
-        if (isinstance(shifts, float) or isinstance(scales, float)) and n_types is None:
-            raise ValueError('If shifts or scales is a scalar, the number of types must be specified')
-
-        if isinstance(shifts, float):
-            shifts = jnp.array([shifts] * n_types)
-        if isinstance(scales, float):
-            scales = jnp.array([scales] * n_types)
-        out_field = out_field or field
-
-        return PerSpeciesRescale(
-            shifts, scales, field, out_field, scales_trainable, shifts_trainable, atomic_type_field
-        )
-
-    @linen.compact
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
-        nodes = graph.nodes
-        species_idx = nodes[self.atomic_type_field]
-        shifts = self.shifts[species_idx]
-        scales = self.scales[species_idx]
-        rescaling: e3j.IrrepsArray = nodes[self.field]
-
-        # Vectorise scaling and shifting
-        vmul = jax.vmap(jnp.multiply, (0, 0))
-        vadd = jax.vmap(jnp.add, (0, 0))
-
-        rescaled = vadd(vmul(rescaling.array, scales), shifts)
-        nodes[self.out_field] = e3j.IrrepsArray(rescaling.irreps, rescaled)
-        return graph._replace(nodes=nodes)
+def per_species_rescale(
+    num_types: int,
+    field: str,
+    types_field: str = None,
+    out_field: str = None,
+    shifts=None,
+    scales=None,
+) -> _modules.IndexedRescale:
+    types_field = types_field or ('nodes', ATOMIC_TYPE_IDX)
+    return _modules.IndexedRescale(
+        num_types,
+        index_field=types_field,
+        field=field,
+        out_field=out_field,
+        shifts=shifts,
+        scales=scales,
+    )

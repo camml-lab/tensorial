@@ -2,7 +2,7 @@
 import jax.numpy as jnp
 import jraph
 
-from tensorial.gcnn import _modules
+from tensorial.gcnn import _modules as modules
 
 
 def test_rescale(rng_key):
@@ -40,17 +40,17 @@ def test_rescale(rng_key):
         globals=global_context,
     )
 
-    rescale = _modules.Rescale(shift_fields='nodes.vals', shift=shift)
+    rescale = modules.Rescale(shift_fields='nodes.vals', shift=shift)
     params = rescale.init(rng_key, graph)
     out = rescale.apply(params, graph)
     assert jnp.all(out.nodes['vals'] == vals + shift)
 
-    rescale = _modules.Rescale(scale_fields='nodes.vals', scale=scale)
+    rescale = modules.Rescale(scale_fields='nodes.vals', scale=scale)
     params = rescale.init(rng_key, graph)
     out = rescale.apply(params, graph)
     assert jnp.all(out.nodes['vals'] == vals * scale)
 
-    rescale = _modules.Rescale(scale_fields='nodes.vals', shift_fields='nodes.vals', scale=scale, shift=shift)
+    rescale = modules.Rescale(scale_fields='nodes.vals', shift_fields='nodes.vals', scale=scale, shift=shift)
     params = rescale.init(rng_key, graph)
     out = rescale.apply(params, graph)
     assert jnp.all(out.nodes['vals'] == vals * scale + shift)

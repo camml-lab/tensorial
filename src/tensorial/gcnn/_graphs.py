@@ -24,7 +24,7 @@ def graph_from_points(
     fractional_positions: bool = False,
     self_interaction: bool = False,
     strict_self_interaction: bool = True,
-    cell: jax.Array = None,
+    cell: jax.typing.ArrayLike = None,
     pbc: Optional[Union[bool, Tuple[bool, bool, bool]]] = None,
     nodes: Dict = None,
     edges: Dict = None,
