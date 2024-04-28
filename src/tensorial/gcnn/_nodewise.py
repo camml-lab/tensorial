@@ -3,13 +3,12 @@ from typing import Optional, Union
 
 import e3nn_jax as e3j
 from flax import linen
-import jax
-import jax.numpy as jnp
 import jraph
+from pytray import tree
 
 import tensorial
 
-from . import keys
+from . import _common, keys, utils
 
 __all__ = 'NodewiseLinear', 'NodewiseReduce', 'NodewiseEncoding', 'NodewiseDecoding'
 
@@ -49,7 +48,8 @@ class NodewiseReduce(linen.Module):
         if self.reduce not in ('sum', 'mean', 'normalized_sum'):
             raise ValueError(self.reduce)
 
-        self._out_field = self.out_field or f'{self.reduce}_self.{self.field}'
+        self._field = ('nodes',) + utils.path_from_str(self.field if self.field is not None else tuple())
+        self._out_field = ('globals',) + utils.path_from_str(self.out_field or f'{self.reduce}_self.{self.field}')
 
         if self.reduce == 'normalized_sum':
             if self.average_num_atoms is None:
@@ -61,21 +61,12 @@ class NodewiseReduce(linen.Module):
             self._reduce = self.reduce
 
     def __call__(self, graph: jraph.GraphsTuple, key=None) -> jraph.GraphsTuple:
-        inputs = graph.nodes[self.field] if self.field is not None else graph.nodes
-
-        # this aggregation follows jraph/_src/models.py
-        n_graph = graph.n_node.shape[0]
-        graph_idx = jnp.arange(n_graph)
-        sum_n_node = jax.tree_util.tree_leaves(graph.nodes)[0].shape[0]
-        node_gr_idx = jnp.repeat(graph_idx, graph.n_node, axis=0, total_repeat_length=sum_n_node)
-
-        reduced = jax.tree_util.tree_map(lambda n: jraph.segment_sum(n, node_gr_idx, n_graph), inputs)
-
-        globals_dict = graph.globals or {}
-        globals_dict[self._out_field] = reduced
-        replacements = dict(globals=globals_dict)
-
-        return graph._replace(**replacements)
+        reduced = self.constant * _common.reduce(graph, self._field, self._reduce)
+        updates = utils.UpdateDict(graph._asdict())
+        if updates['globals'] is None:
+            updates['globals'] = dict()
+        tree.set_by_path(updates, self._out_field, reduced)
+        return jraph.GraphsTuple(**updates._asdict())
 
 
 class NodewiseEncoding(linen.Module):

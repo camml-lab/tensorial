@@ -167,7 +167,8 @@ def test_nodewise_decoding(rng_key):
     assert out_graph.nodes[out_field].shape == (n_nodes, 3, 3)
 
 
-def test_nodewise_reduce(rng_key):
+@pytest.mark.parametrize('jit', (True, False))
+def test_nodewise_reduce(jit, rng_key):
     in_field: Final[str] = 'in'
     out_field: Final[str] = 'out'
     n_nodes = 5
@@ -186,7 +187,8 @@ def test_nodewise_reduce(rng_key):
 
     decoding = gcnn.NodewiseReduce(field=in_field, out_field=out_field)
     params = decoding.init(random.PRNGKey(0), graph)
-    out_graph = decoding.apply(params, graph)
+    apply = decoding.apply if jit is False else jax.jit(decoding.apply)
+    out_graph = apply(params, graph)
 
     assert out_field in out_graph.globals
     assert isinstance(out_graph.globals[out_field], jax.Array)
