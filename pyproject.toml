@@ -33,6 +33,7 @@ dependencies = [
     'pytray',
     'e3nn-jax',
     "equinox",
+    "tensorboardX",
 ]
 
 [project.urls]
