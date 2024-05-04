@@ -7,13 +7,15 @@ import jraph
 
 from . import _interaction_blocks, keys
 
-__all__ = ('NequipLayer',)
+__all__ = ("NequipLayer",)
 
 
 class NequipLayer(linen.Module):
-    """NequIP convolution layer.
+    """
+    NequIP convolution layer.
 
-    Implementation based on: https://github.com/mir-group/nequip/blob/main/nequip/nn/_convnetlayer.py
+    Implementation based on:
+    https://github.com/mir-group/nequip/blob/main/nequip/nn/_convnetlayer.py
     """
 
     irreps_out: e3j.Irreps
@@ -22,7 +24,7 @@ class NequipLayer(linen.Module):
     # Radial
     radial_num_layers: int = 1
     radial_num_neurons: int = 8
-    radial_activation: str = 'swish'
+    radial_activation: str = "swish"
 
     avg_num_neighbours: int = 1.0
     activations: Union[str, Dict[str, str]] = _interaction_blocks.DEFAULT_ACTIVATIONS
@@ -46,7 +48,9 @@ class NequipLayer(linen.Module):
         )
 
     @linen.compact
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(
+        self, graph: jraph.GraphsTuple
+    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         """
         # Apply a standard NequIP layer followed by an optional resnet step
 
@@ -60,7 +64,7 @@ class NequipLayer(linen.Module):
             graph.senders,
             graph.receivers,
             graph.nodes.get(keys.SPECIES),
-            edge_mask=graph.edges.get(keys.DEFAULT_PAD_MASK_FIELD, None)
+            edge_mask=graph.edges.get(keys.DEFAULT_PAD_MASK_FIELD, None),
         )
 
         # If enabled, perform ResNet operation by adding back the old node features

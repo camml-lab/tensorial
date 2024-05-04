@@ -79,7 +79,9 @@ class E3nnRadial(RadialBasis):
 
 
 class E3nnPolyEnvelope(RadialBasis):
-    """Polynomial envelope that can be used to make a radial basis smoothly approach zero at the cutoff"""
+    """
+    Polynomial envelope that can be used to make a radial basis smoothly approach zero at the cutoff
+    """
 
     _radials: RadialBasis
     _smoothing_start: float
@@ -91,8 +93,8 @@ class E3nnPolyEnvelope(RadialBasis):
 
         if smoothing_start < basis.domain[0] or smoothing_start > basis.domain[1]:
             raise ValueError(
-                f'The start of the smoothing envelope ({smoothing_start}) must be within the domain ({basis.domain}) '
-                f'of the radial basis'
+                f"The start of the smoothing envelope ({smoothing_start}) must be within the "
+                f"domain ({basis.domain}) of the radial basis"
             )
 
         self._radials = basis
@@ -105,8 +107,11 @@ class E3nnPolyEnvelope(RadialBasis):
         mask = radius >= self._smoothing_start
         # Calculate the envelope for r values in the masked range
         envelope = self._envelope(radius[mask] - self._smoothing_start)
-        # Multiply the values by the envelope, expanding the envelope to repeat by the number of radials
-        values = values.at[mask].set(values[mask, :] * envelope[:, jnp.newaxis].repeat(self.number, axis=1))
+        # Multiply the values by the envelope, expanding the envelope to repeat by the number of
+        # radials
+        values = values.at[mask].set(
+            values[mask, :] * envelope[:, jnp.newaxis].repeat(self.number, axis=1)
+        )
         return values
 
 

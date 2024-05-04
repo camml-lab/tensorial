@@ -2,4 +2,4 @@
 
 from . import functions
 
-__all__ = ('functions',)
+__all__ = ("functions",)

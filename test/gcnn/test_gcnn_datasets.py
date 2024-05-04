@@ -42,9 +42,18 @@ def test_generate_batches_with_mask():
     padded = tuple(datasets.generated_padded_graphs(batches, add_mask=True))
     for batch_idx in (0, -1):
         batch = padded[batch_idx]
-        assert jnp.all(batch.inputs.globals[keys.DEFAULT_PAD_MASK_FIELD] == jraph.get_graph_padding_mask(batch.inputs))
-        assert jnp.all(batch.inputs.nodes[keys.DEFAULT_PAD_MASK_FIELD] == jraph.get_node_padding_mask(batch.inputs))
-        assert jnp.all(batch.inputs.edges[keys.DEFAULT_PAD_MASK_FIELD] == jraph.get_edge_padding_mask(batch.inputs))
+        assert jnp.all(
+            batch.inputs.globals[keys.DEFAULT_PAD_MASK_FIELD]
+            == jraph.get_graph_padding_mask(batch.inputs)
+        )
+        assert jnp.all(
+            batch.inputs.nodes[keys.DEFAULT_PAD_MASK_FIELD]
+            == jraph.get_node_padding_mask(batch.inputs)
+        )
+        assert jnp.all(
+            batch.inputs.edges[keys.DEFAULT_PAD_MASK_FIELD]
+            == jraph.get_edge_padding_mask(batch.inputs)
+        )
 
 
 def test_create_batches():
@@ -55,7 +64,7 @@ def test_create_batches():
 
     batches = tuple(datasets.generate_batches(batch_size, inputs))
     assert len(batches) == num_batches
-    for inputs, _outputs in batches[:num_batches - 1]:
+    for inputs, _outputs in batches[: num_batches - 1]:
         assert len(inputs.n_node) == batch_size
 
     # Check the last batch has the remainder
@@ -79,7 +88,7 @@ def test_add_pading_mask():
     num_nodes = 3
     graph = utils.random_spatial_graph(num_nodes, cutoff=3)
     num_edges = graph.n_edge[0].item()
-    mask_field = 'my_mask'
+    mask_field = "my_mask"
 
     padded = jraph.pad_with_graphs(graph, num_nodes + 1, num_edges + 1, 2)
     assert len(padded.n_node) == 2

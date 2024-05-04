@@ -26,7 +26,14 @@ from ._nodewise import *
 from .losses import *
 
 __all__ = (
-    _base.__all__ + _common.__all__ + _convnetlayers.__all__ + _edgewise.__all__ + _graphwise.__all__ +
-    _nodewise.__all__ + _graphs.__all__ + _modules.__all__ + losses.__all__ +
-    ('atomic', 'keys', 'datasets', 'metrics', 'losses', 'utils')
+    _base.__all__
+    + _common.__all__
+    + _convnetlayers.__all__
+    + _edgewise.__all__
+    + _graphwise.__all__
+    + _nodewise.__all__
+    + _graphs.__all__
+    + _modules.__all__
+    + losses.__all__
+    + ("atomic", "keys", "datasets", "metrics", "losses", "utils")
 )

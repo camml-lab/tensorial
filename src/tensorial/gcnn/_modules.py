@@ -14,14 +14,15 @@ from . import utils
 
 _LOGGER = logging.getLogger(__name__)
 
-__all__ = 'Rescale', 'IndexedLinear', 'IndexedRescale'
+__all__ = "Rescale", "IndexedLinear", "IndexedRescale"
 
 
 class Rescale(linen.Module):
-    """Rescale and shift any attributes of a graph by constants.  This can be applied to either nodes, edges, or globals
-    by specifying the shift_fields and scale_fields e.g.:
+    """
+    Rescale and shift any attributes of a graph by constants.  This can be applied to either
+    nodes, edges, or globals by specifying the shift_fields and scale_fields e.g.:
 
-        Rescale(shift_fields='nodes.energy', shift=12.5)
+    >>> Rescale(shift_fields='nodes.energy', shift=12.5)
 
     will shift the energy attribute of the nodes by 12.5.
     Note that if the field is missing from the graph, then this module will ignore it.
@@ -34,24 +35,30 @@ class Rescale(linen.Module):
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
-        shift_fields = (self.shift_fields if not isinstance(self.shift_fields, str) else [self.shift_fields])
-        scale_fields = (self.scale_fields if not isinstance(self.scale_fields, str) else [self.scale_fields])
+        shift_fields = (
+            self.shift_fields if not isinstance(self.shift_fields, str) else [self.shift_fields]
+        )
+        scale_fields = (
+            self.scale_fields if not isinstance(self.scale_fields, str) else [self.scale_fields]
+        )
 
         self._shift_fields = tuple(map(utils.path_from_str, shift_fields))
         self._scale_fields = tuple(map(utils.path_from_str, scale_fields))
 
         if self.shift != 0.0:
             for path in self._shift_fields:
-                if path[0] == 'globals':
+                if path[0] == "globals":
                     _LOGGER.warning(
-                        'Setting global shift %s to %d, this field will no longer be size extensive with '
-                        'the number of nodes/edges',
+                        "Setting global shift %s to %d, this field will no longer be size "
+                        "extensive with the number of nodes/edges",
                         utils.path_to_str(path),
                         self.shift,
                     )
 
     @linen.compact
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(
+        self, graph: jraph.GraphsTuple
+    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         graph_dict = utils.UpdateDict(graph._asdict())
 
         # Scale first
@@ -88,17 +95,25 @@ class IndexedRescale(linen.Module):
         # pylint: disable=attribute-defined-outside-init
         self._index_field = utils.path_from_str(self.index_field)
         self._field = utils.path_from_str(self.field)
-        self._out_field = self._field if self.out_field is None else utils.path_from_str(self.out_field)
+        self._out_field = (
+            self._field if self.out_field is None else utils.path_from_str(self.out_field)
+        )
 
-        self._scales = self.param(
-            'scales',
-            self.rescale_init,
-            (self.num_types, 1),
-        ) if self.scales is None else self._to_array(self.scales, self.num_types)
+        self._scales = (
+            self.param(
+                "scales",
+                self.rescale_init,
+                (self.num_types, 1),
+            )
+            if self.scales is None
+            else self._to_array(self.scales, self.num_types)
+        )
 
-        self._shifts = self.param('shifts', self.shift_init,
-                                  (self.num_types,
-                                   )) if self.shifts is None else self._to_array(self.shifts, self.num_types)
+        self._shifts = (
+            self.param("shifts", self.shift_init, (self.num_types,))
+            if self.shifts is None
+            else self._to_array(self.shifts, self.num_types)
+        )
 
         # assert self._scales.shape == self._shifts.shape
 
@@ -117,7 +132,9 @@ class IndexedRescale(linen.Module):
         # Get the shifts and scales
         scales = jnp.take(self._scales, indexes)
         shifts = jnp.take(self._shifts, indexes)
-        outs = jax.vmap(lambda inp, scale, shift: inp * scale + shift, (0, 0, 0))(inputs, scales, shifts)
+        outs = jax.vmap(lambda inp, scale, shift: inp * scale + shift, (0, 0, 0))(
+            inputs, scales, shifts
+        )
         if output_irreps is not None:
             outs = e3j.IrrepsArray(output_irreps, outs)
 
@@ -131,8 +148,8 @@ class IndexedRescale(linen.Module):
 
 class IndexedLinear(linen.Module):
     """
-    Applies a linear transform to a an array of values where a separate index array determines which linear layer the
-    value gets passed to.  Weights are per index.
+    Applies a linear transform to an array of values where a separate index array determines which
+    linear layer the value gets passed to.  Weights are per index.
     """
 
     irreps_out: Union[str, e3j.Irreps]
@@ -143,7 +160,9 @@ class IndexedLinear(linen.Module):
     name: str = None
 
     @linen.compact
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(
+        self, graph: jraph.GraphsTuple
+    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         index_field = utils.path_from_str(self.index_field)
         field = utils.path_from_str(self.field)
         out_field = field if self.out_field is None else utils.path_from_str(self.out_field)

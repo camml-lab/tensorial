@@ -10,7 +10,7 @@ import tensorial
 
 from . import _common, keys, utils
 
-__all__ = 'NodewiseLinear', 'NodewiseReduce', 'NodewiseEncoding', 'NodewiseDecoding'
+__all__ = "NodewiseLinear", "NodewiseReduce", "NodewiseEncoding", "NodewiseDecoding"
 
 
 class NodewiseLinear(linen.Module):
@@ -40,22 +40,26 @@ class NodewiseReduce(linen.Module):
 
     field: str
     out_field: Optional[str] = None
-    reduce: str = 'sum'
+    reduce: str = "sum"
     average_num_atoms: float = None
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
-        if self.reduce not in ('sum', 'mean', 'normalized_sum'):
+        if self.reduce not in ("sum", "mean", "normalized_sum"):
             raise ValueError(self.reduce)
 
-        self._field = ('nodes',) + utils.path_from_str(self.field if self.field is not None else tuple())
-        self._out_field = ('globals',) + utils.path_from_str(self.out_field or f'{self.reduce}_self.{self.field}')
+        self._field = ("nodes",) + utils.path_from_str(
+            self.field if self.field is not None else tuple()
+        )
+        self._out_field = ("globals",) + utils.path_from_str(
+            self.out_field or f"{self.reduce}_self.{self.field}"
+        )
 
-        if self.reduce == 'normalized_sum':
+        if self.reduce == "normalized_sum":
             if self.average_num_atoms is None:
                 raise ValueError(self.average_num_atoms)
-            self.constant = float(self.average_num_atoms)**-0.5
-            self._reduce = 'sum'
+            self.constant = float(self.average_num_atoms) ** -0.5
+            self._reduce = "sum"
         else:
             self.constant = 1.0
             self._reduce = self.reduce
@@ -63,23 +67,23 @@ class NodewiseReduce(linen.Module):
     def __call__(self, graph: jraph.GraphsTuple, key=None) -> jraph.GraphsTuple:
         reduced = self.constant * _common.reduce(graph, self._field, self._reduce)
         updates = utils.UpdateDict(graph._asdict())
-        if updates['globals'] is None:
-            updates['globals'] = dict()
+        if updates["globals"] is None:
+            updates["globals"] = dict()
         tree.set_by_path(updates, self._out_field, reduced)
         return jraph.GraphsTuple(**updates._asdict())
 
 
 class NodewiseEncoding(linen.Module):
     """
-    Take the attributes in the nodes dictionary given by attrs, encode them, and store the results as a direct sum
-    of irreps in the out_field.
+    Take the attributes in the nodes dictionary given by attrs, encode them, and store the results
+    as a direct sum of irreps in the out_field.
     """
 
     attrs: tensorial.IrrepsTree
     out_field: str = keys.ATTRIBUTES
 
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
-        print(f'JAX compiling {self.__class__.__name__}')
+        print(f"JAX compiling {self.__class__.__name__}")
 
         # Create the encoding
         encoded = tensorial.create_tensor(self.attrs, graph.nodes)
@@ -91,8 +95,8 @@ class NodewiseEncoding(linen.Module):
 
 class NodewiseDecoding(linen.Module):
     """
-    Decode the direct sum of irreps stored in the in_field and store each tensor as a node value with key coming from
-    the attrs.
+    Decode the direct sum of irreps stored in the in_field and store each tensor as a node value
+    with key coming from the attrs.
     """
 
     attrs: tensorial.IrrepsTree
@@ -106,7 +110,7 @@ class NodewiseDecoding(linen.Module):
         irreps_tensor = nodes_dict[self.in_field]
         for key, value in tensorial.tensorial_attrs(self.attrs).items():
             irreps = tensorial.irreps(value)
-            tensor_slice = irreps_tensor[..., idx:idx + irreps.dim]
+            tensor_slice = irreps_tensor[..., idx : idx + irreps.dim]
             nodes_dict[key] = tensorial.from_tensor(value, tensor_slice)
             idx += irreps.dim
 

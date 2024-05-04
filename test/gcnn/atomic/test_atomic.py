@@ -11,12 +11,12 @@ from tensorial.gcnn import atomic
 
 @pytest.fixture
 def ase_cubic_si() -> ase.Atoms:
-    return ase.build.bulk('Si', 'sc', a=1.0)
+    return ase.build.bulk("Si", "sc", a=1.0)
 
 
 @pytest.fixture
 def h2coh() -> ase.Atoms:
-    return ase.build.molecule('H2COH')
+    return ase.build.molecule("H2COH")
 
 
 def test_graph_from_ase(ase_cubic_si):  # pylint: disable=redefined-outer-name
@@ -45,28 +45,34 @@ def test_species_transform(h2coh: ase.Atoms):  # pylint: disable=redefined-outer
     # out = transform.apply(params, graph)
     out = transform(graph)
 
-    transformed = jnp.array(list(map(
-        atomic_numbers.index,
-        h2coh.numbers,
-    )))
+    transformed = jnp.array(
+        list(
+            map(
+                atomic_numbers.index,
+                h2coh.numbers,
+            )
+        )
+    )
     assert out.nodes[transform.out_field].shape == (num_atoms,)
     assert jnp.all(out.nodes[transform.out_field] == transformed)
 
 
 def test_per_species_rescale():
-    molecule = ase.build.molecule('SiH4')
+    molecule = ase.build.molecule("SiH4")
     types = list(set(molecule.get_atomic_numbers()))
     energies = np.random.rand(len(molecule))
     molecule.arrays[atomic.ENERGY_PER_ATOM] = energies
 
-    molecule_graph = atomic.graph_from_ase(molecule, r_max=2.0, atom_include_keys=('numbers', atomic.ENERGY_PER_ATOM))
+    molecule_graph = atomic.graph_from_ase(
+        molecule, r_max=2.0, atom_include_keys=("numbers", atomic.ENERGY_PER_ATOM)
+    )
     # Update the graph with the type indexes
     species_transform = atomic.SpeciesTransform(types)
     molecule_graph = species_transform(molecule_graph)
 
     rescale = atomic.per_species_rescale(
         len(types),
-        field=f'nodes.{atomic.ENERGY_PER_ATOM}',
+        field=f"nodes.{atomic.ENERGY_PER_ATOM}",
     )
     params = rescale.init(jax.random.key(0), molecule_graph)
     rescaled = rescale.apply(params, molecule_graph)

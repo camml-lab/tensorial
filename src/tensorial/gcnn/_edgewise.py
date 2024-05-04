@@ -10,7 +10,13 @@ import tensorial
 
 from . import _graphs, keys
 
-__all__ = 'EdgewiseLinear', 'EdgewiseDecoding', 'EdgewiseEncoding', 'RadialBasisEdgeEncoding', 'EdgeVectors'
+__all__ = (
+    "EdgewiseLinear",
+    "EdgewiseDecoding",
+    "EdgewiseEncoding",
+    "RadialBasisEdgeEncoding",
+    "EdgeVectors",
+)
 
 
 class EdgewiseLinear(linen.Module):
@@ -39,7 +45,9 @@ class EdgewiseEncoding(linen.Module):
     attrs: tensorial.IrrepsTree
     out_field: str = keys.ATTRIBUTES
 
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(
+        self, graph: jraph.GraphsTuple
+    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         # Create the encoding
         encoded = tensorial.create_tensor(self.attrs, graph.edges)
         # Store in output field
@@ -50,8 +58,8 @@ class EdgewiseEncoding(linen.Module):
 
 class EdgewiseDecoding(linen.Module):
     """
-    Decode the direct sum of irreps stored in the in_field and store each tensor as a node value with key coming from
-    the attrs.
+    Decode the direct sum of irreps stored in the in_field and store each tensor as a node value
+    with key coming from the attrs.
     """
 
     attrs: tensorial.IrrepsTree
@@ -65,7 +73,7 @@ class EdgewiseDecoding(linen.Module):
         irreps_tensor = edges_dict[self.in_field]
         for key, value in tensorial.tensorial_attrs(self.attrs).items():
             irreps = tensorial.irreps(value)
-            tensor_slice = irreps_tensor[..., idx:idx + irreps.dim]
+            tensor_slice = irreps_tensor[..., idx : idx + irreps.dim]
             edges_dict[key] = tensorial.from_tensor(value, tensor_slice)
             idx += irreps.dim
 
@@ -86,15 +94,22 @@ class RadialBasisEdgeEncoding(linen.Module):
             n=self.num_basis,
         )
 
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(
+        self, graph: jraph.GraphsTuple
+    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         edge_dict = _graphs.with_edge_vectors(graph).edges
         edge_dict[self.out_field] = self.radial_embedding(edge_dict[keys.EDGE_LENGTHS][:, 0])
         return graph._replace(edges=edge_dict)
 
 
 class EdgeVectors(linen.Module):
-    """Create edge vectors from atomic positions.  This will take into account the unit cell (if present)"""
+    """
+    Create edge vectors from atomic positions.  This will take into account the unit cell
+    (if present)
+    """
 
     @linen.compact
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(
+        self, graph: jraph.GraphsTuple
+    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         return _graphs.with_edge_vectors(graph, with_lengths=True)

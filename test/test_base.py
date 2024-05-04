@@ -10,9 +10,9 @@ import tensorial
 class Particle(tensorial.IrrepsObj):
     """Class for a particle with some attributes"""
 
-    pos = e3j.Irreps('1e')
-    mass = tensorial.Attr('0e')
-    shielding = tensorial.CartesianTensor('ij=ji', i='1e')
+    pos = e3j.Irreps("1e")
+    mass = tensorial.Attr("0e")
+    shielding = tensorial.CartesianTensor("ij=ji", i="1e")
 
 
 def test_basics():
@@ -26,8 +26,8 @@ def test_basics():
 
     # Test creating a tensor and extracting values
     tensor = tensorial.create_tensor(Particle, dict(pos=pos, mass=mass, shielding=shielding))
-    assert jnp.allclose(tensorial.get(Particle, tensor, 'pos').array, pos)
-    assert jnp.allclose(tensorial.get(Particle, tensor, 'mass').array[0].item(), mass)
+    assert jnp.allclose(tensorial.get(Particle, tensor, "pos").array, pos)
+    assert jnp.allclose(tensorial.get(Particle, tensor, "mass").array[0].item(), mass)
     # assert jnp.allclose(tensorial.get(Particle, tensor, "shielding"), shielding)
 
     # Test getting whole tensor
@@ -36,8 +36,8 @@ def test_basics():
 
 def test_cartesian_tensor():
     key = jax.random.PRNGKey(0)
-    irreps = e3j.Irreps('1o')
-    cart = tensorial.CartesianTensor('ij=ji', i=irreps)
+    irreps = e3j.Irreps("1o")
+    cart = tensorial.CartesianTensor("ij=ji", i=irreps)
 
     # Let's create a random Cartesian tensor
     cart_tensor = jax.random.uniform(key, (irreps.dim, irreps.dim))

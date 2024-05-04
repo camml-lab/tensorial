@@ -10,28 +10,28 @@ from tensorial import base
 
 from . import _graphs, _modules
 
-ENERGY_PER_ATOM = 'energy/atom'
-TOTAL_ENERGY = 'total_energy'
-FORCES = 'forces'
-STRESS = 'stress'
-VIRIAL = 'virial'
-PBC = 'pbc'
-ATOMIC_NUMBERS = 'atomic_numbers'
-ATOMIC_TYPE_IDX = 'atomic_type_idx'
+ENERGY_PER_ATOM = "energy/atom"
+TOTAL_ENERGY = "total_energy"
+FORCES = "forces"
+STRESS = "stress"
+VIRIAL = "virial"
+PBC = "pbc"
+ATOMIC_NUMBERS = "atomic_numbers"
+ATOMIC_TYPE_IDX = "atomic_type_idx"
 
 # Global quantities
-ASE_GLOBAL_KEYS = {'energy', 'free_energy', 'stress', 'magmom'}
+ASE_GLOBAL_KEYS = {"energy", "free_energy", "stress", "magmom"}
 # Per-atom quantities
-ASE_ATOM_KEYS = {'numbers', 'forces', 'stresses', 'charges', 'magmoms', 'energies'}
+ASE_ATOM_KEYS = {"numbers", "forces", "stresses", "charges", "magmoms", "energies"}
 
 PyTree = Any
 
 
 def graph_from_ase(
-    ase_atoms: 'ase.atoms.Atoms',
+    ase_atoms: "ase.atoms.Atoms",
     r_max: float,
     key_mapping: Optional[Dict[str, str]] = None,
-    atom_include_keys: Optional[Iterable] = ('numbers',),
+    atom_include_keys: Optional[Iterable] = ("numbers",),
     edge_include_keys: Optional[Iterable] = tuple(),
     global_include_keys: Optional[Iterable] = tuple(),
     cell: jax.Array = None,
@@ -47,7 +47,8 @@ def graph_from_ase(
     :param atom_include_keys:
     :param global_include_keys:
     :param cell: an optional unit cell (otherwise will be taken from ase.cell)
-    :param pbc: an optional periodic boundary conditions array [bool, bool, bool] (otherwise will be taken from ase.pbc)
+    :param pbc: an optional periodic boundary conditions array [bool, bool, bool] (otherwise will be
+        taken from ase.pbc)
     :return:
     """
     # pylint: disable=too-many-branches
@@ -56,9 +57,9 @@ def graph_from_ase(
 
     key_mapping = key_mapping or {}
     _key_mapping = {
-        'forces': FORCES,
-        'energy': TOTAL_ENERGY,
-        'numbers': ATOMIC_NUMBERS,
+        "forces": FORCES,
+        "energy": TOTAL_ENERGY,
+        "numbers": ATOMIC_NUMBERS,
     }
     _key_mapping.update(key_mapping)
     key_mapping = _key_mapping
@@ -81,7 +82,9 @@ def graph_from_ase(
             ase_atoms.calc,
             (singlepoint.SinglePointCalculator, singlepoint.SinglePointDFTCalculator),
         ):
-            raise NotImplementedError(f'`from_ase` does not support calculator {type(ase_atoms.calc).__name__}')
+            raise NotImplementedError(
+                f"`from_ase` does not support calculator {type(ase_atoms.calc).__name__}"
+            )
 
         for key, val in ase_atoms.calc.results.items():
             if key in atom_include_keys:
@@ -99,7 +102,7 @@ def graph_from_ase(
                 # In Voigt order
                 graph_globals[key] = ase.stress.voigt_6_to_full_3x3_stress(graph_globals[key])
             else:
-                raise RuntimeError(f'Unexpected shape for {key}, got: {graph_globals[key].shape}')
+                raise RuntimeError(f"Unexpected shape for {key}, got: {graph_globals[key].shape}")
 
     # cell and pbc in kwargs can override the ones stored in atoms
     cell = cell or ase_atoms.get_cell()
@@ -131,14 +134,19 @@ def get_attrs(store_in: MutableMapping, get_from: Mapping, key: Hashable, key_ma
 
 
 class SpeciesTransform(equinox.Module):
-    """Take an ordered list of species and transform them into an integer corresponding to their position in the list"""
+    """
+    Take an ordered list of species and transform them into an integer corresponding to their
+    position in the list
+    """
 
     atomic_numbers: List[int]
     field: str = ATOMIC_NUMBERS
     out_field: str = ATOMIC_TYPE_IDX
 
     def __init__(self, atomic_numbers, field=ATOMIC_NUMBERS, out_field=ATOMIC_TYPE_IDX):
-        self.atomic_numbers = jnp.array(atomic_numbers)  # pylint: disable=attribute-defined-outside-init
+        self.atomic_numbers = jnp.array(
+            atomic_numbers
+        )  # pylint: disable=attribute-defined-outside-init
         self.field = field
         self.out_field = out_field
 
@@ -157,7 +165,7 @@ def per_species_rescale(
     shifts=None,
     scales=None,
 ) -> _modules.IndexedRescale:
-    types_field = types_field or ('nodes', ATOMIC_TYPE_IDX)
+    types_field = types_field or ("nodes", ATOMIC_TYPE_IDX)
     return _modules.IndexedRescale(
         num_types,
         index_field=types_field,

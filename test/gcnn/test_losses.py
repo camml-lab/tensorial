@@ -25,15 +25,15 @@ def graph_batch() -> jraph.GraphsTuple:
     graphs = []
     for i in range(NUM_GRAPHS):
         graph_globals = {
-            'energy': jnp.array([ENERGY_TARGETS[i]]),
-            'energy_prediction': jnp.array([ENERGY_PREDICTIONS[i]])
+            "energy": jnp.array([ENERGY_TARGETS[i]]),
+            "energy_prediction": jnp.array([ENERGY_PREDICTIONS[i]]),
         }
         graphs.append(
             jraph.GraphsTuple(
                 nodes={
-                    'forces': jnp.array(FORCE_TARGETS[i]),
-                    'force_predictions': jnp.array(FORCE_PREDICTIONS[i]),
-                    'mask': jnp.array(FORCE_MASKS[i]),
+                    "forces": jnp.array(FORCE_TARGETS[i]),
+                    "force_predictions": jnp.array(FORCE_PREDICTIONS[i]),
+                    "mask": jnp.array(FORCE_MASKS[i]),
                 },
                 edges={},
                 receivers=jnp.array([]),
@@ -47,21 +47,26 @@ def graph_batch() -> jraph.GraphsTuple:
     return jraph.batch(graphs)
 
 
-@pytest.mark.parametrize('jit', [True, False])
+@pytest.mark.parametrize("jit", [True, False])
 def test_loss(jit, graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
-    loss_fn = losses.Loss('globals.energy_prediction', 'globals.energy', optax_loss)
+    loss_fn = losses.Loss("globals.energy_prediction", "globals.energy", optax_loss)
     if jit:
         loss_fn = jax.jit(loss_fn)
 
     loss = loss_fn(graph_batch)
-    assert jnp.isclose(loss, optax_loss(graph_batch.globals['energy_prediction'], graph_batch.globals['energy']).mean())
+    assert jnp.isclose(
+        loss,
+        optax_loss(graph_batch.globals["energy_prediction"], graph_batch.globals["energy"]).mean(),
+    )
 
 
-@pytest.mark.parametrize('jit', [True, False])
+@pytest.mark.parametrize("jit", [True, False])
 def test_masked_loss(jit, graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
-    loss_fn = losses.Loss('nodes.force_predictions', 'nodes.forces', optax_loss, mask_field='nodes.mask')
+    loss_fn = losses.Loss(
+        "nodes.force_predictions", "nodes.forces", optax_loss, mask_field="nodes.mask"
+    )
     if jit:
         loss_fn = jax.jit(loss_fn)
 
@@ -69,19 +74,19 @@ def test_masked_loss(jit, graph_batch: jraph.GraphsTuple):
     assert jnp.isclose(
         loss,
         optax_loss(
-            graph_batch.nodes['force_predictions'][graph_batch.nodes['mask']],
-            graph_batch.nodes['forces'][graph_batch.nodes['mask']]
-        ).mean()
+            graph_batch.nodes["force_predictions"][graph_batch.nodes["mask"]],
+            graph_batch.nodes["forces"][graph_batch.nodes["mask"]],
+        ).mean(),
     )
 
 
-@pytest.mark.parametrize('jit', [True, False])
+@pytest.mark.parametrize("jit", [True, False])
 def test_weighted_loss(jit, graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
-    weights = [1., 10.]
+    weights = [1.0, 10.0]
     loss_fns = [
-        losses.Loss('globals.energy_prediction', 'globals.energy', loss_fn=optax_loss),
-        losses.Loss('nodes.force_predictions', 'nodes.forces', loss_fn=optax_loss)
+        losses.Loss("globals.energy_prediction", "globals.energy", loss_fn=optax_loss),
+        losses.Loss("nodes.force_predictions", "nodes.forces", loss_fn=optax_loss),
     ]
 
     loss_fn = losses.WeightedLoss(weights, loss_fns)
@@ -89,23 +94,26 @@ def test_weighted_loss(jit, graph_batch: jraph.GraphsTuple):
         loss_fn = jax.jit(loss_fn)
 
     loss = loss_fn(graph_batch)
-    total_loss = jnp.dot(jnp.array(weights), jnp.array(list(loss_fn(graph_batch) for loss_fn in loss_fns)))
+    total_loss = jnp.dot(
+        jnp.array(weights),
+        jnp.array(list(loss_fn(graph_batch) for loss_fn in loss_fns)),
+    )
 
     assert jnp.isclose(loss, total_loss)
 
 
-@pytest.mark.parametrize('jit', [True, False])
+@pytest.mark.parametrize("jit", [True, False])
 def test_loss_with_padding(jit, graph_batch: jraph.GraphsTuple):
     padded = jraph.pad_with_graphs(
         graph_batch,
         num_nodes(graph_batch) + 1,
         num_edges(graph_batch) + 1,
-        num_graphs(graph_batch) + 1
+        num_graphs(graph_batch) + 1,
     )
     padded = gcnn.datasets.add_padding_mask(padded)
 
     optax_loss = optax.squared_error
-    loss_fn = losses.Loss('globals.energy_prediction', 'globals.energy', optax_loss)
+    loss_fn = losses.Loss("globals.energy_prediction", "globals.energy", optax_loss)
     if jit:
         loss_fn = jax.jit(loss_fn)
 

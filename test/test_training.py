@@ -24,7 +24,8 @@ def test_trainer(rng_key):
     params = model.init(keys[2], train[0, 0])
 
     metrics = clu.metrics.Collection.create(
-        loss=clu.metrics.Average.from_output('loss'), loss_std=clu.metrics.Std.from_output('loss')
+        loss=clu.metrics.Average.from_output("loss"),
+        loss_std=clu.metrics.Std.from_output("loss"),
     )
 
     trainer = training.Trainer(
@@ -34,18 +35,18 @@ def test_trainer(rng_key):
         validate_data=validate,
         opt=optax.adam(learning_rate=1e-4),
         loss_fn=lambda x_pred, x_label: optax.losses.squared_error(x_pred, x_label).mean(),
-        metrics=metrics
+        metrics=metrics,
     )
 
     num_epochs = 10
     assert trainer.train(max_epochs=num_epochs) == training.TRAIN_MAX_EPOCHS
     assert trainer.epoch == num_epochs
     # Check that metrics have been computed for teh last step
-    assert 'loss' in trainer.train_metrics
-    assert 'loss_std' in trainer.train_metrics
+    assert "loss" in trainer.train_metrics
+    assert "loss_std" in trainer.train_metrics
 
-    assert 'loss' in trainer.validate_metrics
-    assert 'loss_std' in trainer.validate_metrics
+    assert "loss" in trainer.validate_metrics
+    assert "loss_std" in trainer.validate_metrics
 
 
 def test_trainer_early_stop(rng_key):
@@ -71,7 +72,7 @@ def test_trainer_early_stop(rng_key):
         validate_data=validate,
         opt=optax.adam(learning_rate=1e-4),
         loss_fn=lambda x_pred, x_label: optax.losses.squared_error(x_pred, x_label).mean(),
-        overfitting_window=1
+        overfitting_window=1,
     )
     assert trainer.train(max_epochs=3) == training.TRAIN_OVERFITTING
 
@@ -95,21 +96,22 @@ def test_trainer_logging(rng_key):
         train_data=train,
         validate_data=validate,
         opt=optax.adam(learning_rate=1e-4),
-        loss_fn=lambda x_pred,
-        x_label: optax.losses.squared_error(x_pred, x_label).mean(),
+        loss_fn=lambda x_pred, x_label: optax.losses.squared_error(x_pred, x_label).mean(),
     )
     assert trainer.train(max_epochs=1) == training.TRAIN_MAX_EPOCHS
     log = trainer.metrics_log.raw_log()
     assert len(log) == 1
 
-    assert log[0]['epoch'] == 0
-    assert 'training_loss' in log[0]
-    assert 'validation_loss' in log[0]
+    assert log[0]["epoch"] == 0
+    assert "training_loss" in log[0]
+    assert "validation_loss" in log[0]
 
 
 def test_metrics_logger():
     # Spoof a trainer
-    Trainer = collections.namedtuple('Trainer', ['metrics_log', 'train_metrics', 'validate_metrics'])
+    Trainer = collections.namedtuple(
+        "Trainer", ["metrics_log", "train_metrics", "validate_metrics"]
+    )
     logger = training.TrainingLogger()
     train_metrics = {}
     validate_metrics = {}
@@ -117,7 +119,7 @@ def test_metrics_logger():
 
     lging = training.MetricsLogging(log_level=logging.WARNING, log_every=1)
     for epoch in range(2):
-        train_metrics['loss'] = epoch**2
-        validate_metrics['loss'] = epoch**3
+        train_metrics["loss"] = epoch**2
+        validate_metrics["loss"] = epoch**3
         logger._save_log(trainer, epoch)  # pylint: disable=protected-access
         lging.on_epoch_finished(trainer, epoch)

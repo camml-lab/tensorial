@@ -33,12 +33,12 @@ class SphericalBasis(tensorial.Attr):
     def evaluate(self, x) -> e3j.IrrepsArray:
         """Evaluate the spherical harmonics at the passed values.
 
-        Warning: It is assumed that the values are located on the unit sphere (i.e. normalised vectors), no
-        check is made to enforce this.
+        Warning: It is assumed that the values are located on the unit sphere (i.e. normalised
+        vectors), no check is made to enforce this.
         """
         # * 2
         # * math.sqrt(math.pi)
-        return e3j.spherical_harmonics(self.irreps, x, normalize=True, normalization='integral')
+        return e3j.spherical_harmonics(self.irreps, x, normalize=True, normalization="integral")
 
     def create_tensor(self, value) -> jnp.array:
         return self.evaluate(value)
@@ -65,13 +65,12 @@ class SimpleRadialSphericalBasis(RadialSphericalBasis):
         super().__init__(spherical.irreps.repeat(num_radials))
 
     def evaluate(self, value):
-        """Evaluate the basis functions at the given value
-        """
+        """Evaluate the basis functions at the given value"""
         angular = self.spherical.evaluate(value).array
         r = jnp.linalg.norm(value, axis=-1)
         radial = self.radial.evaluate(r)
-        return jnp.einsum('...i,...j->...ij', radial, angular)
+        return jnp.einsum("...i,...j->...ij", radial, angular)
 
     def expand(self, x: jnp.array, coefficients: jnp.array):
         basis_values = self.evaluate(x)
-        return jnp.einsum('ij,...ij->...', coefficients, basis_values)
+        return jnp.einsum("ij,...ij->...", coefficients, basis_values)

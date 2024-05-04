@@ -18,7 +18,7 @@ def test_mean_square_error(rng_key):
 
     assert jnp.isclose(mse.compute(), optax.squared_error(predictions, targets).mean())
     # Check the convenience function gives us the right type
-    assert metrics.metric('mse') is metrics.MeanSquaredError
+    assert metrics.metric("mse") is metrics.MeanSquaredError
 
 
 def test_root_mean_square_error(rng_key):
@@ -33,7 +33,7 @@ def test_root_mean_square_error(rng_key):
 
     assert jnp.isclose(mse.compute(), jnp.sqrt(optax.squared_error(predictions, targets).mean()))
     # Check the convenience function gives us the right type
-    assert metrics.metric('rmse') is metrics.RootMeanSquareError
+    assert metrics.metric("rmse") is metrics.RootMeanSquareError
 
 
 def test_mae(rng_key):
@@ -48,4 +48,4 @@ def test_mae(rng_key):
 
     assert jnp.isclose(mse.compute(), jnp.abs(predictions - targets).mean())
     # Check the convenience function gives us the right type
-    assert metrics.metric('mae') is metrics.MeanAbsoluteError
+    assert metrics.metric("mae") is metrics.MeanAbsoluteError

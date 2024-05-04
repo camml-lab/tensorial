@@ -9,8 +9,19 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-__all__ = 'IrrepsObj', 'IrrepsTree', 'Attr', 'create', 'create_tensor', 'irreps', 'get', \
-    'Tensorial', 'tensorial_attrs', 'from_tensor', 'as_array'
+__all__ = (
+    "IrrepsObj",
+    "IrrepsTree",
+    "Attr",
+    "create",
+    "create_tensor",
+    "irreps",
+    "get",
+    "Tensorial",
+    "tensorial_attrs",
+    "from_tensor",
+    "as_array",
+)
 
 Array = Union[np.array, jax.Array]
 
@@ -29,6 +40,7 @@ def as_array(arr: Union[np.array, jax.Array, e3j.IrrepsArray]) -> jax.Array:
 
 class Attr(equinox.Module):
     """Irreps object attribute"""
+
     irreps: e3j.Irreps
 
     def __init__(self, irreps) -> None:  # pylint: disable=redefined-outer-name
@@ -48,7 +60,7 @@ class IrrepsObj:
 
 IrrepsTree = Union[IrrepsObj, Dict]
 Tensorial = Union[Attr, IrrepsObj, type(IrrepsObj), dict, linen.FrozenDict, e3j.Irreps]
-ValueType = Union[Any, List['ValueType'], Dict[str, 'ValueType']]
+ValueType = Union[Any, List["ValueType"], Dict[str, "ValueType"]]
 
 
 @functools.singledispatch
@@ -94,7 +106,7 @@ def irreps(tensorial: Tensorial) -> e3j.Irreps:
         try:
             total_irreps = val.irreps if total_irreps is None else total_irreps + val.irreps
         except AttributeError as exc:
-            raise AttributeError(f'Failed to get irreps for {name}') from exc
+            raise AttributeError(f"Failed to get irreps for {name}") from exc
 
     return total_irreps
 
@@ -122,7 +134,7 @@ def create_tensor(tensorial: Tensorial, value: ValueType) -> e3j.IrrepsArray:
         if is_subclass:
             return create_tensor(tensorial_attrs(tensorial), value)
 
-    raise TypeError(f'Unrecognised tensorial type: {tensorial.__class__.__name__}')
+    raise TypeError(f"Unrecognised tensorial type: {tensorial.__class__.__name__}")
 
 
 @create_tensor.register
@@ -132,7 +144,9 @@ def _create_tensor(tensorial: IrrepsObj, value) -> e3j.IrrepsArray:
 
 @create_tensor.register
 def _create_tensor(tensorial: dict, value) -> e3j.IrrepsArray:
-    return e3j.concatenate([create_tensor(attr, value[key]) for key, attr in tensorial.items()],)
+    return e3j.concatenate(
+        [create_tensor(attr, value[key]) for key, attr in tensorial.items()],
+    )
 
 
 @create_tensor.register
@@ -141,7 +155,9 @@ def _create_tensor(tensorial: linen.FrozenDict, value):
 
 
 @create_tensor.register
-def _create_tensor(irreps: e3j.Irreps, value: Array) -> e3j.IrrepsArray:  # pylint: disable=redefined-outer-name
+def _create_tensor(  # pylint: disable=redefined-outer-name
+    irreps: e3j.Irreps, value: Array
+) -> e3j.IrrepsArray:
     return e3j.IrrepsArray(irreps, value)
 
 
@@ -163,7 +179,7 @@ def from_tensor(tensorial: Tensorial, value) -> ValueType:
         if is_subclass:
             return from_tensor(tensorial_attrs(tensorial), value)
 
-    raise TypeError(f'Unrecognised tensorial type: {tensorial.__class__.__name__}')
+    raise TypeError(f"Unrecognised tensorial type: {tensorial.__class__.__name__}")
 
 
 @from_tensor.register
@@ -179,8 +195,7 @@ def _from_tensor(tensorial: dict, value: Array) -> Dict[str, ValueType]:
 
     return {
         key: from_tensor(dict_value, array_value)
-        for array_value, (key, dict_value) in zip(split_value,
-                                                  tensorial_attrs(tensorial).items())
+        for array_value, (key, dict_value) in zip(split_value, tensorial_attrs(tensorial).items())
     }
 
 
@@ -190,10 +205,12 @@ def _from_tensor(tensorial: linen.FrozenDict, value):
 
 
 @from_tensor.register
-def _from_tensor(irreps: e3j.Irreps, value: e3j.IrrepsArray) -> e3j.IrrepsArray:  # pylint: disable=redefined-outer-name
+def _from_tensor(  # pylint: disable=redefined-outer-name
+    irreps: e3j.Irreps, value: e3j.IrrepsArray
+) -> e3j.IrrepsArray:
     # Nothing to do
     if not irreps == value.irreps:
-        raise ValueError(f'Irreps mismatch: {irreps} != {value.irreps}')
+        raise ValueError(f"Irreps mismatch: {irreps} != {value.irreps}")
     return value
 
 
@@ -205,7 +222,11 @@ def _from_tensor(attr: Attr, value) -> e3j.IrrepsArray:
 @functools.singledispatch
 def tensorial_attrs(irreps_obj) -> Dict[str, Tensorial]:
     if issubclass(irreps_obj, IrrepsObj):
-        return {name: val for name, val in vars(irreps_obj).items() if not (name.startswith('_') or callable(val))}
+        return {
+            name: val
+            for name, val in vars(irreps_obj).items()
+            if not (name.startswith("_") or callable(val))
+        }
 
     raise TypeError(irreps_obj.__class__.__name__)
 
@@ -214,13 +235,19 @@ def tensorial_attrs(irreps_obj) -> Dict[str, Tensorial]:
 def _tensorial_attrs(irreps_obj: IrrepsObj) -> Dict[str, Tensorial]:
     """Get the irrep attributes for the passed object"""
     attrs = tensorial_attrs(type(irreps_obj))
-    attrs.update({name: val for name, val in vars(irreps_obj).items() if not (name.startswith('_') or callable(val))})
+    attrs.update(
+        {
+            name: val
+            for name, val in vars(irreps_obj).items()
+            if not (name.startswith("_") or callable(val))
+        }
+    )
     return attrs
 
 
 @tensorial_attrs.register
 def _tensorial_attrs(irreps_obj: dict) -> Dict[str, Tensorial]:
-    return {name: val for name, val in irreps_obj.items() if not name.startswith('_')}
+    return {name: val for name, val in irreps_obj.items() if not name.startswith("_")}
 
 
 @tensorial_attrs.register

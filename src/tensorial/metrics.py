@@ -9,20 +9,23 @@ import jax.numpy as jnp
 
 from . import nn_utils
 
-Self = TypeVar('Self', bound='MetricWithCount')
+Self = TypeVar("Self", bound="MetricWithCount")
 
 
 @flax.struct.dataclass
 class MetricWithCount(clu.metrics.Metric):
-    """Helper class to group common functionality for metrics that can keep track using a total and count
-    accumulators"""
+    """
+    Helper class to group common functionality for metrics that can keep track using a total and
+    count accumulators
+    """
+
     total: jnp.array
     count: jnp.array
     fn: ClassVar[Callable[[jax.typing.ArrayLike], jax.Array]]
 
     @classmethod
     def empty(cls: Type[Self]) -> Self:
-        return cls(total=jnp.array(0.), count=jnp.array(0))
+        return cls(total=jnp.array(0.0), count=jnp.array(0))
 
     def merge(self: Self, other: Self) -> Self:
         return type(self)(
@@ -35,7 +38,11 @@ class MetricWithCount(clu.metrics.Metric):
 
     @classmethod
     def from_model_output(  # pylint: disable=arguments-differ
-            cls: Self, predictions: jax.Array, targets: jax.Array, mask: Optional[jnp.array] = None, **_
+        cls: Self,
+        predictions: jax.Array,
+        targets: jax.Array,
+        mask: Optional[jnp.array] = None,
+        **_,
     ) -> Self:
         if predictions.ndim == 0:
             predictions = predictions[None]
@@ -47,9 +54,9 @@ class MetricWithCount(clu.metrics.Metric):
         # Leading dimensions of mask and predictions must match.
         if mask.shape[0] != predictions.shape[0]:
             raise ValueError(
-                f'Argument `mask` must have the same leading dimension as `values`. '
-                f'Received mask of dimension {mask.shape} '
-                f'and values of dimension {predictions.shape}.'
+                f"Argument `mask` must have the same leading dimension as `values`. "
+                f"Received mask of dimension {mask.shape} "
+                f"and values of dimension {predictions.shape}."
             )
 
         mask = nn_utils.prepare_mask(mask, predictions)
@@ -89,16 +96,20 @@ class RootMeanSquareError(clu.metrics.Metric):
     mse: MeanSquaredError
 
     @classmethod
-    def empty(cls) -> 'RootMeanSquaredError':
+    def empty(cls) -> "RootMeanSquaredError":
         return cls(mse=MeanSquaredError.empty())
 
     @classmethod
     def from_model_output(  # pylint: disable=arguments-differ
-            cls, predictions: jnp.array, targets: jax.Array, mask: Optional[jnp.array] = None, **_
-    ) -> 'MeanSquaredError':
+        cls,
+        predictions: jnp.array,
+        targets: jax.Array,
+        mask: Optional[jnp.array] = None,
+        **_,
+    ) -> "MeanSquaredError":
         return cls(mse=MeanSquaredError.from_model_output(predictions, targets, mask=mask))
 
-    def merge(self, other: 'RootMeanSquareError') -> 'RootMeanSquareError':
+    def merge(self, other: "RootMeanSquareError") -> "RootMeanSquareError":
         return type(self)(mse=self.mse.merge(other.mse))
 
     def compute(self) -> jax.Array:
@@ -107,9 +118,9 @@ class RootMeanSquareError(clu.metrics.Metric):
 
 # Helpers to make it easy to choose a metric using a string
 metrics = {
-    'mse': MeanSquaredError,
-    'mae': MeanAbsoluteError,
-    'rmse': RootMeanSquareError,
+    "mse": MeanSquaredError,
+    "mae": MeanAbsoluteError,
+    "rmse": RootMeanSquareError,
 }
 
 
@@ -118,7 +129,7 @@ def metric(metric_type: Union[str, Type[clu.metrics.Metric]]) -> Type[clu.metric
         try:
             return metrics[metric_type]
         except KeyError:
-            raise ValueError(f'Unknown metric {metric_type}') from None
+            raise ValueError(f"Unknown metric {metric_type}") from None
     try:
         if issubclass(metric_type, clu.metrics.Metric):
             return metric_type
@@ -126,4 +137,6 @@ def metric(metric_type: Union[str, Type[clu.metrics.Metric]]) -> Type[clu.metric
         # This happens if metric_type isn't a type
         pass
 
-    raise TypeError(f'metric_type has to be a string or Metric type, got {type(metric_type).__name__}')
+    raise TypeError(
+        f"metric_type has to be a string or Metric type, got {type(metric_type).__name__}"
+    )

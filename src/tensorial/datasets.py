@@ -13,15 +13,19 @@ def generate_batches(
     inputs: Iterable,
     outputs: Iterable = None,
     batch_builder: Callable[[list], Any] = tuple,
-    output_batch_builder: Callable[[list], Any] = None
+    output_batch_builder: Callable[[list], Any] = None,
 ) -> Iterator[Batch]:
     """
-    Generate batches from the given outputs.  This will yield batches of size `batch_size` as a tuple (inputs, targets).
+    Generate batches from the given outputs.  This will yield batches of size `batch_size` as a
+    tuple (inputs, targets).
 
-    Functions to build each batch can optionally be supplied, these will be called as batch_builder(list(...)).
+    Functions to build each batch can optionally be supplied, these will be called as
+    batch_builder(list(...)).
     """
     outputs = outputs if outputs is not None else itertools.cycle((None,))
-    output_batch_builder = output_batch_builder if output_batch_builder is not None else batch_builder
+    output_batch_builder = (
+        output_batch_builder if output_batch_builder is not None else batch_builder
+    )
 
     inp_iter = iter(inputs)
     out_iter = iter(outputs)

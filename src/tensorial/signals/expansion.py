@@ -8,7 +8,9 @@ from . import bases, functions
 
 
 @functools.singledispatch
-def expand(basis: bases.RadialSphericalBasis, function: functions.Function) -> jnp.array:  # pylint: disable=unused-argument
+def expand(  # pylint: disable=unused-argument
+    basis: bases.RadialSphericalBasis, function: functions.Function
+) -> jnp.array:
     """Expand a function in the given basis"""
 
 
@@ -20,4 +22,4 @@ def expand_(basis: bases.SimpleRadialSphericalBasis, function: functions.Functio
     if isinstance(function, functions.Sum):
         return jnp.sum(expand(basis, function) for function in function.functions)
 
-    raise TypeError(f'Unsupported function {function.__class__.__name__}')
+    raise TypeError(f"Unsupported function {function.__class__.__name__}")

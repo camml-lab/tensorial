@@ -14,10 +14,10 @@ import tensorial.tensors
 
 
 def test_nodewise_linear(rng_key):
-    in_field: Final[str] = 'in'
-    out_field: Final[str] = 'out'
-    in_irreps = e3j.Irreps('2x0e+2x1o')
-    out_irreps = e3j.Irreps('1o')
+    in_field: Final[str] = "in"
+    out_field: Final[str] = "out"
+    in_irreps = e3j.Irreps("2x0e+2x1o")
+    out_irreps = e3j.Irreps("1o")
     n_nodes = 5
 
     # Create some random node attributes
@@ -44,8 +44,8 @@ def test_nodewise_linear(rng_key):
 
 
 def test_nodewise_encoding(rng_key):
-    in_field: Final[str] = 'in'
-    out_field: Final[str] = 'out'
+    in_field: Final[str] = "in"
+    out_field: Final[str] = "out"
     n_nodes = 5
 
     # Let's use a one-hot for testing
@@ -72,9 +72,9 @@ def test_nodewise_encoding(rng_key):
 
 @pytest.mark.skip(reason="Currently there's a bug in flax that converts Irreps to a tuple")
 def test_nodewise_encoding_multiple(rng_key):
-    ont_hot_key: Final[str] = 'in'
-    scalar_key = 'scalar'
-    out_field: Final[str] = 'out'
+    ont_hot_key: Final[str] = "in"
+    scalar_key = "scalar"
+    out_field: Final[str] = "out"
     n_nodes = 5
 
     keys = jax.random.split(rng_key, num=2)
@@ -83,13 +83,10 @@ def test_nodewise_encoding_multiple(rng_key):
     one_hot = tensorial.tensors.OneHot(2)
     one_hots = random.uniform(keys[0], (n_nodes,))
     scalars = random.uniform(keys[1], (n_nodes, 1))
-    scalar_irreps = e3j.Irreps('0e')
+    scalar_irreps = e3j.Irreps("0e")
 
     graph = jraph.GraphsTuple(
-        nodes={
-            ont_hot_key: one_hots,
-            scalar_key: scalars
-        },
+        nodes={ont_hot_key: one_hots, scalar_key: scalars},
         senders=None,
         receivers=None,
         edges=None,
@@ -98,7 +95,9 @@ def test_nodewise_encoding_multiple(rng_key):
         n_edge=jnp.array([0]),
     )
 
-    encoding = gcnn.NodewiseEncoding({ont_hot_key: one_hot, scalar_key: scalar_irreps}, out_field=out_field)
+    encoding = gcnn.NodewiseEncoding(
+        {ont_hot_key: one_hot, scalar_key: scalar_irreps}, out_field=out_field
+    )
     _ = encoding.init(rng_key, graph)
     out_graph = encoding(graph)
     assert out_field in out_graph.nodes
@@ -108,8 +107,8 @@ def test_nodewise_encoding_multiple(rng_key):
 
 
 def test_nodewise_encoding_compilation(rng_key):
-    in_field: Final[str] = 'in'
-    out_field: Final[str] = 'out'
+    in_field: Final[str] = "in"
+    out_field: Final[str] = "out"
     n_nodes = 5
 
     # Let's use a one-hot for testing
@@ -138,12 +137,12 @@ def test_nodewise_encoding_compilation(rng_key):
 
 
 def test_nodewise_decoding(rng_key):
-    in_field: Final[str] = 'in'
-    out_field: Final[str] = 'out'
+    in_field: Final[str] = "in"
+    out_field: Final[str] = "out"
     n_nodes = 5
 
     # Let's use a one-hot for testing
-    cart = tensorial.CartesianTensor('ij=ji', i='1e')
+    cart = tensorial.CartesianTensor("ij=ji", i="1e")
     node_attrs = random.uniform(rng_key, (n_nodes, cart.irreps.dim))
 
     graph = jraph.GraphsTuple(
@@ -167,10 +166,10 @@ def test_nodewise_decoding(rng_key):
     assert out_graph.nodes[out_field].shape == (n_nodes, 3, 3)
 
 
-@pytest.mark.parametrize('jit', (True, False))
+@pytest.mark.parametrize("jit", (True, False))
 def test_nodewise_reduce(jit, rng_key):
-    in_field: Final[str] = 'in'
-    out_field: Final[str] = 'out'
+    in_field: Final[str] = "in"
+    out_field: Final[str] = "out"
     n_nodes = 5
 
     node_attrs = random.uniform(rng_key, (n_nodes,))

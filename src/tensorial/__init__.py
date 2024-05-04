@@ -8,8 +8,11 @@ from .base import *
 from .tensors import *
 from .training import *
 
-__version__ = '0.2.0'
+__version__ = "0.2.0"
 
-__all__ = base.__all__ + tensors.__all__ + training.__all__ + (
-    'config', 'metrics', 'training', 'metric', 'tensorboards'
+__all__ = (
+    base.__all__
+    + tensors.__all__
+    + training.__all__
+    + ("config", "metrics", "training", "metric", "tensorboards")
 )

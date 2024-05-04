@@ -7,7 +7,7 @@ from tensorial.gcnn import _interaction_blocks, keys
 
 
 def test_nequip_interaction_block(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
-    irreps_out = e3j.Irreps('0e + 1o + 2e')
+    irreps_out = e3j.Irreps("0e + 1o + 2e")
 
     block = _interaction_blocks.InteractionBlock(irreps_out)
 
@@ -26,7 +26,7 @@ def test_nequip_interaction_block(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
 
 
 def test_nequip_layer(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
-    irreps_out = e3j.Irreps('0e + 1o + 2e')
+    irreps_out = e3j.Irreps("0e + 1o + 2e")
 
     layer = gcnn.NequipLayer(irreps_out)
 

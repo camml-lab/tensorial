@@ -22,11 +22,13 @@ def get_jaxnn_activation(name: str) -> ActivationFunction:
 
 def prepare_mask(mask: jax.Array, array: jax.Array) -> jax.Array:
     """
-    Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure the mask is of the
-    right shape to be compatible with such an operation.  The other alternative is ``jnp.where(mask, array.T, ...).T``
+    Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure the
+    mask is of the right shape to be compatible with such an operation.  The other alternative is
 
-    but this sometimes leads to creating a copy when doing one or both of the transposes.  I'm not sure why, but this
-    approach seems to avoid the problem.
+        ``jnp.where(mask, array.T, ...).T``
+
+    but this sometimes leads to creating a copy when doing one or both of the transposes.  I'm not
+    sure why, but this approach seems to avoid the problem.
 
     :param mask: the mask to prepare
     :param array: the array the mask will be applied to

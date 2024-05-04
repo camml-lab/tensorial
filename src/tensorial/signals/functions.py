@@ -8,7 +8,7 @@ import jax.numpy as jnp
 class Function:
     """Base class for functions"""
 
-    def __add__(self, other) -> 'Sum':
+    def __add__(self, other) -> "Sum":
         return Sum((self, other))
 
     def __call__(self, x):
@@ -40,7 +40,11 @@ class IsotropicGaussian(Function):
         self.weight = weight
 
     def evaluate(self, x):
-        return (self.weight / (jnp.sqrt(2 * jnp.pi)) * jnp.exp(-(jnp.sum((x - self.pos)**2)) / (2 * self.sigma**2)))
+        return (
+            self.weight
+            / (jnp.sqrt(2 * jnp.pi))
+            * jnp.exp(-(jnp.sum((x - self.pos) ** 2)) / (2 * self.sigma**2))
+        )
 
 
 class Sum(Function):

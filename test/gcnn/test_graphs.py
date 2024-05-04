@@ -12,17 +12,17 @@ from tensorial import gcnn
 
 def test_graph_from_points():
     # Check that 1D
-    pos = np.array([[0., 0., 0.], [1., 0., 0.]])
+    pos = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
     gcnn.graph_from_points(pos, r_max=2)
 
     # and 2D work
-    pos = np.array([[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]])
+    pos = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
     gcnn.graph_from_points(pos, r_max=2)
 
 
-@pytest.mark.parametrize('with_lengths', (True, False))
+@pytest.mark.parametrize("with_lengths", (True, False))
 def test_with_edge_vectors(with_lengths):
-    pos = np.array([[0., 0., 0.], [1., 1., 1.]])
+    pos = np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
     graph = gcnn.graph_from_points(pos, r_max=2)
     graph = gcnn.with_edge_vectors(graph, with_lengths=with_lengths)
 
@@ -36,11 +36,11 @@ def test_with_edge_vectors(with_lengths):
         assert gcnn.keys.EDGE_LENGTHS not in graph.edges
 
 
-@pytest.mark.parametrize('jit', (False, True))
+@pytest.mark.parametrize("jit", (False, True))
 def test_with_edge_vectors_grad(jit):
-    length = 1.
-    pos = jnp.array([[0., 0., 0.], [length, 0., 0.]])
-    graph = gcnn.graph_from_points(pos, r_max=2.)
+    length = 1.0
+    pos = jnp.array([[0.0, 0.0, 0.0], [length, 0.0, 0.0]])
+    graph = gcnn.graph_from_points(pos, r_max=2.0)
     graph = jraph.pad_with_graphs(graph, n_node=len(pos) + 2, n_edge=len(pos) + 2, n_graph=2)
     graph = gcnn.datasets.add_padding_mask(graph)
 
@@ -54,7 +54,9 @@ def test_with_edge_vectors_grad(jit):
         node_gr_idx = jnp.repeat(graph_idx, graph.n_edge, axis=0, total_repeat_length=sum_n_edge)
 
         inputs = graph.edges[gcnn.keys.EDGE_LENGTHS]
-        return jnp.sum(jax.tree_util.tree_map(lambda n: jraph.segment_sum(n, node_gr_idx, n_graph), inputs))
+        return jnp.sum(
+            jax.tree_util.tree_map(lambda n: jraph.segment_sum(n, node_gr_idx, n_graph), inputs)
+        )
 
     get_length = functools.partial(get_length, graph)
     if jit:
@@ -62,4 +64,4 @@ def test_with_edge_vectors_grad(jit):
 
     length, grad = jax.value_and_grad(get_length)(pos)
     assert jnp.isclose(length, length)
-    assert jnp.array_equal(grad, jnp.array([[-2., 0., 0.], [2., 0., 0.]]))
+    assert jnp.array_equal(grad, jnp.array([[-2.0, 0.0, 0.0], [2.0, 0.0, 0.0]]))

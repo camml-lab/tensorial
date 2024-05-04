@@ -5,7 +5,7 @@ from typing import Any, Tuple, Union
 TreePath = Tuple[Any, ...]
 
 
-def path_from_str(path_str: Union[str, tuple], delimiter='.') -> TreePath:
+def path_from_str(path_str: Union[str, tuple], delimiter=".") -> TreePath:
     """Split up a path string into a tuple of path components"""
     if isinstance(path_str, tuple):
         return path_str
@@ -13,15 +13,16 @@ def path_from_str(path_str: Union[str, tuple], delimiter='.') -> TreePath:
     return tuple(path_str.split(delimiter))
 
 
-def path_to_str(path: TreePath, delimiter='.') -> str:
+def path_to_str(path: TreePath, delimiter=".") -> str:
     """Return a string representation of a tree path"""
     return delimiter.join(path)
 
 
 class UpdateDict(collections.abc.MutableMapping):
-    """This class can be used to make updates to a dictionary without modifying the passed dictionary.
-    Once all the updates are made, a new dictionary that is the result of the modifications can be retrieved using the
-    `_asdict()` method.
+    """
+    This class can be used to make updates to a dictionary without modifying the passed dictionary.
+    Once all the updates are made, a new dictionary that is the result of the modifications can be
+    retrieved using the `_asdict()` method.
     """
 
     DELETED = tuple()  # Just a token we use to indicate a deleted value
@@ -65,7 +66,9 @@ class UpdateDict(collections.abc.MutableMapping):
                     yield key
 
     def __len__(self):
-        return len(self._updating) - len(list(filter(lambda val: val is self.DELETED, self._overrides.values())))
+        return len(self._updating) - len(
+            list(filter(lambda val: val is self.DELETED, self._overrides.values()))
+        )
 
     def _asdict(self) -> dict:
         self_dict = dict(self._updating)

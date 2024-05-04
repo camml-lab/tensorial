@@ -11,23 +11,23 @@ from pytray import tree
 
 from . import utils
 
-__all__ = ('reduce',)
+__all__ = ("reduce",)
 
 
-def reduce(graph: jraph.GraphsTuple, field: Union[str, jax.Array], reduction='sum') -> jax.Array:
+def reduce(graph: jraph.GraphsTuple, field: Union[str, jax.Array], reduction="sum") -> jax.Array:
     try:
-        op = getattr(jraph, f'segment_{reduction}')
+        op = getattr(jraph, f"segment_{reduction}")
     except AttributeError:
-        raise ValueError(f'Unknown reduction operation: {reduction}') from None
+        raise ValueError(f"Unknown reduction operation: {reduction}") from None
 
     graph_dict = graph._asdict()
     field = utils.path_from_str(field)
-    if field[0] == 'nodes':
+    if field[0] == "nodes":
         n_type = graph.n_node
-    elif field[0] == 'edges':
+    elif field[0] == "edges":
         n_type = graph.n_edge
     else:
-        raise ValueError(f'Reduce can only act on nodes or edges, got {field}')
+        raise ValueError(f"Reduce can only act on nodes or edges, got {field}")
 
     # this aggregation follows jraph/_src/models.py
     n_graph = n_type.shape[0]

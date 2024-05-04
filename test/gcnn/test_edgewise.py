@@ -13,10 +13,10 @@ import tensorial.tensors
 
 
 def test_edgewise_linear(rng_key):
-    in_field: Final[str] = 'in'
-    out_field: Final[str] = 'out'
-    in_irreps = e3j.Irreps('2x0e+2x1o')
-    out_irreps = e3j.Irreps('1o')
+    in_field: Final[str] = "in"
+    out_field: Final[str] = "out"
+    in_irreps = e3j.Irreps("2x0e+2x1o")
+    out_irreps = e3j.Irreps("1o")
     n_edges = 10
 
     # Create some random node attributes
@@ -43,8 +43,8 @@ def test_edgewise_linear(rng_key):
 
 
 def test_edgewise_encoding(rng_key):
-    in_field: Final[str] = 'in'
-    out_field: Final[str] = 'out'
+    in_field: Final[str] = "in"
+    out_field: Final[str] = "out"
     n_edges = 10
 
     # Let's use a one-hot for testing
@@ -70,12 +70,12 @@ def test_edgewise_encoding(rng_key):
 
 
 def test_edgewise_decoding(rng_key):
-    in_field: Final[str] = 'in'
-    out_field: Final[str] = 'out'
+    in_field: Final[str] = "in"
+    out_field: Final[str] = "out"
     n_edges = 10
 
     # Let's use a one-hot for testing
-    cart = tensorial.CartesianTensor('ij=ji', i='1e')
+    cart = tensorial.CartesianTensor("ij=ji", i="1e")
     edge_attrs = random.uniform(rng_key, (n_edges, cart.irreps.dim))
 
     graph = jraph.GraphsTuple(

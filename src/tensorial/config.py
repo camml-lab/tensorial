@@ -10,13 +10,13 @@ import orbax.checkpoint
 
 from . import modules
 
-__all__ = ('create_module', 'load_module_state')
+__all__ = ("create_module", "load_module_state")
 
 Config = Union[omegaconf.DictConfig, omegaconf.ListConfig]
 
-MODULE_STATE = 'state'
-MODULE_CONFIG = 'config'
-TRAIN_STATE = 'train_state'
+MODULE_STATE = "state"
+MODULE_CONFIG = "config"
+TRAIN_STATE = "train_state"
 
 
 def create_module(module_config: Config) -> linen.Module:
@@ -28,7 +28,7 @@ def create_module(module_config: Config) -> linen.Module:
 
         return modules.Sequential(mods)
 
-    return hydra.utils.instantiate(module_config, _convert_='object')
+    return hydra.utils.instantiate(module_config, _convert_="object")
 
 
 def create_train_checkpoint(train_state: flax.training.train_state.TrainState):

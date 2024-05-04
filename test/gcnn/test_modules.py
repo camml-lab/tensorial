@@ -11,7 +11,7 @@ def test_rescale(rng_key):
     shift = 12345.678
     scale = 5.76
 
-    node_features = {'vals': vals}
+    node_features = {"vals": vals}
 
     # We will construct a graph for which there is a directed edge between each node
     # and its successor. We define this with `senders` (source nodes) and `receivers`
@@ -40,17 +40,19 @@ def test_rescale(rng_key):
         globals=global_context,
     )
 
-    rescale = modules.Rescale(shift_fields='nodes.vals', shift=shift)
+    rescale = modules.Rescale(shift_fields="nodes.vals", shift=shift)
     params = rescale.init(rng_key, graph)
     out = rescale.apply(params, graph)
-    assert jnp.all(out.nodes['vals'] == vals + shift)
+    assert jnp.all(out.nodes["vals"] == vals + shift)
 
-    rescale = modules.Rescale(scale_fields='nodes.vals', scale=scale)
+    rescale = modules.Rescale(scale_fields="nodes.vals", scale=scale)
     params = rescale.init(rng_key, graph)
     out = rescale.apply(params, graph)
-    assert jnp.all(out.nodes['vals'] == vals * scale)
+    assert jnp.all(out.nodes["vals"] == vals * scale)
 
-    rescale = modules.Rescale(scale_fields='nodes.vals', shift_fields='nodes.vals', scale=scale, shift=shift)
+    rescale = modules.Rescale(
+        scale_fields="nodes.vals", shift_fields="nodes.vals", scale=scale, shift=shift
+    )
     params = rescale.init(rng_key, graph)
     out = rescale.apply(params, graph)
-    assert jnp.all(out.nodes['vals'] == vals * scale + shift)
+    assert jnp.all(out.nodes["vals"] == vals * scale + shift)

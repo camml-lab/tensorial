@@ -15,7 +15,7 @@ from . import keys
 
 _LOGGER = logging.getLogger(__name__)
 
-__all__ = ('graph_from_points', 'with_edge_vectors')
+__all__ = ("graph_from_points", "with_edge_vectors")
 
 
 def graph_from_points(
@@ -36,18 +36,20 @@ def graph_from_points(
     :param pos: a [3, N] array of atomic positions
     :param r_max: the cutoff radius to use for identifying neighbours
     :param fractional_positions: if `True`, `pos` are interpreted as fractional positions
-    :param self_interaction: if `True`, edges are created between an atom and itself in other unit cells
-    :param strict_self_interaction:  if `True`, edges are created between an atom and itself within the central unit
-        cell
+    :param self_interaction: if `True`, edges are created between an atom and itself in other unit
+        cells
+    :param strict_self_interaction:  if `True`, edges are created between an atom and itself within
+        the central unit cell
     :param cell: a [3, 3] array of unit cell vectors (in row-major format)
-    :param pbc: a `bool` of a sequence of three `bool`s indicating whether the space is periodic in x, y, z directions
-    :param nodes: a dictionary containing additional data relating to each node, it should contain arrays of shape
-        [N, ...]
+    :param pbc: a `bool` of a sequence of three `bool`s indicating whether the space is periodic in
+        x, y, z directions
+    :param nodes: a dictionary containing additional data relating to each node, it should contain
+        arrays of shape [N, ...]
     :param graph_globals: a dictionary containing additional global data
     :return: the corresponding jraph Graph
     """
     if not pos.shape[-1] == 3:
-        raise ValueError(f'pos must have shape [N, 3], got {pos.shape}')
+        raise ValueError(f"pos must have shape [N, 3], got {pos.shape}")
     pos = jnp.asarray(pos)
     nodes = nodes if nodes else {}
     num_nodes = len(pos)
@@ -56,36 +58,42 @@ def graph_from_points(
     for name, value in nodes.items():
         if value.shape[0] != num_nodes:
             raise ValueError(
-                f'node attributes should have shape [N, ...], got {value.shape[0]} != {num_nodes} for {name}'
+                f"node attributes should have shape [N, ...], got {value.shape[0]} != {num_nodes} "
+                f"for {name}"
             )
 
     if pbc is None:
         # there are no PBC if cell and pbc are not provided
         pbc = False
         if cell is not None:
-            raise ValueError('A cell was provided without PBCs')
+            raise ValueError("A cell was provided without PBCs")
 
     if isinstance(pbc, bool):
         pbc = (pbc,) * 3
 
     if len(pbc) != 3:
-        raise ValueError(f'PBC must have length 3: {pbc}')
+        raise ValueError(f"PBC must have length 3: {pbc}")
 
     if fractional_positions:
         if cell is None:
-            raise ValueError('Unit cell must be provided if fractional_positions is True')
-        # Use PBC to mask and only transform periodic dimensions from fractional (assuming non-periodic coordinates are
-        # already Cartesian)
+            raise ValueError("Unit cell must be provided if fractional_positions is True")
+        # Use PBC to mask and only transform periodic dimensions from fractional (assuming
+        # non-periodic coordinates are already Cartesian)
         pos[:, pbc] = (pos @ cell)[pbc]
 
     neighbour_finder = distances.neighbour_finder(
-        r_max, cell, pbc=pbc, include_self=self_interaction, include_images=strict_self_interaction
+        r_max,
+        cell,
+        pbc=pbc,
+        include_self=self_interaction,
+        include_images=strict_self_interaction,
     )
     get_neighbours = equinox.filter_jit(neighbour_finder.get_neighbours)
     neighbour_list = get_neighbours(pos, max_neighbours=neighbour_finder.estimate_neighbours(pos))
     if neighbour_list.did_overflow:
         _LOGGER.info(
-            'Neighbour list was too small (%i) for amount of actual neighbours (%i), recalculating.',
+            "Neighbour list was too small (%i) for amount of actual neighbours (%i), "
+            "recalculating.",
             neighbour_list.max_neighbours,
             neighbour_list.actual_max_neighbours,
         )
@@ -100,12 +108,17 @@ def graph_from_points(
         graph_globals[keys.PBC] = jnp.array(pbc, dtype=bool)
     graph_globals[keys.CELL] = cell
     # We have to pad out the globals to make things like batching work
-    graph_globals = {key: jnp.expand_dims(value, 0) for key, value in graph_globals.items() if value is not None}
+    graph_globals = {
+        key: jnp.expand_dims(value, 0) for key, value in graph_globals.items() if value is not None
+    }
 
     edges = edges or {}
     edges = {key: value[from_idx, to_idx] for key, value in edges.items()}
     # Make sure the edge arrays have array-like (rather than scalar) entries for each edge
-    edges = {key: jnp.expand_dims(value, -1) if value.ndim == 1 else value for key, value in edges.items()}
+    edges = {
+        key: jnp.expand_dims(value, -1) if value.ndim == 1 else value
+        for key, value in edges.items()
+    }
     edges[keys.EDGE_CELL_SHIFTS] = cell_shifts
 
     return jraph.GraphsTuple(
@@ -136,7 +149,7 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
         cell = graph.globals[keys.CELL]
         cell_shifts = edges[keys.EDGE_CELL_SHIFTS]
         shift_vectors = jnp.einsum(
-            'ni,nij->nj',
+            "ni,nij->nj",
             cell_shifts,
             jnp.repeat(cell, graph.n_edge, axis=0, total_repeat_length=edge_vecs.shape[0]),
         )
@@ -146,11 +159,11 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
     if edge_mask is not None:
         edge_mask = nn_utils.prepare_mask(edge_mask, edge_vecs)
         edge_vecs = jnp.where(edge_mask, edge_vecs, 1.0)
-    edges[keys.EDGE_VECTORS] = e3j.IrrepsArray('1o', edge_vecs)
+    edges[keys.EDGE_VECTORS] = e3j.IrrepsArray("1o", edge_vecs)
 
     # To allow grad to work, we need to mask off the padded edge vectors that are zero, see:
     # * https://github.com/google/jax/issues/6484,
-    # * https://stackoverflow.com/questions/74864427/why-does-jax-gradlambda-v-jnp-linalg-normv-vjnp-ones2-produce-nans
+    # * https://stackoverflow.com/q/74864427/1257417
     if with_lengths and keys.EDGE_LENGTHS not in edges:
         lengths = jnp.expand_dims(jnp.linalg.norm(edge_vecs, axis=-1), -1)
         if edge_mask is not None:

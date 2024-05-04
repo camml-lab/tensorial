@@ -16,7 +16,7 @@ class GraphSpec:
         self,
         nodes: tensorial.IrrepsObj = None,
         edges: tensorial.Tensorial = None,
-        globals: tensorial.Tensorial = None
+        globals: tensorial.Tensorial = None,
     ):  # pylint: disable=redefined-builtin
         self._nodes = nodes
         self._edges = edges
@@ -37,11 +37,11 @@ class GraphSpec:
     def from_jraph(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         replacements = {}
         if self.nodes is not None:
-            replacements['nodes'] = tensorial.create(self.nodes, graph.nodes)
+            replacements["nodes"] = tensorial.create(self.nodes, graph.nodes)
         if self.edges is not None:
-            replacements['edges'] = tensorial.create(self.edges, graph.edges)
+            replacements["edges"] = tensorial.create(self.edges, graph.edges)
         if self.globals is not None:
-            replacements['globals'] = tensorial.create(self.globals, graph.globals)
+            replacements["globals"] = tensorial.create(self.globals, graph.globals)
 
         return graph._replace(**replacements)
 

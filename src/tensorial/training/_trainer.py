@@ -11,13 +11,13 @@ import optax
 
 from tensorial import training
 
-__all__ = ('Trainer', 'TRAIN_MAX_EPOCHS', 'Dataset', 'Batch')
+__all__ = ("Trainer", "TRAIN_MAX_EPOCHS", "Dataset", "Batch")
 
 Batch = Tuple[Any, Any]
 Dataset = Iterable[Batch]
 
-TRAIN_MAX_EPOCHS = 'max_epochs'
-TRAIN_STOP = 'stop'
+TRAIN_MAX_EPOCHS = "max_epochs"
+TRAIN_STOP = "stop"
 
 DEFAULT_MAX_EPOCHS = 30_000
 DEFAULT_OVERFITTING_WINDOW = 50
@@ -26,7 +26,7 @@ JIT_TRAIN = 0b001
 JIT_EVAL = 0b010
 JIT_ALL = JIT_TRAIN | JIT_EVAL
 
-DefaultMetrics = clu.metrics.Collection.create(loss=clu.metrics.Average.from_output('loss'))
+DefaultMetrics = clu.metrics.Collection.create(loss=clu.metrics.Average.from_output("loss"))
 
 
 class Trainer:
@@ -61,7 +61,9 @@ class Trainer:
         # Track all the losses
         self._epoch = 0
 
-        self._train_state = train_state.TrainState.create(apply_fn=model, params=model_params, tx=opt)
+        self._train_state = train_state.TrainState.create(
+            apply_fn=model, params=model_params, tx=opt
+        )
         self._metrics = metrics or DefaultMetrics
 
         self._logger = training.TrainingLogger(log_metrics_every)
@@ -120,11 +122,12 @@ class Trainer:
         max_epochs=DEFAULT_MAX_EPOCHS,
     ) -> str:
         """
-        Train the model by passing the training data through and upgrading the parameters using the optimiser.
-        If validation data is available, after each training step the validation set will be passed through the model
-        gather metrics along the way.  Note, this means that at each step the loss metrics will reflect values averaged
-        over the training batches as the gradients are updated after each batch while the validation metrics will
-        reflect the state of the model at the end of the epoch.
+        Train the model by passing the training data through and upgrading the parameters using the
+        optimiser. If validation data is available, after each training step the validation set will
+        be passed through the model gather metrics along the way.  Note, this means that at each
+        step the loss metrics will reflect values averaged over the training batches as the
+        gradients are updated after each batch while the validation metrics will reflect the state
+        of the model at the end of the epoch.
         """
         self._stopping = False
         iterator = itertools.count() if max_epochs == -1 else range(max_epochs)
@@ -141,7 +144,9 @@ class Trainer:
                 metrics = self._metrics.empty()
                 state = self._train_state
                 for batch in self._train_data:
-                    state, _loss, metrics = self._train_step(state, batch, loss_fn=self._loss_fn, metrics=metrics)
+                    state, _loss, metrics = self._train_step(
+                        state, batch, loss_fn=self._loss_fn, metrics=metrics
+                    )
                 self._train_metrics = metrics.compute()
 
                 # Now update out state
@@ -152,7 +157,10 @@ class Trainer:
                     metrics = self._metrics.empty()
                     for batch in self._validate_data:
                         _loss, metrics = self._eval_step(
-                            self._train_state, batch, loss_fn=self._loss_fn, metrics=metrics
+                            self._train_state,
+                            batch,
+                            loss_fn=self._loss_fn,
+                            metrics=metrics,
                         )
                     self._validate_metrics = metrics.compute()
 
@@ -173,14 +181,20 @@ class Trainer:
         return stop_msg
 
 
-def train_step(state: train_state.TrainState, batch: Batch, loss_fn: Callable, metrics: clu.metrics.Collection) -> \
-        Tuple[train_state.TrainState, Any, clu.metrics.Collection]:
+def train_step(
+    state: train_state.TrainState,
+    batch: Batch,
+    loss_fn: Callable,
+    metrics: clu.metrics.Collection,
+) -> Tuple[train_state.TrainState, Any, clu.metrics.Collection]:
     """Train for a single step."""
     inputs, labels = batch
 
     def loss_fn_shim(params):
-        """Shim to have a function that takes parameters of the model and returns the loss.  This makes it possible to
-        call grad to get derivatives."""
+        """
+        Shim to have a function that takes parameters of the model and returns the loss.  This
+        makes it possible to call grad to get derivatives.
+        """
         predictions = state.apply_fn(params, inputs)
         return loss_fn(predictions, labels), predictions
 
@@ -194,8 +208,12 @@ def train_step(state: train_state.TrainState, batch: Batch, loss_fn: Callable, m
     return state, loss, metrics.merge(update)
 
 
-def eval_step(state: train_state.TrainState, batch: Batch, loss_fn: Callable,
-              metrics: clu.metrics.Collection) -> Tuple[Any, clu.metrics.Collection]:
+def eval_step(
+    state: train_state.TrainState,
+    batch: Batch,
+    loss_fn: Callable,
+    metrics: clu.metrics.Collection,
+) -> Tuple[Any, clu.metrics.Collection]:
     """Evaluate for a single step."""
     inputs, labels = batch
     predictions = state.apply_fn(state.params, inputs)

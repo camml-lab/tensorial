@@ -14,7 +14,7 @@ from tensorial import nn_utils
 
 from . import keys, utils
 
-__all__ = ('PureLossFn', 'GraphLoss', 'WeightedLoss', 'Loss')
+__all__ = ("PureLossFn", "GraphLoss", "WeightedLoss", "Loss")
 
 # A pure loss function that doesn't know about graphs, just takes arrays and produces a loss array
 PureLossFn = Callable[[jax.Array, jax.Array], jax.Array]
@@ -30,7 +30,9 @@ class GraphLoss(equinox.Module):
         """Get a label for this loss function"""
         return self._label
 
-    def __call__(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple = None) -> jax.Array:
+    def __call__(
+        self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple = None
+    ) -> jax.Array:
         """Return the scalar loss between predictions and targets"""
         if targets is None:
             targets = predictions
@@ -42,8 +44,10 @@ class GraphLoss(equinox.Module):
 
 
 class Loss(GraphLoss):
-    """Simple loss function that passes values from the graph to a function taking numerical values such as optax
-    losses"""
+    """
+    Simple loss function that passes values from the graph to a function taking numerical values
+    such as optax losses
+    """
 
     _loss_fn: PureLossFn
     _prediction_field: utils.TreePath
@@ -56,12 +60,14 @@ class Loss(GraphLoss):
         field: str,
         target_field: str = None,
         loss_fn: Union[str, PureLossFn] = optax.squared_error,
-        reduction: str = 'mean',
+        reduction: str = "mean",
         label: str = None,
         mask_field: str = None,
     ):
-        if reduction not in ('sum', 'mean', None):
-            raise ValueError(f"Invalid reduction, must be one of 'sum', 'mean', `None`, got {reduction}")
+        if reduction not in ("sum", "mean", None):
+            raise ValueError(
+                f"Invalid reduction, must be one of 'sum', 'mean', `None`, got {reduction}"
+            )
 
         self._loss_fn = _get_pure_loss_fn(loss_fn)
         self._prediction_field = utils.path_from_str(field)
@@ -77,7 +83,9 @@ class Loss(GraphLoss):
         predictions_dict = predictions._asdict()
         mask = predictions_dict[self._prediction_field[0]].get(keys.DEFAULT_PAD_MASK_FIELD)
 
-        _predictions = tensorial.as_array(tree.get_by_path(predictions_dict, self._prediction_field))
+        _predictions = tensorial.as_array(
+            tree.get_by_path(predictions_dict, self._prediction_field)
+        )
         _targets = tensorial.as_array(tree.get_by_path(targets._asdict(), self._target_field))
 
         loss = self._loss_fn(_predictions, _targets)
@@ -88,7 +96,8 @@ class Loss(GraphLoss):
         # Check for the presence of a user-defined mask
         if self._mask_field:
             user_mask = nn_utils.prepare_mask(
-                tensorial.as_array(tree.get_by_path(targets._asdict(), self._mask_field)), loss
+                tensorial.as_array(tree.get_by_path(targets._asdict(), self._mask_field)),
+                loss,
             )
             if mask is None:
                 mask = user_mask
@@ -100,9 +109,9 @@ class Loss(GraphLoss):
             # Now calculate the number of elements that were masked so that we get the correct mean
             num_elements = jnp.array([mask.sum(), *loss.shape[1:]]).prod()
 
-        if self._reduction == 'mean':
+        if self._reduction == "mean":
             loss = loss.sum() / num_elements
-        elif self._reduction == 'sum':
+        elif self._reduction == "sum":
             loss = loss.sum()
 
         return loss
@@ -117,17 +126,22 @@ class WeightedLoss(GraphLoss):
         weights: Sequence[float],
         loss_fns: Sequence[GraphLoss],
     ):
-        super().__init__('weighted loss')
+        super().__init__("weighted loss")
         for loss in loss_fns:
             if not isinstance(loss, GraphLoss):
-                raise ValueError(f'loss_fns must all be subclasses of GraphLoss, got {type(loss).__name__}')
+                raise ValueError(
+                    f"loss_fns must all be subclasses of GraphLoss, got {type(loss).__name__}"
+                )
 
         if len(weights) != len(loss_fns):
             raise ValueError(
-                f'the number of weights and loss functions must be equal, got {len(weights)} and {len(loss_fns)}'
+                f"the number of weights and loss functions must be equal, got {len(weights)} and "
+                f"{len(loss_fns)}"
             )
 
-        self._weights = tuple(weights)  # We have to use a list here, otherwise jax will treat this as a dynamic type
+        self._weights = tuple(
+            weights
+        )  # We have to use a list here, otherwise jax will treat this as a dynamic type
         self._loss_fns = loss_fns
 
     @property
@@ -139,8 +153,9 @@ class WeightedLoss(GraphLoss):
         losses = jnp.array(list(map(lambda loss_fn: loss_fn(predictions, targets), self._loss_fns)))
         return jnp.dot(self.weights, losses)
 
-    def loss_with_contributions(self, predictions: jraph.GraphsTuple,
-                                target: jraph.GraphsTuple) -> Tuple[float, Dict[str, float]]:
+    def loss_with_contributions(
+        self, predictions: jraph.GraphsTuple, target: jraph.GraphsTuple
+    ) -> Tuple[float, Dict[str, float]]:
         # Calculate the loss for each function
         losses = jax.array(list(map(lambda loss_fn: loss_fn(predictions, target), self._loss_fns)))
         # Group the contributions into a dictionary keyed by the label
@@ -155,4 +170,4 @@ def _get_pure_loss_fn(loss_fn: Union[str, PureLossFn]) -> PureLossFn:
     if isinstance(loss_fn, Callable):
         return loss_fn
 
-    raise ValueError(f'Unknown loss function type: {type(loss_fn).__name__}')
+    raise ValueError(f"Unknown loss function type: {type(loss_fn).__name__}")

@@ -7,15 +7,15 @@ import jax.numpy as jnp
 
 from . import base
 
-__all__ = 'SphericalHarmonic', 'CartesianTensor', 'NoOp', 'OneHot', 'AsIrreps'
+__all__ = "SphericalHarmonic", "CartesianTensor", "NoOp", "OneHot", "AsIrreps"
 
 
 class NoOp(base.Attr):
     """An attribute that keeps IrrepsArrays with specified irreps unchanged"""
 
     def _validate(self, value):
-        assert isinstance(value, e3j.IrrepsArray), 'Expected an IrrepsArray'
-        assert value.irreps == self.irreps, 'Irreps mismatch'
+        assert isinstance(value, e3j.IrrepsArray), "Expected an IrrepsArray"
+        assert value.irreps == self.irreps, "Irreps mismatch"
 
     def create_tensor(self, value: e3j.IrrepsArray) -> e3j.IrrepsArray:
         self._validate(value)
@@ -29,20 +29,21 @@ class NoOp(base.Attr):
 class AsIrreps(base.Attr):
 
     def _validate(self, value):
-        assert isinstance(value, jnp.ndarray), 'Expected a jnp.ndarray'
-        assert value.shape[-1] == self.irreps.dim, 'Dimension mismatch'
+        assert isinstance(value, jnp.ndarray), "Expected a jnp.ndarray"
+        assert value.shape[-1] == self.irreps.dim, "Dimension mismatch"
 
     def create_tensor(self, value: jnp.ndarray) -> e3j.IrrepsArray:
         self._validate(value)
         return e3j.IrrepsArray(self.irreps, value)
 
     def from_tensor(self, tensor: e3j.IrrepsArray) -> e3j.IrrepsArray:
-        assert tensor.irreps == self.irreps, 'Irreps mismatch'
+        assert tensor.irreps == self.irreps, "Irreps mismatch"
         return tensor
 
 
 class SphericalHarmonic(base.Attr):
     """An attribute that is the spherical harmonics evaluated as some values"""
+
     normalize: bool
     normalization: Optional[str] = None
     algorithm: Optional[Tuple[str]] = None
@@ -81,7 +82,7 @@ class OneHot(base.Attr):
         mul_irrep = self.irreps[0]
         if isinstance(mul_irrep, e3j.MulIrrep):
             return mul_irrep.mul
-        raise ValueError('Expected self.irreps to contain a MulIrrep.')
+        raise ValueError("Expected self.irreps to contain a MulIrrep.")
 
     def create_tensor(self, value) -> jax.Array:
         return e3j.IrrepsArray(self.irreps, jax.nn.one_hot(value, self.num_classes))
@@ -98,7 +99,7 @@ class CartesianTensor(base.Attr):
         self.formula = formula
         self.keep_ir = keep_ir
         self.irreps_dict = irreps_dict
-        self._indices = formula.split('=')[0].replace('-', '')
+        self._indices = formula.split("=")[0].replace("-", "")
 
         # Construct the change of basis arrays
         cob = e3j.reduced_tensor_product_basis(formula, keep_ir=self.keep_ir, **self.irreps_dict)
@@ -106,11 +107,13 @@ class CartesianTensor(base.Attr):
         super().__init__(cob.irreps)
 
     def create_tensor(self, value) -> e3j.IrrepsArray:
-        return super().create_tensor(jnp.einsum('ij,ijz->z', value, self.change_of_basis))
+        return super().create_tensor(jnp.einsum("ij,ijz->z", value, self.change_of_basis))
 
     def from_tensor(self, tensor: e3j.IrrepsArray) -> jax.Array:
         """
-        Take an irrep tensor and perform the change of basis transformation back to a Cartesian tensor
+        Take an irrep tensor and perform the change of basis transformation back to a Cartesian
+        tensor
+
         :param tensor: the irrep tensor
         :return: the Cartesian tensor
         """

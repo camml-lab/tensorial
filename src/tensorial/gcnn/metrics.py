@@ -12,16 +12,15 @@ import tensorial
 
 from . import utils
 
-__all__ = ('graph_metric',)
+__all__ = ("graph_metric",)
 
 
-def graph_metric(metric: Type[clu.metrics.Metric],
-                 *field: str,
-                 _per_node=False,
-                 **kwargs: str) -> Type[clu.metrics.Metric]:
+def graph_metric(
+    metric: Type[clu.metrics.Metric], *field: str, _per_node=False, **kwargs: str
+) -> Type[clu.metrics.Metric]:
     arg_paths = tuple(map(utils.path_from_str, field))
     kwarg_paths = {key: utils.path_from_str(value) for key, value in kwargs.items()}
-    mask = kwarg_paths.pop('mask', None)
+    mask = kwarg_paths.pop("mask", None)
 
     @flax.struct.dataclass
     class FromGraph(metric):
@@ -40,7 +39,7 @@ def graph_metric(metric: Type[clu.metrics.Metric],
                 graph: jraph.GraphsTuple = out_kwargs[field]
                 assert isinstance(
                     graph, jraph.GraphsTuple
-                ), f'Expected a GraphsTuple for model output {field}, got {type(graph).__name__}'
+                ), f"Expected a GraphsTuple for model output {field}, got {type(graph).__name__}"
 
                 graph_dict = graph._asdict()
                 values = tensorial.as_array(tree.get_by_path(graph_dict, graph_path))
@@ -59,7 +58,7 @@ def graph_metric(metric: Type[clu.metrics.Metric],
                 graph: jraph.GraphsTuple = out_kwargs[field]
                 assert isinstance(
                     graph, jraph.GraphsTuple
-                ), f'Expected a GraphsTuple for model output {field}, got {type(graph).__name__}'
+                ), f"Expected a GraphsTuple for model output {field}, got {type(graph).__name__}"
                 graph_dict = graph._asdict()
                 values = tensorial.as_array(tree.get_by_path(graph_dict, graph_path))
 
@@ -72,7 +71,7 @@ def graph_metric(metric: Type[clu.metrics.Metric],
                 from_kwrags[key] = values
 
             if mask_value is not None:
-                from_kwrags['mask'] = mask_value
+                from_kwrags["mask"] = mask_value
 
             return super().from_model_output(*from_args, **from_kwrags)
 
