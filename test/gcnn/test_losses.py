@@ -110,7 +110,7 @@ def test_loss_with_padding(jit, graph_batch: jraph.GraphsTuple):
         num_edges(graph_batch) + 1,
         num_graphs(graph_batch) + 1,
     )
-    padded = gcnn.datasets.add_padding_mask(padded)
+    padded = gcnn.data.add_padding_mask(padded)
 
     optax_loss = optax.squared_error
     loss_fn = losses.Loss("globals.energy_prediction", "globals.energy", optax_loss)

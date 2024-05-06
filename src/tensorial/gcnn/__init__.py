@@ -9,10 +9,11 @@ from . import (
     _modules,
     _nodewise,
     atomic,
-    datasets,
+    data,
     keys,
     losses,
     metrics,
+    random,
     utils,
 )
 from ._base import *
@@ -35,5 +36,5 @@ __all__ = (
     + _graphs.__all__
     + _modules.__all__
     + losses.__all__
-    + ("atomic", "keys", "datasets", "metrics", "losses", "utils")
+    + ("atomic", "data", "keys", "metrics", "losses", "utils", "random")
 )

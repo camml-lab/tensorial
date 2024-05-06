@@ -9,7 +9,8 @@ import jraph
 import optax
 import utils
 
-from tensorial.gcnn import datasets, metrics
+from tensorial import gcnn
+from tensorial.gcnn import metrics
 
 
 class Std(clu.metrics.Std):
@@ -82,6 +83,6 @@ def test_graph_metric_per_node():
         mask="globals.pad_mask",
         _per_node=True,
     )
-    padded = tuple(datasets.generated_padded_graphs([(random_graphs, None)], add_mask=True))[0][0]
+    padded = tuple(gcnn.data.GraphBatcher(random_graphs, pad=True, add_mask=True))[0]
     metr = node_sizes_avg.from_model_output(graph=padded)
     assert jnp.isclose(metr.compute(), 1.0)

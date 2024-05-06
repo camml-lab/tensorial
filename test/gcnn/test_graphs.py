@@ -42,7 +42,7 @@ def test_with_edge_vectors_grad(jit):
     pos = jnp.array([[0.0, 0.0, 0.0], [length, 0.0, 0.0]])
     graph = gcnn.graph_from_points(pos, r_max=2.0)
     graph = jraph.pad_with_graphs(graph, n_node=len(pos) + 2, n_edge=len(pos) + 2, n_graph=2)
-    graph = gcnn.datasets.add_padding_mask(graph)
+    graph = gcnn.data.add_padding_mask(graph)
 
     def get_length(graph, pos: jax.Array):
         graph.nodes[gcnn.keys.POSITIONS] = pos

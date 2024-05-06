@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import itertools
-from typing import Any, Callable, Iterable, Optional, Tuple
+from typing import Any, Callable, Generic, Optional, Tuple, TypeVar
 import uuid
 
 import clu.metrics
@@ -9,12 +9,17 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from tensorial import training
+from tensorial import data, training
 
-__all__ = ("Trainer", "TRAIN_MAX_EPOCHS", "Dataset", "Batch")
+__all__ = "Trainer", "TRAIN_MAX_EPOCHS", "Batch"
 
-Batch = Tuple[Any, Any]
-Dataset = Iterable[Batch]
+PyTree = Any
+InputT_co = TypeVar("InputT_co", covariant=True)
+OutputT_co = TypeVar("OutputT_co", covariant=True)
+LabelT_co = TypeVar("LabelT_co", covariant=True)
+Batch = Tuple[InputT_co, LabelT_co]
+ModelT = Callable[[PyTree, InputT_co], OutputT_co]
+LossFn = Callable[[OutputT_co, LabelT_co], jax.Array]
 
 TRAIN_MAX_EPOCHS = "max_epochs"
 TRAIN_STOP = "stop"
@@ -29,17 +34,17 @@ JIT_ALL = JIT_TRAIN | JIT_EVAL
 DefaultMetrics = clu.metrics.Collection.create(loss=clu.metrics.Average.from_output("loss"))
 
 
-class Trainer:
+class Trainer(Generic[InputT_co, OutputT_co]):
     """Simple trainer with some convenience functionality built in"""
 
     def __init__(
         self,
-        model: Callable,
-        model_params,
+        model: ModelT[InputT_co, OutputT_co],
+        model_params: PyTree,
         opt: optax.GradientTransformation,
-        loss_fn: Callable,
-        train_data: Dataset,
-        validate_data: Dataset = None,
+        loss_fn: LossFn[OutputT_co, LabelT_co],
+        train_data: data.DataLoader[Batch],
+        validate_data: data.DataLoader[Batch] = None,
         metrics: type[clu.metrics.Collection] = None,
         log_metrics_every=1,
         overfitting_window=DEFAULT_OVERFITTING_WINDOW,
@@ -79,11 +84,11 @@ class Trainer:
             self._eval_step = jax.jit(eval_step, static_argnums=2)
 
     @property
-    def train_data(self) -> Dataset:
+    def train_data(self) -> data.DataLoader:
         return self._train_data
 
     @property
-    def validate_data(self) -> Optional[Dataset]:
+    def validate_data(self) -> Optional[data.DataLoader]:
         return self._validate_data
 
     @property
@@ -157,10 +162,7 @@ class Trainer:
                     metrics = self._metrics.empty()
                     for batch in self._validate_data:
                         _loss, metrics = self._eval_step(
-                            self._train_state,
-                            batch,
-                            loss_fn=self._loss_fn,
-                            metrics=metrics,
+                            self._train_state, batch, loss_fn=self._loss_fn, metrics=metrics
                         )
                     self._validate_metrics = metrics.compute()
 
@@ -183,17 +185,19 @@ class Trainer:
 
 def train_step(
     state: train_state.TrainState,
-    batch: Batch,
-    loss_fn: Callable,
+    batch: Batch[InputT_co, LabelT_co],
+    loss_fn: LossFn[OutputT_co, LabelT_co],
     metrics: clu.metrics.Collection,
 ) -> Tuple[train_state.TrainState, Any, clu.metrics.Collection]:
     """Train for a single step."""
     inputs, labels = batch
+    if labels is None:
+        labels = inputs
 
     def loss_fn_shim(params):
         """
-        Shim to have a function that takes parameters of the model and returns the loss.  This
-        makes it possible to call grad to get derivatives.
+        Shim to have a function that takes parameters of the model and returns the loss.  This makes
+        it possible to call grad to get derivatives.
         """
         predictions = state.apply_fn(params, inputs)
         return loss_fn(predictions, labels), predictions
@@ -210,12 +214,15 @@ def train_step(
 
 def eval_step(
     state: train_state.TrainState,
-    batch: Batch,
-    loss_fn: Callable,
+    batch: Batch[InputT_co, LabelT_co],
+    loss_fn: LossFn[OutputT_co, LabelT_co],
     metrics: clu.metrics.Collection,
 ) -> Tuple[Any, clu.metrics.Collection]:
     """Evaluate for a single step."""
     inputs, labels = batch
+    if labels is None:
+        labels = inputs
+
     predictions = state.apply_fn(state.params, inputs)
     loss = loss_fn(predictions, labels)
     update = metrics.single_from_model_output(
