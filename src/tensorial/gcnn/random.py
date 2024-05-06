@@ -8,7 +8,7 @@ from . import _graphs
 
 
 def spatial_graph(
-    key, num_nodes: int = None, num_graphs=None, cutoff=0.2
+    key: jax.Array, num_nodes: int = None, num_graphs=None, cutoff=0.2
 ) -> Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]]:
     graphs = []
     for _ in range(num_graphs or 1):

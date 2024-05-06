@@ -3,15 +3,15 @@ import math
 
 import jax.numpy as jnp
 import jraph
-import utils
 
+from tensorial import gcnn
 from tensorial.gcnn import data, keys
 
 
-def test_generate_batches():
+def test_generate_batches(rng_key):
     dataset_size = 5
     batch_size = 2
-    inputs = tuple(utils.random_spatial_graph(2, cutoff=5) for _ in range(dataset_size))
+    inputs = tuple(gcnn.random.spatial_graph(rng_key, 2, cutoff=5) for _ in range(dataset_size))
     batches = tuple(data.GraphBatcher(inputs, batch_size=batch_size, pad=True))
 
     num_nodes = sum(batches[0].n_node)
@@ -31,10 +31,10 @@ def test_generate_batches():
         assert graph_mask[-1].item() is False
 
 
-def test_generate_batches_with_mask():
+def test_generate_batches_with_mask(rng_key):
     dataset_size = 5
     batch_size = 2
-    inputs = tuple(utils.random_spatial_graph(2, cutoff=3) for _ in range(dataset_size))
+    inputs = tuple(gcnn.random.spatial_graph(rng_key, 2, cutoff=3) for _ in range(dataset_size))
     batches = tuple(data.GraphBatcher(inputs, batch_size=batch_size, pad=True, add_mask=True))
 
     # Check the first and last batch (which only has one graph)
@@ -51,11 +51,11 @@ def test_generate_batches_with_mask():
         )
 
 
-def test_create_batches():
+def test_create_batches(rng_key):
     dataset_size = 19
     batch_size = 7
     num_batches = math.ceil(dataset_size / batch_size)
-    dset = tuple(utils.random_spatial_graph(2) for _ in range(dataset_size))
+    dset = tuple(gcnn.random.spatial_graph(rng_key, 2) for _ in range(dataset_size))
 
     batches = tuple(data.GraphBatcher(dset, batch_size=batch_size))
     assert len(batches) == num_batches
@@ -66,13 +66,13 @@ def test_create_batches():
     assert len(batches[-1].n_node) == dataset_size - (num_batches - 1) * batch_size
 
 
-def test_graph_loader():
+def test_graph_loader(rng_key):
     dataset_size = 19
     batch_size = 7
     num_batches = math.ceil(dataset_size / batch_size)
     # Check that we can have inputs and outputs with different numbers of nodes
-    inputs = tuple(utils.random_spatial_graph(2) for _ in range(dataset_size))
-    targets = tuple(utils.random_spatial_graph(3) for _ in range(dataset_size))
+    inputs = tuple(gcnn.random.spatial_graph(rng_key, 2) for _ in range(dataset_size))
+    targets = tuple(gcnn.random.spatial_graph(rng_key, 3) for _ in range(dataset_size))
 
     batches = tuple(data.GraphLoader(inputs, targets, batch_size=batch_size))
     assert len(batches) == num_batches

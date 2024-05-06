@@ -10,6 +10,7 @@ from . import (
     _nodewise,
     atomic,
     data,
+    derivatives,
     keys,
     losses,
     metrics,
@@ -24,6 +25,7 @@ from ._graphs import *
 from ._graphwise import *
 from ._modules import *
 from ._nodewise import *
+from .derivatives import *
 from .losses import *
 
 __all__ = (
@@ -35,6 +37,7 @@ __all__ = (
     + _nodewise.__all__
     + _graphs.__all__
     + _modules.__all__
+    + derivatives.__all__
     + losses.__all__
-    + ("atomic", "data", "keys", "metrics", "losses", "utils", "random")
+    + ("atomic", "data", "derivatives", "keys", "metrics", "losses", "utils", "random")
 )

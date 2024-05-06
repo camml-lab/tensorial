@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import functools
 from typing import Any, Dict, Tuple, Union
 
 from flax import linen
@@ -24,7 +25,25 @@ def create_module(module_config: Config) -> linen.Module:
     if isinstance(module_config, omegaconf.ListConfig):
         mods = []
         for entry in module_config:
-            mods.append(create_module(entry))
+            mod = create_module(entry)
+            if isinstance(mod, functools.partial):
+                # We've reached a module that is partly constructed.  This indicates that it's a
+                # module that wraps a function i.e. f(g(x)), typically because it needs access to
+                # g(x) (for example to calculate gradients). So, we build what we've found so far,
+                # and pass it to the module
+                mod = mod(modules.Sequential(mods))
+                if not isinstance(mod, linen.Module):
+                    raise ValueError(
+                        f"Calling partial module {type(mod).__name__}() did not resolve to a "
+                        f"linen.Module instance"
+                    )
+                mods = [mod]
+            else:
+                mods.append(mod)
+
+        if len(mods) == 1:
+            # Special case to avoid needlessly wrapping a single module
+            return mods[0]
 
         return modules.Sequential(mods)
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Callable, ClassVar, Optional, Type, TypeVar, Union
+from typing import Any, Callable, ClassVar, Optional, Type, TypeVar, Union
 
 import clu.internal.utils
 import clu.metrics
@@ -116,11 +116,72 @@ class RootMeanSquareError(clu.metrics.Metric):
         return jnp.sqrt(self.mse.compute())
 
 
+@flax.struct.dataclass
+class Std(clu.metrics.Metric):
+    """
+    Custom version of ``clu.metrics.Std` which allows for more than just one dimensional arrays
+    """
+
+    total: jnp.array
+    sum_of_squares: jnp.array
+    count: jnp.array
+
+    @classmethod
+    def empty(cls):
+        return cls(
+            total=jnp.array(0, jnp.float32),
+            sum_of_squares=jnp.array(0, jnp.float32),
+            count=jnp.array(0, jnp.int32),
+        )
+
+    @classmethod
+    def from_model_output(
+        # pylint: disable=arguments-differ
+        cls,
+        values: jnp.array,
+        mask: Optional[jnp.array] = None,
+        **_,
+    ) -> "Std":
+        if values.ndim == 0:
+            values = values[None]
+        if mask is None:
+            mask = jnp.ones(values.shape[0], dtype=jnp.int32)
+
+        mask = nn_utils.prepare_mask(mask, values)
+        return cls(
+            total=values.sum(),
+            sum_of_squares=jnp.where(mask, values**2, jnp.zeros_like(values)).sum(),
+            count=mask.sum(),
+        )
+
+    def merge(self, other: "Std") -> "Std":
+        return type(self)(
+            total=self.total + other.total,
+            sum_of_squares=self.sum_of_squares + other.sum_of_squares,
+            count=self.count + other.count,
+        )
+
+    def compute(self) -> Any:
+        # var(X) = 1/N \sum_i (x_i - mean)^2
+        #        = 1/N \sum_i (x_i^2 - 2 x_i mean + mean^2)
+        #        = 1/N ( \sum_i x_i^2 - 2 mean \sum_i x_i + N * mean^2 )
+        #        = 1/N ( \sum_i x_i^2 - 2 mean N mean + N * mean^2 )
+        #        = 1/N ( \sum_i x_i^2 - N * mean^2 )
+        #        = \sum_i x_i^2 / N - mean^2
+        mean = self.total / self.count
+        variance = self.sum_of_squares / self.count - mean**2
+        # Mathematically variance can never be negative but in reality we may run
+        # into such issues due to numeric reasons.
+        variance = jnp.clip(variance, a_min=0.0)
+        return variance**0.5
+
+
 # Helpers to make it easy to choose a metric using a string
 metrics = {
     "mse": MeanSquaredError,
     "mae": MeanAbsoluteError,
     "rmse": RootMeanSquareError,
+    "std": Std,
 }
 
 

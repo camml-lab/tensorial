@@ -7,14 +7,12 @@ from jax import random
 import jax.numpy as jnp
 import jraph
 import optax
-import utils
 
 from tensorial import gcnn
 from tensorial.gcnn import metrics
 
 
 class Std(clu.metrics.Std):
-
     @classmethod
     def from_model_output(  # pylint: disable=arguments-differ
         cls,
@@ -59,10 +57,10 @@ def test_graph_metric(cube_graph: jraph.GraphsTuple, rng_key):
     )
 
 
-def test_graph_metric_per_node():
+def test_graph_metric_per_node(rng_key):
     """Test the per node normalisation of graph metrics"""
     # Create some random graphs
-    random_graphs = jraph.batch(tuple(utils.random_spatial_graph() for _ in range(10)))
+    random_graphs = jraph.batch(tuple(gcnn.random.spatial_graph(rng_key) for _ in range(10)))
     random_graphs.globals["num_nodes"] = random_graphs.n_node
 
     # Without normalisation by num nodes

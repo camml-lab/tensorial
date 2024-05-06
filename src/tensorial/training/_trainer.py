@@ -11,7 +11,7 @@ import optax
 
 from tensorial import data, training
 
-__all__ = "Trainer", "TRAIN_MAX_EPOCHS", "Batch"
+__all__ = "Trainer", "TRAIN_MAX_EPOCHS", "Batch", "ModelT"
 
 PyTree = Any
 InputT_co = TypeVar("InputT_co", covariant=True)
