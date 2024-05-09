@@ -66,7 +66,7 @@ def generated_padded_graphs(
 
 def add_padding_mask(
     graph: jraph.GraphsTuple,
-    mask_field=keys.DEFAULT_PAD_MASK_FIELD,
+    mask_field=keys.MASK,
     what=GraphAttributes.ALL,
     overwrite=False,
 ) -> jraph.GraphsTuple:

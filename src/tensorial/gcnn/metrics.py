@@ -16,7 +16,10 @@ __all__ = ("graph_metric",)
 
 
 def graph_metric(
-    metric: Type[clu.metrics.Metric], *field: str, _per_node=False, **kwargs: str
+    metric: Type[clu.metrics.Metric],
+    *field: utils.TreePathLike,
+    _per_node=False,
+    **kwargs: utils.TreePathLike,
 ) -> Type[clu.metrics.Metric]:
     arg_paths = tuple(map(utils.path_from_str, field))
     kwarg_paths = {key: utils.path_from_str(value) for key, value in kwargs.items()}

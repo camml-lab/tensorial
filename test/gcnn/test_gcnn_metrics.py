@@ -78,7 +78,7 @@ def test_graph_metric_per_node(rng_key):
     node_sizes_avg = metrics.graph_metric(
         clu.metrics.Average,
         "graph.globals.num_nodes",
-        mask="globals.pad_mask",
+        mask=("globals", gcnn.keys.MASK),
         _per_node=True,
     )
     padded = tuple(gcnn.data.GraphBatcher(random_graphs, pad=True, add_mask=True))[0]

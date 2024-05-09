@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import collections.abc
-from typing import Any, Tuple, Union
+from typing import Tuple, Union
 
-TreePath = Tuple[Any, ...]
+TreePath = Tuple[str, ...]
+TreePathLike = Union[TreePath, str]
 
 
-def path_from_str(path_str: Union[str, tuple], delimiter=".") -> TreePath:
+def path_from_str(path_str: TreePathLike, delimiter=".") -> TreePath:
     """Split up a path string into a tuple of path components"""
     if isinstance(path_str, tuple):
         return path_str
@@ -13,8 +14,11 @@ def path_from_str(path_str: Union[str, tuple], delimiter=".") -> TreePath:
     return tuple(path_str.split(delimiter))
 
 
-def path_to_str(path: TreePath, delimiter=".") -> str:
+def path_to_str(path: TreePathLike, delimiter=".") -> str:
     """Return a string representation of a tree path"""
+    if isinstance(path, str):
+        return path
+
     return delimiter.join(path)
 
 

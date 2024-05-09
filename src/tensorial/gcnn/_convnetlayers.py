@@ -70,7 +70,7 @@ class NequipLayer(linen.Module):
             graph.senders,
             graph.receivers,
             graph.nodes.get(keys.SPECIES),
-            edge_mask=graph.edges.get(keys.DEFAULT_PAD_MASK_FIELD, None),
+            edge_mask=graph.edges.get(keys.MASK, None),
         )
 
         # If enabled, perform ResNet operation by adding back the old node features

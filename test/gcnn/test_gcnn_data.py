@@ -40,15 +40,9 @@ def test_generate_batches_with_mask(rng_key):
     # Check the first and last batch (which only has one graph)
     for batch_idx in (0, -1):
         batch = batches[batch_idx]
-        assert jnp.all(
-            batch.globals[keys.DEFAULT_PAD_MASK_FIELD] == jraph.get_graph_padding_mask(batch)
-        )
-        assert jnp.all(
-            batch.nodes[keys.DEFAULT_PAD_MASK_FIELD] == jraph.get_node_padding_mask(batch)
-        )
-        assert jnp.all(
-            batch.edges[keys.DEFAULT_PAD_MASK_FIELD] == jraph.get_edge_padding_mask(batch)
-        )
+        assert jnp.all(batch.globals[keys.MASK] == jraph.get_graph_padding_mask(batch))
+        assert jnp.all(batch.nodes[keys.MASK] == jraph.get_node_padding_mask(batch))
+        assert jnp.all(batch.edges[keys.MASK] == jraph.get_edge_padding_mask(batch))
 
 
 def test_create_batches(rng_key):

@@ -50,6 +50,8 @@ class MetricWithCount(clu.metrics.Metric):
             targets = targets[None]
         if mask is None:
             mask = jnp.ones_like(predictions, dtype=bool)
+        else:
+            mask = nn_utils.prepare_mask(mask, predictions)
 
         # Leading dimensions of mask and predictions must match.
         if mask.shape[0] != predictions.shape[0]:

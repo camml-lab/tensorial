@@ -155,7 +155,7 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
         )
         edge_vecs = edge_vecs + shift_vectors
 
-    edge_mask = graph.edges.get(tensorial.gcnn.keys.DEFAULT_PAD_MASK_FIELD)
+    edge_mask = graph.edges.get(tensorial.gcnn.keys.MASK)
     if edge_mask is not None:
         edge_mask = nn_utils.prepare_mask(edge_mask, edge_vecs)
         edge_vecs = jnp.where(edge_mask, edge_vecs, 1.0)

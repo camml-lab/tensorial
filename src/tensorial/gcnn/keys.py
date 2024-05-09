@@ -23,4 +23,4 @@ PBC: Final[str] = "pbc"
 SPECIES: Final[str] = "species"
 # Used when padding graphs to indicate nodes, edges or graphs that are just there for padding
 # (value is False)
-DEFAULT_PAD_MASK_FIELD: Final[str] = "pad_mask"
+MASK: Final[str] = "mask"

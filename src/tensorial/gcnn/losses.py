@@ -81,7 +81,7 @@ class Loss(GraphLoss):
 
     def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> jax.Array:
         predictions_dict = predictions._asdict()
-        mask = predictions_dict[self._prediction_field[0]].get(keys.DEFAULT_PAD_MASK_FIELD)
+        mask = predictions_dict[self._prediction_field[0]].get(keys.MASK)
 
         _predictions = tensorial.as_array(
             tree.get_by_path(predictions_dict, self._prediction_field)

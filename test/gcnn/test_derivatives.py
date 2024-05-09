@@ -38,11 +38,6 @@ def test_grad_module(rng_key):
     def get_energy(graph_):
         graph_ = gcnn.with_edge_vectors(graph_)
         return graph_
-        # energy = g.edges[keys.EDGE_LENGTHS] ** 2
-        # _per_atom_energy = jraph.segment_sum(
-        # energy, graph.receivers, num_segments=len(graph.nodes[keys.POSITIONS])
-        # )
-        # return g._replace(globals=dict(total_energy=energy))
 
     pos = jnp.array(
         [
