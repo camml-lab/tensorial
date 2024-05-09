@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import jax
-from jax import random
 import jax.numpy as jnp
 import jraph
 
@@ -35,14 +34,15 @@ def test_grads():
     assert jnp.allclose(jnp.abs(grads), 1.0 / jnp.sqrt(3.0))
 
 
-def test_grad_module():
-    def get_energy(g):
-        g = gcnn.with_edge_vectors(g)
-        energy = g.edges[keys.EDGE_LENGTHS] ** 2
-        _per_atom_energy = jraph.segment_sum(
-            energy, graph.receivers, num_segments=len(graph.nodes[keys.POSITIONS])
-        )
-        return g._replace(globals=dict(total_energy=energy))
+def test_grad_module(rng_key):
+    def get_energy(graph_):
+        graph_ = gcnn.with_edge_vectors(graph_)
+        return graph_
+        # energy = g.edges[keys.EDGE_LENGTHS] ** 2
+        # _per_atom_energy = jraph.segment_sum(
+        # energy, graph.receivers, num_segments=len(graph.nodes[keys.POSITIONS])
+        # )
+        # return g._replace(globals=dict(total_energy=energy))
 
     pos = jnp.array(
         [
@@ -64,11 +64,10 @@ def test_grad_module():
 
     grad = gcnn.Grad(
         get_energy,
-        "globals.total_energy",
+        of=f"edges.{keys.EDGE_LENGTHS}",
         wrt="nodes.positions",
     )
 
-    params = grad.init(random.key(0), graph)
-    _res = grad.apply(params, graph)
-
-    _res = jax.jit(grad.apply)(params, graph)  # pylint: disable=not-callable
+    params = grad.init(rng_key, graph)
+    res = grad.apply(params, graph)
+    assert jnp.allclose(jnp.abs(res.edges[f"d{keys.EDGE_LENGTHS}/dpositions"]), 2.0 / jnp.sqrt(3.0))

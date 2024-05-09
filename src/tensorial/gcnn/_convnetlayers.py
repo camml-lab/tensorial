@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, Union
+from typing import Callable, Dict, Union
 
 import e3nn_jax as e3j
 from flax import linen
@@ -32,20 +32,26 @@ class NequipLayer(linen.Module):
     self_connection: bool = True
     num_species: int = 1
 
+    interaction_block: Callable = None
+
     resnet: bool = False
 
     def setup(self):
-        self._interaction_block = _interaction_blocks.InteractionBlock(  # pylint: disable=attribute-defined-outside-init
-            self.irreps_out,
-            # Radial
-            radial_num_layers=self.radial_num_layers,
-            radial_num_neurons=self.radial_num_neurons,
-            radial_activation=self.radial_activation,
-            avg_num_neighbours=self.avg_num_neighbours,
-            self_connection=self.self_connection,
-            activations=self.activations,
-            num_species=self.num_species,
-        )
+        # pylint: disable=attribute-defined-outside-init
+        if self.interaction_block is None:
+            self._interaction_block = _interaction_blocks.InteractionBlock(
+                self.irreps_out,
+                # Radial
+                radial_num_layers=self.radial_num_layers,
+                radial_num_neurons=self.radial_num_neurons,
+                radial_activation=self.radial_activation,
+                avg_num_neighbours=self.avg_num_neighbours,
+                self_connection=self.self_connection,
+                activations=self.activations,
+                num_species=self.num_species,
+            )
+        else:
+            self._interaction_block = self.interaction_block
 
     @linen.compact
     def __call__(

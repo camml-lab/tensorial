@@ -20,16 +20,16 @@ TreePath = Tuple[Any, ...]
 class Grad(linen.Module):
     func: _base.GraphFunction
     of: str
-    wrt: str
+    wrt: Union[str, TreePath]
     out_field: Union[str, Sequence[str]] = None
     sign: float = 1.0
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
         if isinstance(self.wrt, str):
-            self._wrt = (self.wrt,)
+            self._wrt = (utils.path_from_str(self.wrt),)
         elif isinstance(self.wrt, (list, tuple)):
-            self._wrt = tuple(self.wrt)
+            self._wrt = tuple(map(utils.path_from_str(self.wrt)))
         else:
             raise ValueError(
                 f"wrt must be str or list or tuple thereof, got {type(self.wrt).__name__}"
@@ -39,8 +39,7 @@ class Grad(linen.Module):
         if self.out_field is None:
             derivs = []
             for wrt in self._wrt:
-                parts = wrt.split(".")
-                derivs.append(parts[:-1] + [f"d{'.'.join(self._of[1:])}/d{parts[-1]}"])
+                derivs.append(self._of[:-1] + (f"d{'.'.join(self._of[1:])}/d{wrt[-1]}",))
             self._out_field = tuple(derivs)
         else:
             self._out_field = [utils.path_from_str(self.out_field)]
@@ -49,9 +48,7 @@ class Grad(linen.Module):
 
     def __call__(self, graph: jraph.GraphsTuple):
         graph_dict = graph._asdict()
-        wrt_variables = tuple(
-            map(lambda path: tree.get_by_path(graph_dict, path.split(".")), self._wrt)
-        )
+        wrt_variables = tuple(map(lambda path: tree.get_by_path(graph_dict, path), self._wrt))
 
         grads, graph_out = self._grad_fn(self.func, graph, self._of, self._wrt, *wrt_variables)
         grads = (grads,)
@@ -64,11 +61,15 @@ class Grad(linen.Module):
 
 
 def grad_shim(
-    fn: _base.GraphFunction, graph: jraph.GraphsTuple, of: Tuple, paths: Tuple[str], *wrt_variables
+    fn: _base.GraphFunction,
+    graph: jraph.GraphsTuple,
+    of: Tuple,
+    paths: Tuple[TreePath],
+    *wrt_variables,
 ) -> Tuple[jax.Array, jraph.GraphsTuple]:
     def repl(path, val):
         try:
-            idx = paths.index(map(key_to_str, path))
+            idx = paths.index(tuple(map(key_to_str, path)))
             return wrt_variables[idx]
         except ValueError:
             return val

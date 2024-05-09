@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import itertools
-from typing import Any, Callable, Generic, Optional, Tuple, TypeVar
+from typing import Any, Callable, Final, Generic, Optional, Tuple, TypeVar
 import uuid
 
 import clu.metrics
@@ -11,7 +11,16 @@ import optax
 
 from tensorial import data, training
 
-__all__ = "Trainer", "TRAIN_MAX_EPOCHS", "Batch", "ModelT"
+__all__ = (
+    "Trainer",
+    "DEFAULT_MAX_EPOCHS",
+    "TRAIN_MAX_EPOCHS",
+    "Batch",
+    "ModelT",
+    "JIT_ALL",
+    "JIT_EVAL",
+    "JIT_TRAIN",
+)
 
 PyTree = Any
 InputT_co = TypeVar("InputT_co", covariant=True)
@@ -24,7 +33,7 @@ LossFn = Callable[[OutputT_co, LabelT_co], jax.Array]
 TRAIN_MAX_EPOCHS = "max_epochs"
 TRAIN_STOP = "stop"
 
-DEFAULT_MAX_EPOCHS = 30_000
+DEFAULT_MAX_EPOCHS: Final[int] = 10_000
 DEFAULT_OVERFITTING_WINDOW = 50
 
 JIT_TRAIN = 0b001

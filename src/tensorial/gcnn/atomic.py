@@ -162,8 +162,8 @@ def per_species_rescale(
     field: str,
     types_field: str = None,
     out_field: str = None,
-    shifts=None,
-    scales=None,
+    shifts: jax.typing.ArrayLike = None,
+    scales: jax.typing.ArrayLike = None,
 ) -> _modules.IndexedRescale:
     types_field = types_field or ("nodes", ATOMIC_TYPE_IDX)
     return _modules.IndexedRescale(

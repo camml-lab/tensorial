@@ -50,7 +50,6 @@ class EventGenerator:
 
 
 class TrainerListener:
-
     def on_training_starting(self, trainer: "training.Trainer"):
         """A training run is starting"""
 
@@ -145,12 +144,23 @@ class MetricsLogging(TrainerListener):
 
     # Only these quantities are available in the default metrics (and maybe not even validation if
     # it is not supplied)
-    DEFAULT_MSG = "%(epoch)i: %(training_loss).2f %(validation_loss).2f"
+    DEFAULT_MSG = "%(epoch)5i %(training_loss).4f %(validation_loss).4f"
+    DEFAULT_HEADER = "epoch train valid"
 
-    def __init__(self, log_level=logging.INFO, msg=DEFAULT_MSG, log_every: int = 10):
+    def __init__(self, log_level=logging.INFO, msg=None, log_every: int = 10, header: str = None):
         self._log_level = log_level
-        self._msg = msg
+        if msg is None:
+            self._msg = self.DEFAULT_MSG
+            self._header = header or self.DEFAULT_HEADER
+        else:
+            self._msg = msg
+            self._header = header
+
         self._log_every = log_every
+
+    def on_training_starting(self, trainer: "training.Trainer"):
+        if self._header:
+            _LOGGER.log(self._log_level, self._header)
 
     def on_epoch_finished(self, trainer: "training.Trainer", epoch_num: int):
         if epoch_num % self._log_every == 0:

@@ -218,7 +218,7 @@ class PeriodicBoundary(NeighbourFinder):
 
     def estimate_neighbours(self, positions: jax.typing.ArrayLike) -> int:
         density = positions.shape[0] / cell_volume(self._cell)
-        return int(1.25 * jnp.ceil(density * sphere_volume(self._cutoff) + 1.0).item())
+        return int(1.3 * jnp.ceil(density * sphere_volume(self._cutoff) + 1.0).item())
 
 
 def neighbour_finder(

@@ -71,12 +71,12 @@ def add_padding_mask(
     overwrite=False,
 ) -> jraph.GraphsTuple:
     """
-    Add a mask array to the `mask_field` of `graph` for either nodes, edges and/or globals which can
-    be used to determine which entries are there just for padding (and therefore should be ignored
-    in any computations).
+    Add a mask array to the ``mask_field`` of ``graph`` for either nodes, edges and/or globals which
+    can be used to determine which entries are there just for padding (and therefore should be
+    ignored in any computations).
 
-    If `overwrite` is `True` then any mask already found in the mask field will be overwritten by
-    the padding mask. Otherwise, it will be ORed.
+    If ``overwrite`` is ``True`` then any mask already found in the mask field will be overwritten
+    by the padding mask. Otherwise, it will be ORed.
     """
     mask_path = utils.path_from_str(mask_field)
     updates = utils.UpdateDict(graph._asdict())
