@@ -33,22 +33,24 @@ class InteractionBlock(linen.Module):
     # Radial
     radial_num_layers: int = 1
     radial_num_neurons: int = 8
-    radial_activation: str = "swish"
+    radial_activation: nn_utils.ActivationFunction = "swish"
 
     avg_num_neighbours: float = 1.0
     self_connection: bool = True
-    activations: Union[str, Dict[str, str]] = DEFAULT_ACTIVATIONS
+    activations: Union[str, Dict[str, nn_utils.ActivationFunction]] = DEFAULT_ACTIVATIONS
 
     num_species: int = 1
 
     def setup(self):
-        self._gate = functools.partial(  # pylint: disable=attribute-defined-outside-init
+        # pylint: disable=attribute-defined-outside-init
+        self._gate = functools.partial(
             e3j.gate,
             even_act=nn_utils.get_jaxnn_activation(self.activations["e"]),
             odd_act=nn_utils.get_jaxnn_activation(self.activations["o"]),
             even_gate_act=nn_utils.get_jaxnn_activation(self.activations["e"]),
             odd_gate_act=nn_utils.get_jaxnn_activation(self.activations["o"]),
         )
+        self._radial_act = nn_utils.get_jaxnn_activation(self.radial_activation)
 
     @linen.compact
     def __call__(
@@ -56,26 +58,25 @@ class InteractionBlock(linen.Module):
         node_features: e3j.IrrepsArray,
         edge_features: e3j.IrrepsArray,
         edge_length_embeddings: e3j.IrrepsArray,
-        senders,
-        receivers,
+        senders: jax.Array,  # [n_edges, ]
+        receivers: jax.Array,  # [n_edges, ]
         node_species: Optional[jax.Array] = None,
         edge_mask: Optional[jax.Array] = None,
     ) -> e3j.IrrepsArray:
         """
-        # A NequIP interaction made up of the following steps
+        A NequIP interaction made up of the following steps:
 
-        # - Linear on nodes
-        # - tensor product + aggregate
-        # - divide by sqrt(average number of neighbors)
-        # - concatenate
-        # - Linear on nodes
-        # - Gate non-linearity
+        - Linear on nodes
+        - tensor product + aggregate
+        - divide by sqrt(average number of neighbors)
+        - concatenate
+        - Linear on nodes
+        - Gate non-linearity
         """
         num_nodes = node_features.shape[0]
 
-        output_irreps = e3j.Irreps(
-            self.irreps_out
-        ).regroup()  # The irreps to use for the output node features
+        # The irreps to use for the output node features
+        output_irreps = e3j.Irreps(self.irreps_out).regroup()
 
         # First linear, stays in current irreps space
         messages = e3j.flax.Linear(node_features.irreps, name="linear_up")(node_features)[senders]
@@ -85,14 +86,14 @@ class InteractionBlock(linen.Module):
             messages, edge_features, filter_ir_out=output_irreps + "0e"
         )
 
-        # Make a compound message
+        # Make a compound message [n_edges, node_irreps + edge_irreps]
         messages = e3j.concatenate([messages.filter(output_irreps + "0e"), edge_features]).regroup()
 
         # Now, based on the messages irreps, create the radial MLP that maps from inter-atomic
         # distances to tensor product weights
         mlp = e3j.flax.MultiLayerPerceptron(
             (self.radial_num_neurons,) * self.radial_num_layers + (messages.irreps.num_irreps,),
-            nn_utils.get_jaxnn_activation(self.radial_activation),
+            self._radial_act,
             with_bias=False,  # do not use bias so that R(0) = 0
             output_activation=False,
         )
@@ -111,29 +112,31 @@ class InteractionBlock(linen.Module):
             )
         messages = messages * weights
 
-        # Pass the messages, summing those from edges onto nodes
-        node_features = e3j.scatter_sum(messages, dst=receivers, output_size=num_nodes)
-
-        # Normalisation
-        node_features = node_features / jnp.sqrt(self.avg_num_neighbours)
-
         gate_irreps = output_irreps.filter(keep=messages.irreps)
         num_non_scalar = gate_irreps.filter(drop="0e + 0o").num_irreps
         gate_irreps = gate_irreps + (num_non_scalar * e3j.Irrep("0e"))
 
-        # Second linear, now we create any extra gate scalars
-        node_features = e3j.flax.Linear(gate_irreps, name="linear_down")(node_features)
-
         # self-connection: species weighted tensor product that maps to current irreps space
+        skip = None
         if self.self_connection:
-            self_connection = e3j.flax.Linear(
+            skip = e3j.flax.Linear(
                 gate_irreps,
                 num_indexed_weights=self.num_species,
                 name="self_connection",
                 force_irreps_out=True,
             )(node_species, node_features)
 
-            node_features = node_features + self_connection
+        # Pass the messages, summing those from edges onto nodes
+        node_features = e3j.scatter_sum(messages, dst=receivers, output_size=num_nodes)
+
+        # Normalisation
+        node_features = node_features / jnp.sqrt(self.avg_num_neighbours)
+
+        # Second linear, now we create any extra gate scalars
+        node_features = e3j.flax.Linear(gate_irreps, name="linear_down")(node_features)
+
+        if skip is not None:
+            node_features = node_features + skip
 
         # Apply non-linearity
         node_features = self._gate(node_features)

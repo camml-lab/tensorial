@@ -7,17 +7,20 @@ import jax.nn
 ActivationFunction = Callable[[jax.Array], jax.Array]
 
 
-def get_jaxnn_activation(name: str) -> ActivationFunction:
+def get_jaxnn_activation(func: ActivationFunction) -> ActivationFunction:
     """
     Returns the activation function with `name` form the jax.nn module
 
-    :param name: the name of the function (as used in `jax.nn`)
+    :param func: the name of the function (as used in ``jax.nn``)
     :return: the activation function
     """
+    if isinstance(func, Callable):
+        return func
+
     try:
-        return getattr(jax.nn, name)
+        return getattr(jax.nn, func)
     except AttributeError:
-        raise ValueError(f"Activation function '{name}' not found in jax.nn") from None
+        raise ValueError(f"Activation function '{func}' not found in jax.nn") from None
 
 
 def prepare_mask(mask: jax.Array, array: jax.Array) -> jax.Array:
