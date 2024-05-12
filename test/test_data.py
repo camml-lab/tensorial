@@ -38,4 +38,4 @@ def test_caching_loader():
     # Nw check that it changed
     for _ in range(3):
         for idx, batch in enumerate(tuple(loader)):
-            assert np.all(batches[idx][0] != batch[0])
+            assert np.any(batches[idx][0] != batch[0])

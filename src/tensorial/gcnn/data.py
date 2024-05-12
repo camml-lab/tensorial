@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import collections
 import enum
 import functools
 from typing import Any, Iterator, Optional, Sequence, Tuple, Union
@@ -20,6 +21,20 @@ class GraphBatch(tuple):
 
 
 GraphDataset = tensorial.data.Dataset[GraphBatch]
+GraphPadding = collections.namedtuple("GraphPadding", ["n_nodes", "n_edges", "n_graphs"])
+
+
+def max_padding(*padding: GraphPadding) -> GraphPadding:
+    """Get a padding that contains the maximum number of nodes, edges and graphs over all the
+    provided paddings"""
+    n_node = 0
+    n_edge = 0
+    n_graph = 0
+    for pad in padding:
+        n_node = max(n_node, pad.n_nodes)
+        n_edge = max(n_edge, pad.n_edges)
+        n_graph = max(n_graph, pad.n_graphs)
+    return GraphPadding(n_node, n_edge, n_graph)
 
 
 class GraphAttributes(enum.IntFlag):
@@ -104,13 +119,13 @@ def add_padding_mask(
 
 
 class GraphLoader(data.DataLoader[Tuple[jraph.GraphsTuple, ...]]):
-
     def __init__(
         self,
         *graphs: Optional[Sequence[jraph.GraphsTuple]],
         batch_size: int = 1,
         shuffle: bool = False,
         pad=False,
+        padding: GraphPadding = None,
     ):
         # If the graphs were supplied as GraphTuples then unbatch them to have a base sequence of
         # individual graphs per input
@@ -125,12 +140,16 @@ class GraphLoader(data.DataLoader[Tuple[jraph.GraphsTuple, ...]]):
         self._shuffle = shuffle
 
         create_batcher = functools.partial(
-            GraphBatcher, batch_size=batch_size, shuffle=shuffle, pad=pad
+            GraphBatcher, batch_size=batch_size, shuffle=shuffle, pad=pad, padding=padding
         )
-        self._batchers = tuple(
+        self._batchers: Tuple[Optional[GraphBatcher], ...] = tuple(
             create_batcher(graph_batch) if graph_batch is not None else None
             for graph_batch in graphs
         )
+
+    @property
+    def padding(self) -> GraphPadding:
+        return self._batchers[0].padding
 
     def __len__(self) -> int:
         return len(self._sampler)
@@ -144,7 +163,6 @@ class GraphLoader(data.DataLoader[Tuple[jraph.GraphsTuple, ...]]):
 
 
 class GraphBatcher:
-
     def __init__(
         self,
         graphs: Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]],
@@ -152,6 +170,7 @@ class GraphBatcher:
         shuffle=False,
         pad=False,
         add_mask=True,
+        padding: GraphPadding = None,
     ):
         if isinstance(graphs, jraph.GraphsTuple):
             graphs = jraph.unbatch(graphs)
@@ -162,53 +181,72 @@ class GraphBatcher:
 
         self._graphs = graphs
         self._batch_size = batch_size
-        self._pad = pad
         self._add_mask = add_mask
         self._sampler = data.samplers.create_batch_sampler(
             self._graphs, batch_size=batch_size, shuffle=shuffle
         )
 
-        if shuffle:
+        self._padding = (
+            None
+            if not pad
+            else (
+                padding
+                if padding is not None
+                else self.calculate_padding(graphs, batch_size, with_shuffle=shuffle)
+            )
+        )
+
+    @staticmethod
+    def calculate_padding(
+        graphs: Sequence[jraph.GraphsTuple], batch_size: int, with_shuffle: bool = False
+    ) -> GraphPadding:
+        if with_shuffle:
             # Calculate the maximum possible number of nodes and edges over any possible shuffling
-            self._pad_nodes = (
+            pad_nodes = (
                 sum(sorted([graph.n_node[0] for graph in graphs], reverse=True)[:batch_size]) + 1
             )
-            self._pad_edges = sum(
+            pad_edges = sum(
                 sorted([graph.n_edge[0] for graph in graphs], reverse=True)[:batch_size]
             )
         else:
             # Here we just want the most nodes and edges in any of the batches
-            self._pad_nodes = max(self._fetch(idxs).n_node.sum() for idxs in self._sampler) + 1
-            self._pad_edges = max(self._fetch(idxs).n_edge.sum() for idxs in self._sampler)
+            idx_sampler = data.samplers.create_batch_sampler(
+                graphs, batch_size=batch_size, shuffle=False
+            )
+            pad_nodes = max(_fetch_batch(graphs, idxs).n_node.sum() for idxs in idx_sampler) + 1
+            pad_edges = max(_fetch_batch(graphs, idxs).n_edge.sum() for idxs in idx_sampler)
 
-        self._pad_graphs = batch_size + 1
+        return GraphPadding(pad_nodes, pad_edges, n_graphs=batch_size + 1)
+
+    @property
+    def padding(self) -> GraphPadding:
+        return self._padding
 
     def fetch(self, idxs: Sequence[int]) -> jraph.GraphsTuple:
-        batch = self._fetch(idxs)
-        if self._pad:
-            batch = jraph.pad_with_graphs(
-                batch, n_node=self._pad_nodes, n_edge=self._pad_edges, n_graph=self._pad_graphs
-            )
-            if self._add_mask:
-                batch = add_padding_mask(batch)
-
-        return batch
-
-    def _fetch(self, idxs: Sequence[int]) -> jraph.GraphsTuple:
         if len(idxs) > self._batch_size:
             raise ValueError(
                 f"Number of indices must be less than or equal to the batch size "
                 f"({self._batch_size}), got {len(idxs)}"
             )
+        batch = _fetch_batch(self._graphs, idxs)
+        if self._padding is not None:
+            batch = jraph.pad_with_graphs(batch, *self._padding)
+            if self._add_mask:
+                batch = add_padding_mask(batch)
 
-        batch = []
-        for idx in idxs:
-            batch.append(self._graphs[idx])
-        return jraph.batch(batch)
+        return batch
 
     def __iter__(self) -> Iterator[jraph.GraphsTuple]:
         for idxs in self._sampler:
             yield self.fetch(idxs)
+
+
+def _fetch_batch(graphs: Sequence[jraph.GraphsTuple], idxs: Sequence[int]) -> jraph.GraphsTuple:
+    """Given a set of indices, fetch the corresponding batch from the given graphs."""
+    batch = []
+    for idx in idxs:
+        batch.append(graphs[idx])
+    return jraph.batch(batch)
 
 
 def get_by_path(graph: jraph.GraphsTuple, path: Tuple, pad_value=None) -> Any:
