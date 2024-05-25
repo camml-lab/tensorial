@@ -5,8 +5,11 @@ import e3nn_jax as e3j
 from flax import linen
 import jax
 import jax.numpy as jnp
+import jaxtyping as jt
 
 from tensorial import nn_utils
+
+from . import typing
 
 
 class MessagePassingConvolution(linen.Module):
@@ -14,24 +17,26 @@ class MessagePassingConvolution(linen.Module):
     avg_num_neighbors: float = 1.0
 
     # Radial
-    radial_activation: nn_utils.ActivationFunction
     radial_num_layers: int = 1
     radial_num_neurons: int = 8
+    radial_activation: nn_utils.ActivationFunction = "swish"
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
         self._radial_act = nn_utils.get_jaxnn_activation(self.radial_activation)
 
+    @linen.compact
     def __call__(
         self,
         node_feats: e3j.IrrepsArray,  # [n_nodes, node_irreps]
         edge_features: e3j.IrrepsArray,  # [n_edges, edge_irreps]
         radial_embedding: jnp.ndarray,  # [n_edges, radial_embedding_dim]
-        senders: jax.Array,  # [n_edges]
-        receivers: jax.Array,  # [n_edges]
-        edge_mask: Optional[jax.Array] = None,
+        senders: jt.Int[jax.Array, "sender"],  # [n_edges]
+        receivers: jt.Int[jax.Array, "receiver"],  # [n_edges]
+        edge_mask: Optional[typing.Mask] = None,  # [n_edges]
     ) -> e3j.IrrepsArray:
         assert node_feats.ndim == 2
+        irreps_out = e3j.Irreps(self.irreps_out)  # Recast, because flax converts to tuple
 
         # The irreps to use for the output node features
         output_irreps = e3j.Irreps(self.irreps_out).regroup()
@@ -44,15 +49,13 @@ class MessagePassingConvolution(linen.Module):
         )
 
         # Make a compound message [n_edges, node_irreps + edge_irreps]
-        messages = e3j.concatenate(
-            [messages.filter(self.irreps_out + "0e"), edge_features]
-        ).regroup()
+        messages = e3j.concatenate([messages.filter(irreps_out + "0e"), edge_features]).regroup()
 
         # Now, based on the messages irreps, create the radial MLP that maps from inter-atomic
         # distances to tensor product weights
         mlp = e3j.flax.MultiLayerPerceptron(
             (self.radial_num_neurons,) * self.radial_num_layers + (messages.irreps.num_irreps,),
-            nn_utils.get_jaxnn_activation(self._radial_act),
+            self._radial_act,
             with_bias=False,  # do not use bias so that R(0) = 0
             output_activation=False,
         )

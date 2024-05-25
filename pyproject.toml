@@ -23,11 +23,13 @@ keywords = ['machine learning', 'e3nn-jax', 'physics']
 requires-python = '>=3.9'
 dependencies = [
     "ase",
+    'beartype',
     "clu",
     "flax",
     "hydra-core",
     'jax',
     'jaxlib',
+    'jaxtyping',
     'jraph',
     'orbax-checkpoint',
     'pytray',

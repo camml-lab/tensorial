@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 from typing import Optional, Union
 
 import e3nn_jax as e3j
@@ -12,6 +13,8 @@ from . import _common, keys, utils
 
 __all__ = "NodewiseLinear", "NodewiseReduce", "NodewiseEncoding", "NodewiseDecoding"
 
+_LOGGER = logging.getLogger(__name__)
+
 
 class NodewiseLinear(linen.Module):
     """Nodewise linear operation"""
@@ -20,18 +23,37 @@ class NodewiseLinear(linen.Module):
     irreps_in: Optional[e3j.Irreps] = None
     field: str = keys.FEATURES
     out_field: Optional[str] = keys.FEATURES
+    num_types: Optional[int] = None
+    types_field: Optional[str] = None
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
         self.linear = e3j.flax.Linear(
             irreps_out=self.irreps_out,
             irreps_in=self.irreps_in,
+            num_indexed_weights=self.num_types,
             force_irreps_out=True,
         )
+        # Set the default of the types field if num_types is supplied and the user didn't supply it
+        if self.types_field is None:
+            self._types_field = keys.SPECIES if self.num_types else None
+        else:
+            if not self.num_types:
+                _LOGGER.warning(
+                    "User supplied a ``types_field``, %s, but failed to supply ``num_types``. "
+                    "Ignoring."
+                )
+            self._types_field = self.types_field
 
     def __call__(self, graph: jraph.GraphsTuple):
         nodes = graph.nodes
-        nodes[self.out_field] = self.linear(nodes[self.field])
+        if self.num_types:
+            # We are using weights indexed by the type
+            features = self.linear(nodes[self._types_field], nodes[self.field])
+        else:
+            features = self.linear(nodes[self.field])
+
+        nodes[self.out_field] = features
         return graph._replace(nodes=nodes)
 
 

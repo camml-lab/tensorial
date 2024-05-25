@@ -34,3 +34,10 @@ def test_nequip_layer(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
     graph_out = layer.apply(params, cube_graph_gcnn)
 
     assert graph_out.nodes[keys.FEATURES].irreps == irreps_out
+
+    def wrapper(positions):
+        cube_graph_gcnn.nodes[keys.POSITIONS] = positions
+        out = layer.apply(params, cube_graph_gcnn)
+        return out.nodes[keys.POSITIONS]
+
+    e3j.utils.assert_equivariant(wrapper, rng_key, cube_graph_gcnn.nodes[keys.POSITIONS])

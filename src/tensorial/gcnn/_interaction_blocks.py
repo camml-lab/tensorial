@@ -136,7 +136,7 @@ class InteractionBlock(linen.Module):
         node_features = e3j.flax.Linear(gate_irreps, name="linear_down")(node_features)
 
         if skip is not None:
-            node_features = node_features + skip
+            node_features = 0.5 * (node_features + skip)
 
         # Apply non-linearity
         node_features = self._gate(node_features)

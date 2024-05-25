@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-from typing import Any, Dict, Hashable, Iterable, List, Mapping, MutableMapping, Optional
+from typing import Any, Dict, Hashable, Iterable, Mapping, MutableMapping, Optional, Sequence
 
 import equinox
 import jax
 import jax.numpy as jnp
+import jaxtyping as jt
 import jraph
 
 from tensorial import base
 
-from . import _graphs, _modules
+from . import _graphs, _modules, keys
 
 ENERGY_PER_ATOM = "energy/atom"
 TOTAL_ENERGY = "total_energy"
@@ -17,7 +18,6 @@ STRESS = "stress"
 VIRIAL = "virial"
 PBC = "pbc"
 ATOMIC_NUMBERS = "atomic_numbers"
-ATOMIC_TYPE_IDX = "atomic_type_idx"
 
 # Global quantities
 ASE_GLOBAL_KEYS = {"energy", "free_energy", "stress", "magmom"}
@@ -139,11 +139,11 @@ class SpeciesTransform(equinox.Module):
     position in the list
     """
 
-    atomic_numbers: List[int]
+    atomic_numbers: jt.Int[jax.Array, "numbers"]
     field: str = ATOMIC_NUMBERS
-    out_field: str = ATOMIC_TYPE_IDX
+    out_field: str = keys.SPECIES
 
-    def __init__(self, atomic_numbers, field=ATOMIC_NUMBERS, out_field=ATOMIC_TYPE_IDX):
+    def __init__(self, atomic_numbers: Sequence[int], field=ATOMIC_NUMBERS, out_field=keys.SPECIES):
         self.atomic_numbers = jnp.array(
             atomic_numbers
         )  # pylint: disable=attribute-defined-outside-init
@@ -165,7 +165,7 @@ def per_species_rescale(
     shifts: jax.typing.ArrayLike = None,
     scales: jax.typing.ArrayLike = None,
 ) -> _modules.IndexedRescale:
-    types_field = types_field or ("nodes", ATOMIC_TYPE_IDX)
+    types_field = types_field or ("nodes", keys.SPECIES)
     return _modules.IndexedRescale(
         num_types,
         index_field=types_field,

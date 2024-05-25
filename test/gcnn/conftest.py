@@ -24,7 +24,7 @@ def cube_graph() -> jraph.GraphsTuple:
     pts = jnp.array(pts)
     node_species = jnp.array(random.choices([0, 1, 2], k=len(pts)))
     nodes = {
-        "node_species": node_species,
+        gcnn.keys.SPECIES: node_species,
         gcnn.keys.ATTRIBUTES: e3j.as_irreps_array(jax.nn.one_hot(node_species, len(pts))),
     }
 

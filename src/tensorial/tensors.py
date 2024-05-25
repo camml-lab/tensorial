@@ -44,28 +44,28 @@ class AsIrreps(base.Attr):
 class SphericalHarmonic(base.Attr):
     """An attribute that is the spherical harmonics evaluated as some values"""
 
-    normalize: bool
+    normalise: bool
     normalization: Optional[str] = None
     algorithm: Optional[Tuple[str]] = None
 
     def __init__(
         self,
         irreps,
-        normalize,
+        normalise,
         normalization: str = None,
         *,
         algorithm: Tuple[str] = None,
     ):
         super().__init__(irreps)
-        self.normalize = normalize
+        self.normalise = normalise
         self.normalization = normalization
         self.algorithm = algorithm
 
-    def create_tensor(self, value) -> jnp.array:
+    def create_tensor(self, value: Union[jax.Array, e3j.IrrepsArray]) -> jnp.array:
         return e3j.spherical_harmonics(
             self.irreps,
             value,
-            normalize=self.normalize,
+            normalize=self.normalise,
             normalization=self.normalization,
             algorithm=self.algorithm,
         )
