@@ -19,9 +19,18 @@ from . import _message_passing, keys, typing, utils
 A025582 = [0, 1, 3, 7, 12, 20, 30, 44, 65, 80, 96, 122, 147, 181, 203, 251, 289]
 
 
+@jt.jaxtyped(beartype.beartype)
 class SymmetricContraction(linen.Module):
+    """
+    Symmetric tensor contraction up to a given correlation order.
+
+    Based on implementation from:
+
+        https://github.com/ACEsuit/mace-jax/blob/main/mace_jax/modules/symmetric_contraction.py
+    """
+
     correlation_order: int
-    keep_irrep_out: Set[e3j.Irrep]
+    keep_irrep_out: Union[str, Set[tensorial.typing.IrrepLike]]
 
     num_types: int = 1
     gradient_normalisation: Union[str, float] = None
@@ -66,31 +75,31 @@ class SymmetricContraction(linen.Module):
         self,
         inputs: jt.Float[e3j.IrrepsArray, "num_features irreps_in"],
         index: jt.Int[jax.Array, ""],
-    ):
+    ) -> jt.Float[e3j.IrrepsArray, "num_features irreps_out"]:
         """
         This operation is parallel on the feature dimension (but each feature has its own
         parameters)
-        This operation is an efficient implementation of:
+        Efficient implementation of:
 
 
             vmap(lambda w, x: FunctionalLinear(irreps_out)(
                 w, concatenate([x, tensor_product(x, x), tensor_product(x, x, x), ...])))(w, x)
 
 
-        up to x power self.correlation
+        up to x power ``self.correlation_order``
 
-        TODO: Rewrite this
-        :param inputs:
-        :param index:
-        :return:
+        :param inputs: the contraction inputs
+        :param index: the contraction index
+        :return: the contraction outputs
         """
         outputs: Dict[e3j.Irrep, jax.Array] = dict()
-        for order in range(self.correlation_order, 0, -1):  # correlation, ..., 1
+        for order in range(self.correlation_order, 0, -1):  # correlation_order, ..., 1
             if self.off_diagonal:
                 inp = jnp.roll(inputs.array, A025582[order - 1])
             else:
                 inp = inputs.array
 
+            # Create the basis
             if self.symmetric_tensor_product_basis:
                 basis = e3j.reduced_symmetric_tensor_product_basis(
                     inputs.irreps, order, keep_ir=self._keep_irrep_out
@@ -120,7 +129,7 @@ class SymmetricContraction(linen.Module):
                     )[index]
                 )
 
-                # normalize weights
+                # normalise the weights
                 weights = weights * (mul**-0.5) ** self._gradient_normalisation
 
                 if ir_out not in outputs:
@@ -194,7 +203,7 @@ class EquivariantProductBasisBlock(linen.Module):
 
 @jt.jaxtyped(beartype.beartype)
 class InteractionBlock(linen.Module):
-    irreps_out: e3j.Irreps
+    irreps_out: tensorial.typing.IrrepsLike
     avg_num_neighbours: float = 1.0
     radial_activation: nn_utils.ActivationFunction = "swish"
 
@@ -211,8 +220,8 @@ class InteractionBlock(linen.Module):
         node_features: jt.Float[e3j.IrrepsArray, "n_nodes node_irreps"],
         edge_features: jt.Float[e3j.IrrepsArray, "n_edges edge_irreps"],
         radial_embedding: jt.Float[jnp.ndarray, "n_edges radial_embeddings"],
-        senders: jt.Int[jax.Array, "n_edges"],
-        receivers: jt.Int[jax.Array, "n_edges"],
+        senders: jt.Int[jax.typing.ArrayLike, "n_edges"],
+        receivers: jt.Int[jax.typing.ArrayLike, "n_edges"],
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
     ) -> jt.Float[e3j.IrrepsArray, "n_nodes target_irreps"]:
         node_features = e3j.flax.Linear(node_features.irreps, name="linear_up")(node_features)
@@ -286,7 +295,7 @@ class MaceLayer(linen.Module):
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
         hidden_irreps = e3j.Irreps(self.hidden_irreps)
-        interaction_irreps = e3j.Irreps(self.hidden_irreps)
+        interaction_irreps = e3j.Irreps(self.interaction_irreps)
 
         if self.num_features is None:
             num_features = functools.reduce(math.gcd, (mul for mul, _ in hidden_irreps))
@@ -322,15 +331,13 @@ class MaceLayer(linen.Module):
         edge_features: jt.Float[e3j.IrrepsArray, "n_edges edge_irreps"],
         node_species: jt.Int[jax.Array, "n_nodes"],  # int between 0 and num_species - 1
         radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding"],
-        senders: jt.Int[jax.Array, "n_edges"],
-        receivers: jt.Int[jax.Array, "n_edges"],
+        senders: jt.Int[jax.typing.ArrayLike, "n_edges"],
+        receivers: jt.Int[jax.typing.ArrayLike, "n_edges"],
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
     ) -> e3j.IrrepsArray:
-        self_connection = None
+        self_connection: Optional[jt.Float[e3j.IrrepsArray, "n_nodes feature*hidden_irreps"]] = None
         if self._self_connection is not None:
-            self_connection = self._self_connection(
-                node_species, node_features
-            )  # [n_nodes, feature * hidden_irreps]
+            self_connection = self._self_connection(node_species, node_features)
 
         node_features = self._interaction_block(
             node_features=node_features,
@@ -374,7 +381,7 @@ class Mace(linen.Module):
     avg_num_neighbours: float = 1.0
     soft_normalisation: Optional[bool] = None
     # Number of features per node, default gcd of hidden_irreps multiplicities
-    num_features: int = None
+    num_features: Optional[int] = None
     num_types: int = 1
     max_ell: int = 3  # Max spherical harmonic degree
     epsilon: Optional[float] = None
@@ -382,7 +389,7 @@ class Mace(linen.Module):
 
     symmetric_tensor_product_basis: bool = True
     readout_mlp_irreps: tensorial.typing.IrrepsLike = "16x0e"
-    interaction_irreps: Union[str, tensorial.typing.IrrepsLike] = "o3_restricted"  # or o3_full
+    interaction_irreps: tensorial.typing.IrrepsLike = "o3_restricted"  # or o3_full
 
     # Radial
     radial_activation: Callable = jax.nn.silu  # activation function

@@ -9,11 +9,12 @@ import jax.numpy as jnp
 import jaxtyping as jt
 
 from tensorial import nn_utils
+import tensorial.typing
 
 
 @jt.jaxtyped(beartype.beartype)
 class MessagePassingConvolution(linen.Module):
-    irreps_out: e3j.Irreps
+    irreps_out: tensorial.typing.IrrepsLike
     avg_num_neighbours: float = 1.0
 
     # Radial
@@ -47,8 +48,10 @@ class MessagePassingConvolution(linen.Module):
             messages, edge_features, filter_ir_out=output_irreps + "0e"
         )
 
-        # Make a compound message [n_edges, node_irreps + edge_irreps]
-        messages = e3j.concatenate([messages.filter(irreps_out + "0e"), edge_features]).regroup()
+        # Make a compound message
+        messages: jt.Float[e3j.IrrepsArray, "n_edges node_irreps+edge_irreps"] = e3j.concatenate(
+            [messages.filter(irreps_out + "0e"), edge_features]
+        ).regroup()
 
         # Now, based on the messages irreps, create the radial MLP that maps from inter-atomic
         # distances to tensor product weights

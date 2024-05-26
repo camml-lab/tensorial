@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import Any, Dict, Hashable, Iterable, Mapping, MutableMapping, Optional, Sequence
 
+import beartype
 import equinox
 import jax
 import jax.numpy as jnp
@@ -133,6 +134,7 @@ def get_attrs(store_in: MutableMapping, get_from: Mapping, key: Hashable, key_ma
     return True
 
 
+@jt.jaxtyped(beartype.beartype)
 class SpeciesTransform(equinox.Module):
     """
     Take an ordered list of species and transform them into an integer corresponding to their

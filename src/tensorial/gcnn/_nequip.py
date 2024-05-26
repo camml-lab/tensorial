@@ -20,6 +20,7 @@ __all__ = ("NequipLayer",)
 DEFAULT_ACTIVATIONS = linen.FrozenDict({"e": "silu", "o": "tanh"})
 
 
+@jt.jaxtyped(beartype.beartype)
 class InteractionBlock(linen.Module):
     """NequIP style interaction block.
 
@@ -168,7 +169,7 @@ class NequipLayer(linen.Module):
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         """
-        # Apply a standard NequIP layer followed by an optional resnet step
+        Apply a standard NequIP layer followed by an optional resnet step
 
         :param graph: the input graph
         :return: the output graph with node features updated
