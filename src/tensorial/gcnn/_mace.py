@@ -64,7 +64,7 @@ class SymmetricContraction(linen.Module):
 
     def _contract(
         self,
-        inputs: jt.Float[e3j.IrrepsArray, "num_features in_irreps"],
+        inputs: jt.Float[e3j.IrrepsArray, "num_features irreps_in"],
         index: jt.Int[jax.Array, ""],
     ):
         """
@@ -105,7 +105,7 @@ class SymmetricContraction(linen.Module):
             #       out
 
             for (mul, ir_out), basis_fn in zip(basis.irreps, basis.chunks):
-                basis_fn: jt.Float[jax.Array, "in_irreps^order multiplicity out_irreps"] = (
+                basis_fn: jt.Float[jax.Array, "irreps_in^order multiplicity irreps_out"] = (
                     basis_fn.astype(inp.dtype)
                 )
 
@@ -142,7 +142,7 @@ class SymmetricContraction(linen.Module):
                     outputs[ir_out] = val[1]
                     continue  # already done (special case optimisation above)
 
-                value: jt.Float[jax.Array, "num_features (in_irreps)^(oder-1) out_irreps"] = (
+                value: jt.Float[jax.Array, "num_features irreps_in^(oder-1) irreps_out"] = (
                     jnp.einsum("c...ji,cj->c...i", outputs[ir_out], inp)
                 )
                 outputs[ir_out] = value
@@ -152,7 +152,7 @@ class SymmetricContraction(linen.Module):
             #           out
 
         irreps_out = e3j.Irreps(sorted(outputs.keys()))
-        output: jt.Float[e3j.IrrepsArray, "num_features out_irreps"] = e3j.from_chunks(
+        output: jt.Float[e3j.IrrepsArray, "num_features irreps_out"] = e3j.from_chunks(
             irreps_out,
             [outputs[ir][:, None, :] for (_, ir) in irreps_out],
             (inputs.shape[0],),
@@ -200,31 +200,21 @@ class InteractionBlock(linen.Module):
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
-        self._linear_down = e3j.flax.Linear(self.irreps_out, name="linear_down")
         self._message_passing = _message_passing.MessagePassingConvolution(
             self.irreps_out, self.avg_num_neighbours, radial_activation=self.radial_activation
         )
+        self._linear_down = e3j.flax.Linear(self.irreps_out, name="linear_down")
 
     @linen.compact
     def __call__(
         self,
-        node_features: jt.Float[e3j.IrrepsArray, "n_nodes irreps"],
-        edge_features: jt.Float[e3j.IrrepsArray, "n_edges irreps"],
+        node_features: jt.Float[e3j.IrrepsArray, "n_nodes node_irreps"],
+        edge_features: jt.Float[e3j.IrrepsArray, "n_edges edge_irreps"],
         radial_embedding: jt.Float[jnp.ndarray, "n_edges radial_embeddings"],
         senders: jt.Int[jax.Array, "n_edges"],
         receivers: jt.Int[jax.Array, "n_edges"],
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
-    ) -> e3j.IrrepsArray:
-        assert node_features.ndim == 2
-        if not edge_features.ndim:
-            raise ValueError(
-                f"Expected edge attributes to have two dimensions, got {edge_features.ndim}"
-            )
-        if not radial_embedding.ndim == 2:
-            raise ValueError(
-                f"Expected radial embedding to have two dimensions, got {radial_embedding.ndim}"
-            )
-
+    ) -> jt.Float[e3j.IrrepsArray, "n_nodes target_irreps"]:
         node_features = e3j.flax.Linear(node_features.irreps, name="linear_up")(node_features)
 
         node_features = self._message_passing(
@@ -234,7 +224,7 @@ class InteractionBlock(linen.Module):
         node_features = self._linear_down(node_features)
         assert node_features.ndim == 2
 
-        return node_features  # [n_nodes, target_irreps]
+        return node_features
 
 
 class NonLinearReadoutBlock(linen.Module):
@@ -328,10 +318,10 @@ class MaceLayer(linen.Module):
 
     def __call__(
         self,
-        node_features: jt.Float[e3j.IrrepsArray, "n_nodes irreps"],
+        node_features: jt.Float[e3j.IrrepsArray, "n_nodes node_irreps"],
         edge_features: jt.Float[e3j.IrrepsArray, "n_edges edge_irreps"],
         node_species: jt.Int[jax.Array, "n_nodes"],  # int between 0 and num_species - 1
-        radial_embedding: jt.Float[jax.Array, "edge radial_embedding"],
+        radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding"],
         senders: jt.Int[jax.Array, "n_edges"],
         receivers: jt.Int[jax.Array, "n_edges"],
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,

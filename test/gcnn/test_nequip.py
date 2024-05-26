@@ -3,13 +3,13 @@ import e3nn_jax as e3j
 import jraph
 
 from tensorial import gcnn
-from tensorial.gcnn import _interaction_blocks, keys
+from tensorial.gcnn import _nequip, keys
 
 
 def test_nequip_interaction_block(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
     irreps_out = e3j.Irreps("0e + 1o + 2e")
 
-    block = _interaction_blocks.InteractionBlock(irreps_out)
+    block = _nequip.InteractionBlock(irreps_out)
 
     args = (
         cube_graph_gcnn.nodes[keys.FEATURES],

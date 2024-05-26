@@ -7,7 +7,8 @@ import equinox
 from flax import linen
 import jax
 import jax.numpy as jnp
-import numpy as np
+
+from . import typing
 
 __all__ = (
     "IrrepsObj",
@@ -23,15 +24,16 @@ __all__ = (
     "as_array",
 )
 
-Array = Union[np.array, jax.Array]
+
+Array = jax.typing.ArrayLike
 
 
-def atleast_1d(arr) -> jnp.array:
+def atleast_1d(arr) -> jax.Array:
     arr = jnp.asarray(arr)
     return arr if jnp.ndim(arr) >= 1 else jnp.reshape(arr, -1)
 
 
-def as_array(arr: Union[np.array, jax.Array, e3j.IrrepsArray]) -> jax.Array:
+def as_array(arr: Union[jax.typing.ArrayLike, e3j.IrrepsArray]) -> jax.Array:
     if isinstance(arr, e3j.IrrepsArray):
         return arr.array
 
@@ -43,7 +45,7 @@ class Attr(equinox.Module):
 
     irreps: e3j.Irreps
 
-    def __init__(self, irreps) -> None:  # pylint: disable=redefined-outer-name
+    def __init__(self, irreps: typing.IrrepsLike) -> None:  # pylint: disable=redefined-outer-name
         self.irreps = e3j.Irreps(irreps)
 
     def create_tensor(self, value: Any) -> e3j.IrrepsArray:

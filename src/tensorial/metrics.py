@@ -19,8 +19,8 @@ class MetricWithCount(clu.metrics.Metric):
     count accumulators
     """
 
-    total: jnp.array
-    count: jnp.array
+    total: jax.Array
+    count: jax.Array
     fn: ClassVar[Callable[[jax.typing.ArrayLike], jax.Array]]
 
     @classmethod
@@ -41,7 +41,7 @@ class MetricWithCount(clu.metrics.Metric):
         cls: Self,
         predictions: jax.Array,
         targets: jax.Array,
-        mask: Optional[jnp.array] = None,
+        mask: Optional[jax.Array] = None,
         **_,
     ) -> Self:
         if predictions.ndim == 0:
@@ -81,15 +81,15 @@ class MetricWithCount(clu.metrics.Metric):
 
 @flax.struct.dataclass
 class MeanSquaredError(MetricWithCount):
-    total: jnp.array
-    count: jnp.array
+    total: jax.Array
+    count: jax.Array
     fn = jnp.square
 
 
 @flax.struct.dataclass
 class MeanAbsoluteError(MetricWithCount):
-    total: jnp.array
-    count: jnp.array
+    total: jax.Array
+    count: jax.Array
     fn = jnp.abs
 
 
@@ -104,9 +104,9 @@ class RootMeanSquareError(clu.metrics.Metric):
     @classmethod
     def from_model_output(  # pylint: disable=arguments-differ
         cls,
-        predictions: jnp.array,
+        predictions: jax.Array,
         targets: jax.Array,
-        mask: Optional[jnp.array] = None,
+        mask: Optional[jax.Array] = None,
         **_,
     ) -> "MeanSquaredError":
         return cls(mse=MeanSquaredError.from_model_output(predictions, targets, mask=mask))
@@ -124,9 +124,9 @@ class Std(clu.metrics.Metric):
     Custom version of ``clu.metrics.Std` which allows for more than just one dimensional arrays
     """
 
-    total: jnp.array
-    sum_of_squares: jnp.array
-    count: jnp.array
+    total: jax.Array
+    sum_of_squares: jax.Array
+    count: jax.Array
 
     @classmethod
     def empty(cls):
@@ -140,8 +140,8 @@ class Std(clu.metrics.Metric):
     def from_model_output(
         # pylint: disable=arguments-differ
         cls,
-        values: jnp.array,
-        mask: Optional[jnp.array] = None,
+        values: jax.Array,
+        mask: Optional[jax.Array] = None,
         **_,
     ) -> "Std":
         if values.ndim == 0:

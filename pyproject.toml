@@ -6,10 +6,10 @@ build-backend = 'flit_core.buildapi'
 name = 'tensorial'
 dynamic = ["version", "description"]
 authors = [
-    {name = 'Martin Uhrin', email = 'martin.uhrin.10@ucl.ac.uk'},
+    { name = 'Martin Uhrin', email = 'martin.uhrin.10@ucl.ac.uk' },
 ]
 readme = 'README.rst'
-license = {file = 'LICENSE.txt'}
+license = { file = 'LICENSE.txt' }
 classifiers = [
     'Development Status :: 4 - Beta',
     'License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)',
@@ -45,8 +45,8 @@ Source = 'https://github.com/muhrin/tensorial'
 [project.optional-dependencies]
 docs = [
     'docutils',
-    'jupyter',  # For running doc examples
-    'nbsphinx',  # Jupyter notebooks in docs
+    'jupyter', # For running doc examples
+    'nbsphinx', # Jupyter notebooks in docs
     'pandoc',
     'sphinx',
     'sphinx-autobuild',
@@ -54,7 +54,7 @@ docs = [
 dev = [
     'flit',
     'ipython',
-    'pandas',  # Needed because we optionally support this in some files
+    'pandas', # Needed because we optionally support this in some files
     'pytest',
     'pytest-cov',
     'pre-commit',
@@ -104,7 +104,7 @@ disable = [
 ]
 
 [tool.pylint.design]
-max-locals=20
+max-locals = 20
 
 [tool.pytest.ini_options]
 minversion = '6.0'
@@ -114,12 +114,13 @@ testpaths = [
 filterwarnings = [
     'ignore::DeprecationWarning:frozendict:',
 ]
+#addopts = "--jaxtyping-packages=tensorial,beartype.beartype"
 
 [tool.yapf]
 align_closing_bracket_with_visual_indent = true
 based_on_style = 'google'
 coalesce_brackets = true
-column_limit = 120
+column_limit = 100
 dedent_closing_brackets = true
 indent_dictionary_value = false
 split_arguments_when_comma_terminated = true
