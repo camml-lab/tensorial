@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import functools
-from typing import Any, Dict, List, Mapping, Type, Union
+from typing import Any, Mapping, Type, Union
 
 import e3nn_jax as e3j
 import equinox
@@ -60,9 +60,9 @@ class IrrepsObj:
     """An object that contains tensorial attributes."""
 
 
-IrrepsTree = Union[IrrepsObj, Dict]
+IrrepsTree = Union[IrrepsObj, dict]
 Tensorial = Union[Attr, IrrepsObj, type(IrrepsObj), dict, linen.FrozenDict, e3j.Irreps]
-ValueType = Union[Any, List["ValueType"], Dict[str, "ValueType"]]
+ValueType = Union[Any, list["ValueType"], dict[str, "ValueType"]]
 
 
 @functools.singledispatch
@@ -185,12 +185,12 @@ def from_tensor(tensorial: Tensorial, value) -> ValueType:
 
 
 @from_tensor.register
-def _from_tensor(tensorial: IrrepsObj, value) -> Dict[str, ValueType]:
+def _from_tensor(tensorial: IrrepsObj, value) -> dict[str, ValueType]:
     return from_tensor(tensorial_attrs(tensorial), value)
 
 
 @from_tensor.register
-def _from_tensor(tensorial: dict, value: Array) -> Dict[str, ValueType]:
+def _from_tensor(tensorial: dict, value: Array) -> dict[str, ValueType]:
     dims = jnp.array(tuple(map(lambda val: irreps(val).dim, tensorial.values())))
     split_points = jnp.array(tuple(jnp.sum(dims[:i]) for i in range(len(dims) - 1)))
     split_value = jnp.split(value, split_points)
@@ -222,7 +222,7 @@ def _from_tensor(attr: Attr, value) -> e3j.IrrepsArray:
 
 
 @functools.singledispatch
-def tensorial_attrs(irreps_obj) -> Dict[str, Tensorial]:
+def tensorial_attrs(irreps_obj) -> dict[str, Tensorial]:
     if issubclass(irreps_obj, IrrepsObj):
         return {
             name: val
@@ -234,7 +234,7 @@ def tensorial_attrs(irreps_obj) -> Dict[str, Tensorial]:
 
 
 @tensorial_attrs.register
-def _tensorial_attrs(irreps_obj: IrrepsObj) -> Dict[str, Tensorial]:
+def _tensorial_attrs(irreps_obj: IrrepsObj) -> dict[str, Tensorial]:
     """Get the irrep attributes for the passed object"""
     attrs = tensorial_attrs(type(irreps_obj))
     attrs.update(
@@ -248,12 +248,12 @@ def _tensorial_attrs(irreps_obj: IrrepsObj) -> Dict[str, Tensorial]:
 
 
 @tensorial_attrs.register
-def _tensorial_attrs(irreps_obj: dict) -> Dict[str, Tensorial]:
+def _tensorial_attrs(irreps_obj: dict) -> dict[str, Tensorial]:
     return {name: val for name, val in irreps_obj.items() if not name.startswith("_")}
 
 
 @tensorial_attrs.register
-def _tensorial_attrs(irreps_obj: linen.FrozenDict) -> Dict[str, Tensorial]:
+def _tensorial_attrs(irreps_obj: linen.FrozenDict) -> dict[str, Tensorial]:
     return tensorial_attrs(irreps_obj.unfreeze())
 
 

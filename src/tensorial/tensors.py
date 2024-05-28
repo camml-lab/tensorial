@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
 import e3nn_jax as e3j
 import jax
@@ -90,8 +90,8 @@ class OneHot(base.Attr):
 
 class CartesianTensor(base.Attr):
     formula: str
-    keep_ir: Optional[Union[e3j.Irreps, List[e3j.Irrep]]]
-    irreps_dict: Dict
+    keep_ir: Optional[Union[e3j.Irreps, list[e3j.Irrep]]]
+    irreps_dict: dict
     change_of_basis: jax.Array
     _indices: str
 

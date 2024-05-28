@@ -2,7 +2,7 @@
 import collections.abc
 import functools
 import itertools
-from typing import Hashable, Iterator, List, TypeVar, Union
+from typing import Hashable, Iterator, TypeVar, Union
 
 import numpy as np
 
@@ -62,14 +62,14 @@ class RandomSampler(_types.Sampler[int]):
             yield from np.random.permutation(total).tolist()[: self.num_samples % total]
 
 
-class BatchSampler(_types.Sampler[List[IdxT]]):
+class BatchSampler(_types.Sampler[list[IdxT]]):
 
     def __init__(self, sampler: _types.Sampler[IdxT], batch_size: int, drop_last: bool) -> None:
         self._sampler = sampler
         self._batch_size = batch_size
         self._drop_last = drop_last
 
-    def __iter__(self) -> Iterator[List[IdxT]]:
+    def __iter__(self) -> Iterator[list[IdxT]]:
         if self._drop_last:
             sampler_iter = iter(self._sampler)
             while True:
@@ -138,7 +138,7 @@ def create_iterable_sampler(
     batch_size: int = 1,
     replacements: bool = False,
     shuffle: bool = False,
-) -> Union[_types.Sampler[None], _types.Sampler[List[None]]]:
+) -> Union[_types.Sampler[None], _types.Sampler[list[None]]]:
     if shuffle:
         raise ValueError(
             f"``shuffle=True`` is not supported with dataset type {type(dataset).__name__} which "

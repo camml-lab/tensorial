@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from typing import Any, Dict, Hashable, Iterable, Mapping, MutableMapping, Optional, Sequence
+import numbers
+from typing import Any, Hashable, Iterable, Mapping, MutableMapping, Optional, Sequence
 
 import beartype
 import equinox
@@ -28,15 +29,16 @@ ASE_ATOM_KEYS = {"numbers", "forces", "stresses", "charges", "magmoms", "energie
 PyTree = Any
 
 
+@jt.jaxtyped(beartype.beartype)
 def graph_from_ase(
     ase_atoms: "ase.atoms.Atoms",
-    r_max: float,
-    key_mapping: Optional[Dict[str, str]] = None,
+    r_max: numbers.Number,
+    key_mapping: Optional[dict[str, str]] = None,
     atom_include_keys: Optional[Iterable] = ("numbers",),
     edge_include_keys: Optional[Iterable] = tuple(),
     global_include_keys: Optional[Iterable] = tuple(),
-    cell: jax.Array = None,
-    pbc: jax.Array = None,
+    cell: Optional[jt.Float[jax.typing.ArrayLike, "3 3"]] = None,
+    pbc: Optional[bool | _graphs.PbcType] = None,
     **kwargs,
 ) -> jraph.GraphsTuple:
     """
@@ -50,7 +52,7 @@ def graph_from_ase(
     :param cell: an optional unit cell (otherwise will be taken from ase.cell)
     :param pbc: an optional periodic boundary conditions array [bool, bool, bool] (otherwise will be
         taken from ase.pbc)
-    :return:
+    :return: the atomic graph
     """
     # pylint: disable=too-many-branches
     from ase.calculators import singlepoint

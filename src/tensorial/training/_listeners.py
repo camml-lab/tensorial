@@ -2,7 +2,7 @@
 import contextlib
 import logging
 import math
-from typing import Any, Callable, List
+from typing import Any, Callable
 import uuid
 
 from tensorial import training
@@ -70,11 +70,11 @@ class TrainingLogger(TrainerListener):
     """Log metrics for training and validation"""
 
     def __init__(self, log_every_n_epochs: int = 1, log_on_stop: bool = True):
-        self._log: List[dict] = []
+        self._log: list[dict] = []
         self._log_ever_n_epochs = log_every_n_epochs
         self._log_on_stop = log_on_stop
 
-    def raw_log(self) -> List[dict]:
+    def raw_log(self) -> list[dict]:
         return self._log
 
     def as_dataframe(self):

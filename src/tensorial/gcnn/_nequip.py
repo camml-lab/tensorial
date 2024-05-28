@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import functools
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Optional, Union
 
 import beartype
 import e3nn_jax as e3j
@@ -45,7 +45,7 @@ class InteractionBlock(linen.Module):
 
     avg_num_neighbours: float = 1.0
     self_connection: bool = True
-    activations: Union[str, Dict[str, nn_utils.ActivationFunction]] = DEFAULT_ACTIVATIONS
+    activations: Union[str, dict[str, nn_utils.ActivationFunction]] = DEFAULT_ACTIVATIONS
 
     num_species: int = 1
 
@@ -138,7 +138,7 @@ class NequipLayer(linen.Module):
     radial_activation: str = "swish"
 
     avg_num_neighbours: int = 1.0
-    activations: Union[str, Dict[str, str]] = DEFAULT_ACTIVATIONS
+    activations: Union[str, dict[str, str]] = DEFAULT_ACTIVATIONS
     node_features_field = keys.FEATURES
     self_connection: bool = True
     num_species: int = 1

@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 import logging
-from typing import Dict, Optional, Tuple, Union
+import numbers
+from typing import Optional, Tuple
 
+import beartype
 import e3nn_jax as e3j
 import equinox
 import jax
 import jax.numpy as jnp
+import jaxtyping as jt
 import jraph
 
 from tensorial import distances, nn_utils
@@ -18,38 +21,40 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = ("graph_from_points", "with_edge_vectors")
 
 
+PbcType = Tuple[bool, bool, bool] | jt.Bool[jax.typing.ArrayLike, "3"]
+
+
+@jt.jaxtyped(beartype.beartype)
 def graph_from_points(
-    pos: jax.typing.ArrayLike,
-    r_max: float,
+    pos: jt.Float[jax.typing.ArrayLike, "n_nodes 3"],
+    r_max: numbers.Number,
     fractional_positions: bool = False,
     self_interaction: bool = False,
     strict_self_interaction: bool = True,
-    cell: jax.typing.ArrayLike = None,
-    pbc: Optional[Union[bool, Tuple[bool, bool, bool]]] = None,
-    nodes: Dict = None,
-    edges: Dict = None,
-    graph_globals: Dict = None,
+    cell: Optional[jt.Float[jax.typing.ArrayLike, "3 3"]] = None,
+    pbc: Optional[bool | PbcType] = None,
+    nodes: dict[str, jt.Num[jax.typing.ArrayLike, "n_nodes *"]] = None,
+    edges: dict = None,
+    graph_globals: dict = None,
 ) -> jraph.GraphsTuple:
     """
     Create a jraph Graph from a set of atomic positions and other related data.
 
-    :param pos: a [3, N] array of atomic positions
+    :param pos: a [N, 3] array of atomic positions
     :param r_max: the cutoff radius to use for identifying neighbours
-    :param fractional_positions: if `True`, `pos` are interpreted as fractional positions
-    :param self_interaction: if `True`, edges are created between an atom and itself in other unit
+    :param fractional_positions: if ``True``, `pos` are interpreted as fractional positions
+    :param self_interaction: if ``True``, edges are created between an atom and itself in other unit
         cells
-    :param strict_self_interaction:  if `True`, edges are created between an atom and itself within
-        the central unit cell
+    :param strict_self_interaction:  if ``True``, edges are created between an atom and itself
+        within the central unit cell
     :param cell: a [3, 3] array of unit cell vectors (in row-major format)
-    :param pbc: a `bool` of a sequence of three `bool`s indicating whether the space is periodic in
-        x, y, z directions
+    :param pbc: a ``bool`` of a sequence of three `bool`s indicating whether the space is periodic
+        in x, y, z directions
     :param nodes: a dictionary containing additional data relating to each node, it should contain
         arrays of shape [N, ...]
     :param graph_globals: a dictionary containing additional global data
     :return: the corresponding jraph Graph
     """
-    if not pos.shape[-1] == 3:
-        raise ValueError(f"pos must have shape [N, 3], got {pos.shape}")
     pos = jnp.asarray(pos)
     nodes = nodes if nodes else {}
     num_nodes = len(pos)

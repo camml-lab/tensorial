@@ -9,24 +9,19 @@ import numpy as np
 IrrepLike = Union[str, e3j.Irrep]
 IrrepsLike = Union[str, e3j.Irreps, Tuple[e3j.MulIrrep]]
 
-T = TypeVar("T")
+ArrayT = TypeVar("ArrayT")
+ValueT = TypeVar("ValueT")
 
 
-class _Helper(Generic[T]):
-    def __init__(self, typ: T):
-        self._type = typ
+class _Helper(Generic[ArrayT, ValueT]):
+    def __init__(self, array_type: ArrayT, value_type: ValueT):
+        self._array_type = array_type
+        self._value_type = value_type
 
-
-class _FloatArray(_Helper[T]):
-    def __getitem__(self, shape: str):
-        return jt.Float[self._type, shape]
-
-
-class _IntArray(_Helper[T]):
-    def __getitem__(self, shape: str):
-        return jt.Int[self._type, shape]
+    def __getitem__(self, shape: str) -> "ValueT[ArrayT]":
+        return self._value_type[self._array_type, shape]
 
 
 ArrayType = Union[jax.Array, np.ndarray]
-IrrepsArrayShape = _FloatArray(e3j.IrrepsArray)
-IndexArray = _IntArray(ArrayType)
+IrrepsArrayShape = _Helper(e3j.IrrepsArray, jt.Float)
+IndexArray = _Helper(ArrayType, jt.Int)

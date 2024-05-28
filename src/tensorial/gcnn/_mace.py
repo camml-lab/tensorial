@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import functools
 import math
-from typing import Callable, Dict, Optional, Set, Union
+from typing import Callable, Optional, Union
 
 import beartype
 import e3nn_jax as e3j
@@ -30,7 +30,7 @@ class SymmetricContraction(linen.Module):
     """
 
     correlation_order: int
-    keep_irrep_out: Union[str, Set[tensorial.typing.IrrepLike]]
+    keep_irrep_out: Union[str, set[tensorial.typing.IrrepLike]]
 
     num_types: int = 1
     gradient_normalisation: Union[str, float] = None
@@ -94,7 +94,7 @@ class SymmetricContraction(linen.Module):
         :param input_type: the contraction index
         :return: the contraction outputs
         """
-        outputs: Dict[e3j.Irrep, jax.Array] = dict()
+        outputs: dict[e3j.Irrep, jax.Array] = dict()
         for order in range(self.correlation_order, 0, -1):  # correlation_order, ..., 1
             if self.off_diagonal:
                 inp = jnp.roll(inputs.array, A025582[order - 1])
@@ -482,7 +482,7 @@ class Mace(linen.Module):
             )
             node_outputs = readout(node_feats)
 
-            outputs += [node_outputs]  # List[[n_nodes, output_irreps]]
+            outputs += [node_outputs]  # list[[n_nodes, output_irreps]]
 
         updates = utils.UpdateDict(graph._asdict())
         updates["nodes"][keys.FEATURES] = node_feats
