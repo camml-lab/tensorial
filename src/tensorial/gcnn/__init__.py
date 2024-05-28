@@ -15,7 +15,6 @@ from . import (
     losses,
     metrics,
     random,
-    typing,
     utils,
 )
 from ._base import *
@@ -40,5 +39,5 @@ __all__ = (
     + _modules.__all__
     + derivatives.__all__
     + losses.__all__
-    + ("atomic", "data", "derivatives", "keys", "metrics", "losses", "utils", "random", "typing")
+    + ("atomic", "data", "derivatives", "keys", "metrics", "losses", "utils", "random")
 )

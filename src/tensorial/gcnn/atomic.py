@@ -146,7 +146,7 @@ class SpeciesTransform(equinox.Module):
     out_field: str = keys.SPECIES
 
     def __init__(self, atomic_numbers: Sequence[int], field=ATOMIC_NUMBERS, out_field=keys.SPECIES):
-        self.atomic_numbers = jnp.array(
+        self.atomic_numbers = jnp.asarray(
             atomic_numbers
         )  # pylint: disable=attribute-defined-outside-init
         self.field = field

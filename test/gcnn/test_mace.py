@@ -19,7 +19,7 @@ def test_symmetric_contraction():
     params = contraction.init(jax.random.PRNGKey(0), x, types)
 
     e3j.utils.assert_equivariant(
-        functools.partial(contraction.apply, params, index=types), jax.random.PRNGKey(3), x
+        functools.partial(contraction.apply, params, input_type=types), jax.random.PRNGKey(3), x
     )
 
 

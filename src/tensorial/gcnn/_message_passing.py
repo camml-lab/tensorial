@@ -8,13 +8,12 @@ import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 
-from tensorial import nn_utils
-import tensorial.typing
+from tensorial import nn_utils, typing
 
 
 @jt.jaxtyped(beartype.beartype)
 class MessagePassingConvolution(linen.Module):
-    irreps_out: tensorial.typing.IrrepsLike
+    irreps_out: typing.IrrepsLike
     avg_num_neighbours: float = 1.0
 
     # Radial
@@ -29,13 +28,13 @@ class MessagePassingConvolution(linen.Module):
     @linen.compact
     def __call__(
         self,
-        node_feats: jt.Float[e3j.IrrepsArray, "n_nodes node_irreps"],
-        edge_features: jt.Float[e3j.IrrepsArray, "n_edges edge_irreps"],
+        node_feats: typing.IrrepsArrayShape["n_nodes node_irreps"],
+        edge_features: typing.IrrepsArrayShape["n_edges edge_irreps"],
         radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding_dim"],
-        senders: jt.Int[jax.Array, "n_edges"],
-        receivers: jt.Int[jax.Array, "n_edges"],
+        senders: typing.IndexArray["n_edges"],
+        receivers: typing.IndexArray["n_edges"],
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
-    ) -> jt.Float[e3j.IrrepsArray, "n_nodes node_irreps"]:
+    ) -> typing.IrrepsArrayShape["n_nodes node_irreps"]:
         irreps_out = e3j.Irreps(self.irreps_out)  # Recast, because flax converts to tuple
 
         # The irreps to use for the output node features
@@ -49,7 +48,7 @@ class MessagePassingConvolution(linen.Module):
         )
 
         # Make a compound message
-        messages: jt.Float[e3j.IrrepsArray, "n_edges node_irreps+edge_irreps"] = e3j.concatenate(
+        messages: typing.IrrepsArrayShape["n_edges node_irreps+edge_irreps"] = e3j.concatenate(
             [messages.filter(irreps_out + "0e"), edge_features]
         ).regroup()
 
@@ -71,7 +70,7 @@ class MessagePassingConvolution(linen.Module):
         weights = mlp(radial_embedding)
         if edge_mask is not None:
             weights = jnp.where(nn_utils.prepare_mask(edge_mask, radial_embedding), weights, 0.0)
-        messages = messages * weights  # [n_edges, message irreps]
+        messages = messages * weights
 
         zeros = e3j.zeros(messages.irreps, node_feats.shape[:1], messages.dtype)
         node_feats = zeros.at[receivers].add(messages)

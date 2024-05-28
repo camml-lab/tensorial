@@ -9,7 +9,7 @@ import jax
 import jaxtyping as jt
 import jraph
 
-from tensorial import nn_utils
+from tensorial import nn_utils, typing
 
 from . import _message_passing, keys
 
@@ -71,11 +71,11 @@ class InteractionBlock(linen.Module):
     @linen.compact
     def __call__(
         self,
-        node_features: jt.Float[e3j.IrrepsArray, "n_nodes irreps"],
-        edge_features: jt.Float[e3j.IrrepsArray, "n_edges irreps"],
+        node_features: typing.IrrepsArrayShape["n_nodes irreps"],
+        edge_features: typing.IrrepsArrayShape["n_edges irreps"],
         radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding_dim"],
-        senders: jt.Int[jax.Array, "n_edges"],
-        receivers: jt.Int[jax.Array, "n_edges"],
+        senders: typing.IndexArray["n_edges"],
+        receivers: typing.IndexArray["n_edges"],
         node_species: Optional[jt.Int[jax.Array, "n_nodes"]] = None,
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
     ) -> e3j.IrrepsArray:

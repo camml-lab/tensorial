@@ -12,9 +12,9 @@ import jaxtyping as jt
 import jraph
 
 import tensorial
-from tensorial import nn_utils
+from tensorial import nn_utils, typing
 
-from . import _message_passing, keys, typing, utils
+from . import _message_passing, keys, utils
 
 A025582 = [0, 1, 3, 7, 12, 20, 30, 44, 65, 80, 96, 122, 147, 181, 203, 251, 289]
 
@@ -58,24 +58,26 @@ class SymmetricContraction(linen.Module):
 
     @linen.compact
     def __call__(
-        self, inputs: jt.Float[e3j.IrrepsArray, "batch features irreps"], index: typing.IndexArray
+        self,
+        inputs: typing.IrrepsArrayShape["n_node features irreps"],
+        input_type: typing.IndexArray["n_node"],
     ) -> e3j.IrrepsArray:
         # Treat batch indices using vmap
-        shape = jnp.broadcast_shapes(inputs.shape[:-2], index.shape)
+        shape = jnp.broadcast_shapes(inputs.shape[:-2], input_type.shape)
         inputs = inputs.broadcast_to(shape + inputs.shape[-2:])
-        index = jnp.broadcast_to(index, shape)
+        input_type = jnp.broadcast_to(input_type, shape)
 
         contract = self._contract
         for _ in range(inputs.ndim - 2):
             contract = jax.vmap(contract)
 
-        return contract(inputs, index)
+        return contract(inputs, input_type)
 
     def _contract(
         self,
-        inputs: jt.Float[e3j.IrrepsArray, "num_features irreps_in"],
-        index: jt.Int[jax.Array, ""],
-    ) -> jt.Float[e3j.IrrepsArray, "num_features irreps_out"]:
+        inputs: typing.IrrepsArrayShape["num_features irreps_in"],
+        input_type: typing.IndexArray[""],
+    ) -> typing.IrrepsArrayShape["num_features irreps_out"]:
         """
         This operation is parallel on the feature dimension (but each feature has its own
         parameters)
@@ -89,7 +91,7 @@ class SymmetricContraction(linen.Module):
         up to x power ``self.correlation_order``
 
         :param inputs: the contraction inputs
-        :param index: the contraction index
+        :param input_type: the contraction index
         :return: the contraction outputs
         """
         outputs: Dict[e3j.Irrep, jax.Array] = dict()
@@ -126,7 +128,7 @@ class SymmetricContraction(linen.Module):
                         ),
                         (self.num_types, mul, inputs.shape[0]),
                         self.param_dtype,
-                    )[index]
+                    )[input_type]
                 )
 
                 # normalise the weights
@@ -161,7 +163,7 @@ class SymmetricContraction(linen.Module):
             #           out
 
         irreps_out = e3j.Irreps(sorted(outputs.keys()))
-        output: jt.Float[e3j.IrrepsArray, "num_features irreps_out"] = e3j.from_chunks(
+        output: typing.IrrepsArrayShape["num_features irreps_out"] = e3j.from_chunks(
             irreps_out,
             [outputs[ir][:, None, :] for (_, ir) in irreps_out],
             (inputs.shape[0],),
@@ -192,8 +194,8 @@ class EquivariantProductBasisBlock(linen.Module):
     @linen.compact
     def __call__(
         self,
-        node_features: jt.Float[e3j.IrrepsArray, "n_nodes featureXirreps"],
-        node_types: jt.Int[jax.Array, "n_node"],
+        node_features: typing.IrrepsArrayShape["n_nodes featuresXirreps"],
+        node_types: typing.IndexArray["n_node"],
     ) -> e3j.IrrepsArray:
         node_features = node_features.mul_to_axis().remove_zero_chunks()
         node_features = self.symmetric_contractions(node_features, node_types)
@@ -217,13 +219,13 @@ class InteractionBlock(linen.Module):
     @linen.compact
     def __call__(
         self,
-        node_features: jt.Float[e3j.IrrepsArray, "n_nodes node_irreps"],
-        edge_features: jt.Float[e3j.IrrepsArray, "n_edges edge_irreps"],
+        node_features: typing.IrrepsArrayShape["n_nodes node_irreps"],
+        edge_features: typing.IrrepsArrayShape["n_edges edge_irreps"],
         radial_embedding: jt.Float[jnp.ndarray, "n_edges radial_embeddings"],
-        senders: jt.Int[jax.typing.ArrayLike, "n_edges"],
-        receivers: jt.Int[jax.typing.ArrayLike, "n_edges"],
+        senders: typing.IndexArray["n_edges"],
+        receivers: typing.IndexArray["n_edges"],
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
-    ) -> jt.Float[e3j.IrrepsArray, "n_nodes target_irreps"]:
+    ) -> typing.IrrepsArrayShape["n_nodes target_irreps"]:
         node_features = e3j.flax.Linear(node_features.irreps, name="linear_up")(node_features)
 
         node_features = self._message_passing(
@@ -253,8 +255,8 @@ class NonLinearReadoutBlock(linen.Module):
         self._linear_out = e3j.flax.Linear(output_irreps, force_irreps_out=True)
 
     def __call__(
-        self, inputs: jt.Float[e3j.IrrepsArray, "n_node irreps"]
-    ) -> jt.Float[e3j.IrrepsArray, "n_nodes output_irreps"]:
+        self, inputs: typing.IrrepsArrayShape["n_node irreps"]
+    ) -> typing.IrrepsArrayShape["n_nodes output_irreps"]:
         inputs = self._linear(inputs)
         inputs = e3j.gate(inputs, even_act=self.activation, even_gate_act=self.gate)
         return self._linear_out(inputs)
@@ -327,15 +329,15 @@ class MaceLayer(linen.Module):
 
     def __call__(
         self,
-        node_features: jt.Float[e3j.IrrepsArray, "n_nodes node_irreps"],
-        edge_features: jt.Float[e3j.IrrepsArray, "n_edges edge_irreps"],
+        node_features: typing.IrrepsArrayShape["n_nodes node_irreps"],
+        edge_features: typing.IrrepsArrayShape["n_edges edge_irreps"],
         node_species: jt.Int[jax.Array, "n_nodes"],  # int between 0 and num_species - 1
         radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding"],
         senders: jt.Int[jax.typing.ArrayLike, "n_edges"],
         receivers: jt.Int[jax.typing.ArrayLike, "n_edges"],
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
     ) -> e3j.IrrepsArray:
-        self_connection: Optional[jt.Float[e3j.IrrepsArray, "n_nodes feature*hidden_irreps"]] = None
+        self_connection: Optional[typing.IrrepsArrayShape["n_nodes feature*hidden_irreps"]] = None
         if self._self_connection is not None:
             self_connection = self._self_connection(node_species, node_features)
 
