@@ -91,7 +91,7 @@ def add_padding_mask(
     ignored in any computations).
 
     If ``overwrite`` is ``True`` then any mask already found in the mask field will be overwritten
-    by the padding mask. Otherwise, it will be ORed.
+    by the padding mask. Otherwise, it will be ANDed.
     """
     mask_path = utils.path_from_str(mask_field)
     updates = utils.UpdateDict(graph._asdict())
@@ -109,7 +109,7 @@ def add_padding_mask(
         path = (key,) + mask_path
         if not overwrite:
             try:
-                mask = mask | tree.get_by_path(updates, path)
+                mask = mask & tree.get_by_path(updates, path)
             except KeyError:
                 pass
 
