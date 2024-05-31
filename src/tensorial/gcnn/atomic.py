@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
+from collections.abc import Iterable
 import numbers
-from typing import Any, Hashable, Iterable, Mapping, MutableMapping, Optional, Sequence
+from typing import Any, Hashable, Mapping, MutableMapping, Optional, Sequence
 
 import beartype
 import equinox

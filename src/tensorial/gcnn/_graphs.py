@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import numbers
-from typing import Optional, Tuple
+from typing import Optional
 
 import beartype
 import e3nn_jax as e3j
@@ -12,7 +12,6 @@ import jaxtyping as jt
 import jraph
 
 from tensorial import distances, nn_utils
-import tensorial.gcnn.keys
 
 from . import keys
 
@@ -21,7 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = ("graph_from_points", "with_edge_vectors")
 
 
-PbcType = Tuple[bool, bool, bool] | jt.Bool[jax.typing.ArrayLike, "3"]
+PbcType = tuple[bool, bool, bool] | jt.Bool[jax.typing.ArrayLike, "3"]
 
 
 @jt.jaxtyped(beartype.beartype)
@@ -160,7 +159,7 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
         )
         edge_vecs = edge_vecs + shift_vectors
 
-    edge_mask = graph.edges.get(tensorial.gcnn.keys.MASK)
+    edge_mask = graph.edges.get(keys.MASK)
     if edge_mask is not None:
         edge_mask = nn_utils.prepare_mask(edge_mask, edge_vecs)
         edge_vecs = jnp.where(edge_mask, edge_vecs, 1.0)

@@ -3,6 +3,7 @@ from typing import Callable
 
 import jax
 import jax.nn
+import jaxtyping as jt
 
 ActivationFunction = Callable[[jax.Array], jax.Array]
 
@@ -23,7 +24,9 @@ def get_jaxnn_activation(func: ActivationFunction) -> ActivationFunction:
         raise ValueError(f"Activation function '{func}' not found in jax.nn") from None
 
 
-def prepare_mask(mask: jax.Array, array: jax.Array) -> jax.Array:
+def prepare_mask(
+    mask: jt.Bool[jax.Array, "n_elements"], array: jt.Float[jax.Array, "..."]
+) -> jt.Float[jax.Array, "n_elements ..."]:
     """
     Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure the
     mask is of the right shape to be compatible with such an operation.  The other alternative is

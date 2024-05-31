@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Optional, Tuple, Union
+from typing import Literal, Optional, Tuple, Union
 
 import e3nn_jax as e3j
 import jax
@@ -45,20 +45,20 @@ class SphericalHarmonic(base.Attr):
     """An attribute that is the spherical harmonics evaluated as some values"""
 
     normalise: bool
-    normalization: Optional[str] = None
+    normalisation: Optional[Literal["integral", "component", "norm"]] = None
     algorithm: Optional[Tuple[str]] = None
 
     def __init__(
         self,
         irreps,
         normalise,
-        normalization: str = None,
+        normalization: Optional[Literal["integral", "component", "norm"]] = None,
         *,
         algorithm: Tuple[str] = None,
     ):
         super().__init__(irreps)
         self.normalise = normalise
-        self.normalization = normalization
+        self.normalisation = normalization
         self.algorithm = algorithm
 
     def create_tensor(self, value: Union[jax.Array, e3j.IrrepsArray]) -> jnp.array:
@@ -66,7 +66,7 @@ class SphericalHarmonic(base.Attr):
             self.irreps,
             value,
             normalize=self.normalise,
-            normalization=self.normalization,
+            normalization=self.normalisation,
             algorithm=self.algorithm,
         )
 
