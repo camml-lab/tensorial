@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import collections.abc
-from typing import Iterator, Tuple
+from typing import Iterator
 
 import jax
 
@@ -9,7 +9,7 @@ from . import _types, samplers
 __all__ = ("ArrayLoader", "CachingLoader")
 
 
-class ArrayLoader(collections.abc.Iterable[Tuple[jax.typing.ArrayLike, ...]]):
+class ArrayLoader(collections.abc.Iterable[tuple[jax.typing.ArrayLike, ...]]):
     """A dataset of arrays"""
 
     def __init__(
@@ -26,7 +26,7 @@ class ArrayLoader(collections.abc.Iterable[Tuple[jax.typing.ArrayLike, ...]]):
             arrays[0], batch_size=batch_size, shuffle=shuffle
         )
 
-    def __iter__(self) -> Iterator[Tuple[jax.typing.ArrayLike, ...]]:
+    def __iter__(self) -> Iterator[tuple[jax.typing.ArrayLike, ...]]:
         for idx in self._sampler:
             yield tuple(array[idx] for array in self._arrays)
 

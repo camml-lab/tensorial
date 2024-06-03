@@ -23,7 +23,7 @@ __all__ = ("graph_from_points", "with_edge_vectors")
 PbcType = tuple[bool, bool, bool] | jt.Bool[jax.typing.ArrayLike, "3"]
 
 
-@jt.jaxtyped(beartype.beartype)
+@jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_points(
     pos: jt.Float[jax.typing.ArrayLike, "n_nodes 3"],
     r_max: numbers.Number,

@@ -2,7 +2,6 @@
 import collections
 import functools
 import math
-from typing import Tuple
 
 import equinox
 import jax
@@ -159,7 +158,7 @@ class PeriodicBoundary(NeighbourFinder):
         self,
         cell: jax.typing.ArrayLike,
         cutoff: float,
-        pbc: Tuple[bool, bool, bool] = None,
+        pbc: tuple[bool, bool, bool] = None,
         max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
         include_self=False,
         include_images=True,
@@ -224,7 +223,7 @@ class PeriodicBoundary(NeighbourFinder):
 def neighbour_finder(
     cutoff: float,
     cell: jax.typing.ArrayLike = None,
-    pbc: Tuple[bool, bool, bool] = None,
+    pbc: tuple[bool, bool, bool] = None,
     **kwargs,
 ) -> NeighbourFinder:
     if pbc is not None and any(pbc):
@@ -240,9 +239,9 @@ def generate_positions(cell: jax.Array, positions: jax.Array, cell_shifts: jax.A
 def get_cell_list(
     cell: jax.typing.ArrayLike,
     cutoff: float,
-    pbc: Tuple[bool, bool, bool] = (True, True, True),
+    pbc: tuple[bool, bool, bool] = (True, True, True),
     max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
-) -> Tuple[jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array]:
     cell = jnp.asarray(cell)
 
     # Get the multipliers for each cell direction
@@ -274,7 +273,7 @@ def get_cell_list(
 
 def get_cell_multiple_range(
     cell: jax.typing.ArrayLike, cell_vector: int, cutoff: float
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     multiplier = get_max_cell_vector_repetitions(cell, cell_vector, cutoff=cutoff)
     return -math.ceil(multiplier), math.ceil(multiplier) + 1
 
@@ -282,8 +281,8 @@ def get_cell_multiple_range(
 def get_cell_multiple_ranges(
     cell: jax.typing.ArrayLike,
     cutoff: float,
-    pbc: Tuple[bool, bool, bool] = (True, True, True),
-) -> Tuple[Tuple[int, int]]:
+    pbc: tuple[bool, bool, bool] = (True, True, True),
+) -> tuple[tuple[int, int]]:
     return tuple(
         (get_cell_multiple_range(cell, cell_vector, cutoff=cutoff) if pbc[cell_vector] else (0, 1))
         for cell_vector in (0, 1, 2)

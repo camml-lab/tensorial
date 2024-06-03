@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import functools
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Union
 
 from flax import linen
 from flax.training import orbax_utils
@@ -73,7 +73,7 @@ def save_module(path, module_config: Config, module_state):
     )
 
 
-def load_module_state(path) -> Tuple[Config, Any]:
+def load_module_state(path) -> tuple[Config, Any]:
     checkpointer = orbax.checkpoint.PyTreeCheckpointer()
     state = checkpointer.restore(path)
     return omegaconf.OmegaConf.create(state[MODULE_CONFIG]), state[MODULE_STATE]

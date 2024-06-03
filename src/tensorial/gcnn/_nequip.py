@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
+from collections.abc import Mapping
 import functools
-from typing import Callable, Optional, Union
+from typing import Callable, Optional
 
 import beartype
 import e3nn_jax as e3j
@@ -18,9 +19,9 @@ __all__ = ("NequipLayer",)
 
 # Default activations used by gate
 DEFAULT_ACTIVATIONS = linen.FrozenDict({"e": "silu", "o": "tanh"})
+ActivationLike = str | nn_utils.ActivationFunction
 
 
-@jt.jaxtyped(beartype.beartype)
 class InteractionBlock(linen.Module):
     """NequIP style interaction block.
 
@@ -37,15 +38,15 @@ class InteractionBlock(linen.Module):
     :param self_connection: If True, self connection will be applied at end of interaction
     """
 
-    irreps_out: e3j.Irreps = 4 * e3j.Irreps("0e + 1o + 2e")
+    irreps_out: typing.IntoIrreps = 4 * e3j.Irreps("0e + 1o + 2e")
     # Radial
     radial_num_layers: int = 1
     radial_num_neurons: int = 8
-    radial_activation: nn_utils.ActivationFunction = "swish"
+    radial_activation: ActivationLike = "swish"
 
     avg_num_neighbours: float = 1.0
     self_connection: bool = True
-    activations: Union[str, dict[str, nn_utils.ActivationFunction]] = DEFAULT_ACTIVATIONS
+    activations: str | Mapping[str, ActivationLike] = DEFAULT_ACTIVATIONS
 
     num_species: int = 1
 
@@ -69,6 +70,7 @@ class InteractionBlock(linen.Module):
         self._radial_act = nn_utils.get_jaxnn_activation(self.radial_activation)
 
     @linen.compact
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
         node_features: typing.IrrepsArrayShape["n_nodes irreps"],
@@ -120,7 +122,6 @@ class InteractionBlock(linen.Module):
         return node_feats
 
 
-@jt.jaxtyped(beartype.beartype)
 class NequipLayer(linen.Module):
     """
     NequIP convolution layer.
@@ -129,16 +130,16 @@ class NequipLayer(linen.Module):
     https://github.com/mir-group/nequip/blob/main/nequip/nn/_convnetlayer.py
     """
 
-    irreps_out: e3j.Irreps
+    irreps_out: typing.IntoIrreps
     invariant_layers: int = 1
     invariant_neurons: int = 8
     # Radial
     radial_num_layers: int = 1
     radial_num_neurons: int = 8
-    radial_activation: str = "swish"
+    radial_activation: ActivationLike = "swish"
 
-    avg_num_neighbours: int = 1.0
-    activations: Union[str, dict[str, str]] = DEFAULT_ACTIVATIONS
+    avg_num_neighbours: float = 1.0
+    activations: str | Mapping[str, ActivationLike] = DEFAULT_ACTIVATIONS
     node_features_field = keys.FEATURES
     self_connection: bool = True
     num_species: int = 1
@@ -165,6 +166,7 @@ class NequipLayer(linen.Module):
             self._interaction_block = self.interaction_block
 
     @linen.compact
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ

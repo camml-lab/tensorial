@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import abc
 import math
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 
 import e3nn_jax
 import jax
@@ -14,7 +14,7 @@ class RadialBasis(tensorial.Attr):
     """A set of radial basis functions"""
 
     _number: int
-    _domain: Tuple[float, float]
+    _domain: tuple[float, float]
 
     def __init__(self, number: int, domain=(0.0, jnp.inf)):
         self._number = number
@@ -35,7 +35,7 @@ class RadialBasis(tensorial.Attr):
     #     """Get the radial function with index `n`"""
 
     @property
-    def domain(self) -> Tuple[float, float]:
+    def domain(self) -> tuple[float, float]:
         return self._domain
 
     @abc.abstractmethod

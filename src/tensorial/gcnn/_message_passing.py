@@ -11,21 +11,21 @@ import jaxtyping as jt
 from tensorial import nn_utils, typing
 
 
-@jt.jaxtyped(beartype.beartype)
 class MessagePassingConvolution(linen.Module):
-    irreps_out: typing.IrrepsLike
+    irreps_out: typing.IntoIrreps
     avg_num_neighbours: float = 1.0
 
     # Radial
     radial_num_layers: int = 1
     radial_num_neurons: int = 8
-    radial_activation: nn_utils.ActivationFunction = "swish"
+    radial_activation: str | nn_utils.ActivationFunction = "swish"
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
         self._radial_act = nn_utils.get_jaxnn_activation(self.radial_activation)
 
     @linen.compact
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
         node_feats: typing.IrrepsArrayShape["n_nodes node_irreps"],
@@ -34,7 +34,7 @@ class MessagePassingConvolution(linen.Module):
         senders: typing.IndexArray["n_edges"],
         receivers: typing.IndexArray["n_edges"],
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
-    ) -> typing.IrrepsArrayShape["n_nodes node_irreps"]:
+    ) -> typing.IrrepsArrayShape["n_nodes node_irreps_out"]:
         irreps_out = e3j.Irreps(self.irreps_out)  # Recast, because flax converts to tuple
 
         # The irreps to use for the output node features

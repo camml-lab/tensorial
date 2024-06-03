@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import abc
-from typing import Callable, Optional, Sequence, Tuple, Union
+from collections.abc import Callable, Sequence
+from typing import Optional, Union
 
 import equinox
 import jax
@@ -118,7 +119,7 @@ class Loss(GraphLoss):
 
 
 class WeightedLoss(GraphLoss):
-    _weights: Tuple[float, ...]
+    _weights: tuple[float, ...]
     _loss_fns: Sequence[GraphLoss]
 
     def __init__(
@@ -155,7 +156,7 @@ class WeightedLoss(GraphLoss):
 
     def loss_with_contributions(
         self, predictions: jraph.GraphsTuple, target: jraph.GraphsTuple
-    ) -> Tuple[float, dict[str, float]]:
+    ) -> tuple[float, dict[str, float]]:
         # Calculate the loss for each function
         losses = jax.array(list(map(lambda loss_fn: loss_fn(predictions, target), self._loss_fns)))
         # Group the contributions into a dictionary keyed by the label

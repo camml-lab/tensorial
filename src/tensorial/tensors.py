@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Union
 
 import e3nn_jax as e3j
 import jax
@@ -46,7 +46,7 @@ class SphericalHarmonic(base.Attr):
 
     normalise: bool
     normalisation: Optional[Literal["integral", "component", "norm"]] = None
-    algorithm: Optional[Tuple[str]] = None
+    algorithm: Optional[tuple[str]] = None
 
     def __init__(
         self,
@@ -54,7 +54,7 @@ class SphericalHarmonic(base.Attr):
         normalise,
         normalization: Optional[Literal["integral", "component", "norm"]] = None,
         *,
-        algorithm: Tuple[str] = None,
+        algorithm: tuple[str] = None,
     ):
         super().__init__(irreps)
         self.normalise = normalise

@@ -45,7 +45,7 @@ class Attr(equinox.Module):
 
     irreps: e3j.Irreps
 
-    def __init__(self, irreps: typing.IrrepsLike) -> None:  # pylint: disable=redefined-outer-name
+    def __init__(self, irreps: typing.IntoIrreps) -> None:  # pylint: disable=redefined-outer-name
         self.irreps = e3j.Irreps(irreps)
 
     def create_tensor(self, value: Any) -> e3j.IrrepsArray:

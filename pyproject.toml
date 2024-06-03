@@ -29,7 +29,7 @@ dependencies = [
     "hydra-core",
     'jax',
     'jaxlib',
-    'jaxtyping<=0.2.23',
+    'jaxtyping',
     'jraph',
     'orbax-checkpoint',
     'pytray',

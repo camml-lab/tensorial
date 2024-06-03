@@ -1,13 +1,23 @@
 # -*- coding: utf-8 -*-
-from typing import Generic, Tuple, TypeVar, Union
+from collections.abc import Sequence
+from typing import Generic, TypeVar, Union
 
 import e3nn_jax as e3j
 import jax.typing
 import jaxtyping as jt
 import numpy as np
 
-IrrepLike = Union[str, e3j.Irrep]
-IrrepsLike = Union[str, e3j.Irreps, Tuple[e3j.MulIrrep]]
+IrrepLike = str | e3j.Irrep
+IrrepsLike = str | e3j.Irreps | tuple[e3j.MulIrrep]
+IntoIrreps = Union[
+    None,
+    e3j.Irrep,
+    e3j.MulIrrep,
+    str,
+    e3j.Irreps,
+    Sequence[str | e3j.Irrep | e3j.MulIrrep | tuple[int, "IntoIrrep"]],
+]
+
 
 ArrayT = TypeVar("ArrayT")
 ValueT = TypeVar("ValueT")

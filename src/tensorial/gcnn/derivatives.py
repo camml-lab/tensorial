@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
+from collections.abc import Sequence
 import functools
-from typing import Any, Sequence, Tuple, Union
+from typing import Any, Union
 
 from flax import linen
 import jax
@@ -14,7 +15,7 @@ from . import _base, utils
 
 __all__ = ("Grad",)
 
-TreePath = Tuple[Any, ...]
+TreePath = tuple[Any, ...]
 
 
 class Grad(linen.Module):
@@ -63,10 +64,10 @@ class Grad(linen.Module):
 def grad_shim(
     fn: _base.GraphFunction,
     graph: jraph.GraphsTuple,
-    of: Tuple,
-    paths: Tuple[TreePath],
+    of: tuple,
+    paths: tuple[TreePath],
     *wrt_variables,
-) -> Tuple[jax.Array, jraph.GraphsTuple]:
+) -> tuple[jax.Array, jraph.GraphsTuple]:
     def repl(path, val):
         try:
             idx = paths.index(tuple(map(key_to_str, path)))

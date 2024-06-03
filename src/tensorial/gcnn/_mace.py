@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+from collections.abc import Callable, Iterable
 import functools
 import math
-from typing import Callable, Optional, Union
+from typing import Optional
 
 import beartype
 import e3nn_jax as e3j
@@ -19,7 +20,6 @@ from . import _message_passing, keys, utils
 A025582 = [0, 1, 3, 7, 12, 20, 30, 44, 65, 80, 96, 122, 147, 181, 203, 251, 289]
 
 
-@jt.jaxtyped(beartype.beartype)
 class SymmetricContraction(linen.Module):
     """
     Symmetric tensor contraction up to a given correlation order.
@@ -30,10 +30,10 @@ class SymmetricContraction(linen.Module):
     """
 
     correlation_order: int
-    keep_irrep_out: Union[str, set[tensorial.typing.IrrepLike]]
+    keep_irrep_out: str | Iterable[tensorial.typing.IrrepLike]
 
     num_types: int = 1
-    gradient_normalisation: Union[str, float] = None
+    gradient_normalisation: Optional[str | float] = None
     symmetric_tensor_product_basis: bool = True
     off_diagonal: bool = False
     param_dtype = jnp.float32
@@ -57,6 +57,7 @@ class SymmetricContraction(linen.Module):
         self._keep_irrep_out = {e3j.Irrep(ir) for ir in keep_irrep_out}
 
     @linen.compact
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
         inputs: typing.IrrepsArrayShape["n_node features irreps"],
@@ -73,6 +74,7 @@ class SymmetricContraction(linen.Module):
 
         return contract(inputs, input_type)
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def _contract(
         self,
         inputs: typing.IrrepsArrayShape["num_features irreps_in"],
@@ -171,7 +173,6 @@ class SymmetricContraction(linen.Module):
         return output
 
 
-@jt.jaxtyped(beartype.beartype)
 class EquivariantProductBasisBlock(linen.Module):
     irreps_out: e3j.Irreps
     correlation_order: int
@@ -192,6 +193,7 @@ class EquivariantProductBasisBlock(linen.Module):
         )
 
     @linen.compact
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
         node_features: typing.IrrepsArrayShape["n_nodes featuresXirreps"],
@@ -203,11 +205,10 @@ class EquivariantProductBasisBlock(linen.Module):
         return e3j.flax.Linear(self._target_irreps)(node_features)
 
 
-@jt.jaxtyped(beartype.beartype)
 class InteractionBlock(linen.Module):
-    irreps_out: tensorial.typing.IrrepsLike
+    irreps_out: typing.IntoIrreps
     avg_num_neighbours: float = 1.0
-    radial_activation: nn_utils.ActivationFunction = "swish"
+    radial_activation: str | nn_utils.ActivationFunction = "swish"
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
@@ -217,6 +218,7 @@ class InteractionBlock(linen.Module):
         self._linear_down = e3j.flax.Linear(self.irreps_out, name="linear_down")
 
     @linen.compact
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
         node_features: typing.IrrepsArrayShape["n_nodes node_irreps"],
@@ -239,8 +241,8 @@ class InteractionBlock(linen.Module):
 
 
 class NonLinearReadoutBlock(linen.Module):
-    hidden_irreps: tensorial.typing.IrrepsLike
-    output_irreps: tensorial.typing.IrrepsLike
+    hidden_irreps: typing.IntoIrreps
+    output_irreps: typing.IntoIrreps
     activation: Optional[Callable] = None
     gate: Optional[Callable] = None
 
@@ -262,7 +264,6 @@ class NonLinearReadoutBlock(linen.Module):
         return self._linear_out(inputs)
 
 
-@jt.jaxtyped(beartype.beartype)
 class MaceLayer(linen.Module):
     """
     A MACE layer composed of:
@@ -277,7 +278,7 @@ class MaceLayer(linen.Module):
 
     # Interaction
     num_features: int
-    interaction_irreps: tensorial.typing.IrrepsLike
+    interaction_irreps: typing.IntoIrreps
     #   radial
     radial_activation: Callable
 
@@ -286,7 +287,7 @@ class MaceLayer(linen.Module):
     avg_num_neighbours: float
 
     # Product basis
-    hidden_irreps: tensorial.typing.IrrepsLike
+    hidden_irreps: typing.IntoIrreps
     correlation_order: int
     symmetric_tensor_product_basis: bool
     off_diagonal: bool
@@ -327,6 +328,7 @@ class MaceLayer(linen.Module):
         else:
             self._self_connection = None
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
         node_features: typing.IrrepsArrayShape["n_nodes node_irreps"],
@@ -336,7 +338,7 @@ class MaceLayer(linen.Module):
         senders: jt.Int[jax.typing.ArrayLike, "n_edges"],
         receivers: jt.Int[jax.typing.ArrayLike, "n_edges"],
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
-    ) -> e3j.IrrepsArray:
+    ) -> typing.IrrepsArrayShape["n_nodes node_irreps_out"]:
         self_connection: Optional[typing.IrrepsArrayShape["n_nodes feature*hidden_irreps"]] = None
         if self._self_connection is not None:
             self_connection = self._self_connection(node_species, node_features)
@@ -372,11 +374,10 @@ class MaceLayer(linen.Module):
         return 1.0 / (1.0 + n * e3j.sus(n))
 
 
-@jt.jaxtyped(beartype.beartype)
 class Mace(linen.Module):
-    irreps_out: tensorial.typing.IrrepsLike
+    irreps_out: typing.IntoIrreps
     out_field: str
-    hidden_irreps: tensorial.typing.IrrepsLike  # 256x0e or 128x0e + 128x1o
+    hidden_irreps: typing.IntoIrreps  # 256x0e or 128x0e + 128x1o
 
     correlation_order: int = 3  # Correlation order at each layer (~ node_features^correlation)
     num_interactions: int = 2  # Number of interactions (layers)
@@ -390,8 +391,8 @@ class Mace(linen.Module):
     off_diagonal: bool = False
 
     symmetric_tensor_product_basis: bool = True
-    readout_mlp_irreps: tensorial.typing.IrrepsLike = "16x0e"
-    interaction_irreps: tensorial.typing.IrrepsLike = "o3_restricted"  # or o3_full
+    readout_mlp_irreps: typing.IntoIrreps = "16x0e"
+    interaction_irreps: str | typing.IntoIrreps = "o3_restricted"  # or o3_full
 
     # Radial
     radial_activation: Callable = jax.nn.silu  # activation function
@@ -462,6 +463,7 @@ class Mace(linen.Module):
         self._layers = mace_layers
         self._readouts = readouts
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         # Embeddings
         node_feats = graph.nodes[keys.FEATURES]  # [n_nodes, feature * irreps]

@@ -30,7 +30,7 @@ ASE_ATOM_KEYS = {"numbers", "forces", "stresses", "charges", "magmoms", "energie
 PyTree = Any
 
 
-@jt.jaxtyped(beartype.beartype)
+@jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_ase(
     ase_atoms: "ase.atoms.Atoms",
     r_max: numbers.Number,
@@ -137,7 +137,7 @@ def get_attrs(store_in: MutableMapping, get_from: Mapping, key: Hashable, key_ma
     return True
 
 
-@jt.jaxtyped(beartype.beartype)
+@jt.jaxtyped(typechecker=beartype.beartype)
 class SpeciesTransform(equinox.Module):
     """
     Take an ordered list of species and transform them into an integer corresponding to their
