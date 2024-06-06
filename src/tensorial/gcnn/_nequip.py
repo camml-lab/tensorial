@@ -74,7 +74,7 @@ class InteractionBlock(linen.Module):
     def __call__(
         self,
         node_features: typing.IrrepsArrayShape["n_nodes irreps"],
-        edge_features: typing.IrrepsArrayShape["n_edges irreps"],
+        edge_features: typing.IrrepsArrayShape["n_edges edge_irreps"],
         radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding_dim"],
         senders: typing.IndexArray["n_edges"],
         receivers: typing.IndexArray["n_edges"],
