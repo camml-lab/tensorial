@@ -470,11 +470,11 @@ class Mace(linen.Module):
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         # Embeddings
-        node_feats = graph.nodes[keys.FEATURES]  # [n_nodes, feature * irreps]
+        node_feats: typing.IrrepsArrayShape["n_nodes feature*irreps"] = graph.nodes[keys.FEATURES]
         node_species = graph.nodes[keys.SPECIES]
 
         # Interactions
-        outputs = []
+        outputs: list[typing.IrrepsArrayShape["n_nodes output_irreps"]] = []
         for layer, readout in zip(self._layers, self._readouts):
             node_feats = layer(
                 node_feats,
@@ -486,9 +486,9 @@ class Mace(linen.Module):
                 graph.receivers,
                 edge_mask=graph.edges.get(keys.MASK),
             )
-            node_outputs = readout(node_feats)
+            node_outputs: typing.IrrepsArrayShape["n_nodes output_irreps"] = readout(node_feats)
 
-            outputs += [node_outputs]  # list[[n_nodes, output_irreps]]
+            outputs += [node_outputs]
 
         updates = utils.UpdateDict(graph._asdict())
         updates["nodes"][keys.FEATURES] = node_feats
