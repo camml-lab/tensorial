@@ -12,7 +12,7 @@ import jraph
 
 from tensorial import nn_utils, typing
 
-from . import _message_passing, keys
+from . import _base, _message_passing, keys
 
 __all__ = ("NequipLayer",)
 
@@ -167,6 +167,7 @@ class NequipLayer(linen.Module):
 
     @linen.compact
     @jt.jaxtyped(typechecker=beartype.beartype)
+    @_base.shape_check
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ

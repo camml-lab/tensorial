@@ -9,7 +9,7 @@ from pytray import tree
 
 import tensorial
 
-from . import _common, keys, utils
+from . import _base, _common, keys, utils
 
 __all__ = "NodewiseLinear", "NodewiseReduce", "NodewiseEncoding", "NodewiseDecoding"
 
@@ -45,7 +45,8 @@ class NodewiseLinear(linen.Module):
                 )
             self._types_field = self.types_field
 
-    def __call__(self, graph: jraph.GraphsTuple):
+    @_base.shape_check
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         nodes = graph.nodes
         if self.num_types:
             # We are using weights indexed by the type
@@ -86,7 +87,8 @@ class NodewiseReduce(linen.Module):
             self.constant = 1.0
             self._reduce = self.reduce
 
-    def __call__(self, graph: jraph.GraphsTuple, key=None) -> jraph.GraphsTuple:
+    @_base.shape_check
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         reduced = self.constant * _common.reduce(graph, self._field, self._reduce)
         updates = utils.UpdateDict(graph._asdict())
         if updates["globals"] is None:
@@ -104,9 +106,8 @@ class NodewiseEncoding(linen.Module):
     attrs: tensorial.IrrepsTree
     out_field: str = keys.ATTRIBUTES
 
+    @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
-        print(f"JAX compiling {self.__class__.__name__}")
-
         # Create the encoding
         encoded = tensorial.create_tensor(self.attrs, graph.nodes)
         # Store in output field
@@ -124,6 +125,7 @@ class NodewiseDecoding(linen.Module):
     attrs: tensorial.IrrepsTree
     in_field: str = keys.ATTRIBUTES
 
+    @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         # Here, we need to split up the direct sum of irreps in the in field, and save the values
         # in the nodes dict corresponding to the attrs keys

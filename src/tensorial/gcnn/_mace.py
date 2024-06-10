@@ -13,9 +13,9 @@ import jaxtyping as jt
 import jraph
 
 import tensorial
-from tensorial import nn_utils, typing
+from tensorial import gcnn, nn_utils, typing
 
-from . import _message_passing, keys, utils
+from . import _base, _message_passing, keys, utils
 
 A025582 = [0, 1, 3, 7, 12, 20, 30, 44, 65, 80, 96, 122, 147, 181, 203, 251, 289]
 
@@ -464,6 +464,8 @@ class Mace(linen.Module):
         self._readouts = readouts
 
     @jt.jaxtyped(typechecker=beartype.beartype)
+    @gcnn.shape_check
+    @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         # Embeddings
         node_feats = graph.nodes[keys.FEATURES]  # [n_nodes, feature * irreps]

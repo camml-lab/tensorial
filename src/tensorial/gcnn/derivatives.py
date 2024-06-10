@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from collections.abc import Sequence
-import functools
 from typing import Any, Union
 
 from flax import linen
@@ -11,7 +10,7 @@ from pytray import tree
 
 import tensorial
 
-from . import _base, utils
+from . import _base, _tree
 
 __all__ = ("Grad",)
 
@@ -28,14 +27,14 @@ class Grad(linen.Module):
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
         if isinstance(self.wrt, str):
-            self._wrt = (utils.path_from_str(self.wrt),)
+            self._wrt = (_tree.path_from_str(self.wrt),)
         elif isinstance(self.wrt, (list, tuple)):
-            self._wrt = tuple(map(utils.path_from_str(self.wrt)))
+            self._wrt = tuple(map(_tree.path_from_str(self.wrt)))
         else:
             raise ValueError(
                 f"wrt must be str or list or tuple thereof, got {type(self.wrt).__name__}"
             )
-        self._of = utils.path_from_str(self.of)
+        self._of = _tree.path_from_str(self.of)
 
         if self.out_field is None:
             derivs = []
@@ -43,11 +42,12 @@ class Grad(linen.Module):
                 derivs.append(self._of[:-1] + (f"d{'.'.join(self._of[1:])}/d{wrt[-1]}",))
             self._out_field = tuple(derivs)
         else:
-            self._out_field = [utils.path_from_str(self.out_field)]
+            self._out_field = [_tree.path_from_str(self.out_field)]
 
         self._grad_fn = jax.grad(grad_shim, argnums=4, has_aux=True)
 
-    def __call__(self, graph: jraph.GraphsTuple):
+    @_base.shape_check
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         graph_dict = graph._asdict()
         wrt_variables = tuple(map(lambda path: tree.get_by_path(graph_dict, path), self._wrt))
 
@@ -70,7 +70,7 @@ def grad_shim(
 ) -> tuple[jax.Array, jraph.GraphsTuple]:
     def repl(path, val):
         try:
-            idx = paths.index(tuple(map(key_to_str, path)))
+            idx = paths.index(tuple(map(_tree.key_to_str, path)))
             return wrt_variables[idx]
         except ValueError:
             return val
@@ -83,23 +83,3 @@ def grad_shim(
     out_graph = fn(graph)
     # Extract the quantity that we want to differentiate
     return jnp.sum(tensorial.as_array(tree.get_by_path(out_graph._asdict(), of))), out_graph
-
-
-@functools.singledispatch
-def key_to_str(key) -> str:
-    raise ValueError(key)
-
-
-@key_to_str.register
-def attr_key_to_str(key: jax.tree_util.GetAttrKey):
-    return key.name
-
-
-@key_to_str.register
-def dict_key_to_str(key: jax.tree_util.DictKey):
-    return str(key.key)
-
-
-@key_to_str.register
-def sequence_key_to_str(key: jax.tree_util.SequenceKey):
-    return str(key.idx)

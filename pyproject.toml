@@ -106,6 +106,10 @@ disable = [
 [tool.pylint.design]
 max-locals = 20
 
+[pytest]
+log_cli = "True"
+log_cli_level = "DEBUG"
+
 [tool.pytest.ini_options]
 minversion = '6.0'
 testpaths = [

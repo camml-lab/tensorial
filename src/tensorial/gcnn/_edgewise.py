@@ -8,7 +8,7 @@ import jraph
 
 import tensorial
 
-from . import _graphs, keys
+from . import _base, _graphs, keys
 
 __all__ = (
     "EdgewiseLinear",
@@ -35,6 +35,7 @@ class EdgewiseLinear(linen.Module):
             force_irreps_out=True,
         )
 
+    @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple):
         edges = graph.edges
         edges[self.out_field] = self.linear(edges[self.field])
@@ -45,6 +46,7 @@ class EdgewiseEncoding(linen.Module):
     attrs: tensorial.IrrepsTree
     out_field: str = keys.ATTRIBUTES
 
+    @_base.shape_check
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
@@ -65,6 +67,7 @@ class EdgewiseDecoding(linen.Module):
     attrs: tensorial.IrrepsTree
     in_field: str = keys.ATTRIBUTES
 
+    @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         # Here, we need to split up the direct sum of irreps in the in field, and save the values
         # in the edges dict corresponding to the attrs keys
@@ -94,6 +97,7 @@ class RadialBasisEdgeEncoding(linen.Module):
             n=self.num_basis,
         )
 
+    @_base.shape_check
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
@@ -109,6 +113,7 @@ class EdgeVectors(linen.Module):
     """
 
     @linen.compact
+    @_base.shape_check
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ

@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import jraph
 from pytray import tree
 
-from . import utils
+from . import _base, utils
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ class Rescale(linen.Module):
                     )
 
     @linen.compact
+    @_base.shape_check
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
@@ -117,6 +118,7 @@ class IndexedRescale(linen.Module):
 
         # assert self._scales.shape == self._shifts.shape
 
+    @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple):
         graph_dict = utils.UpdateDict(graph._asdict())
 
@@ -160,6 +162,7 @@ class IndexedLinear(linen.Module):
     name: str = None
 
     @linen.compact
+    @_base.shape_check
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
