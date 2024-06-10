@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from typing import Literal, Optional, Union
+from __future__ import annotations  # For py39
+
+from typing import Literal, Optional
 
 import e3nn_jax as e3j
 import jax
@@ -61,7 +63,7 @@ class SphericalHarmonic(base.Attr):
         self.normalisation = normalization
         self.algorithm = algorithm
 
-    def create_tensor(self, value: Union[jax.Array, e3j.IrrepsArray]) -> jnp.array:
+    def create_tensor(self, value: jax.Array | e3j.IrrepsArray) -> jnp.array:
         return e3j.spherical_harmonics(
             self.irreps,
             value,
@@ -90,7 +92,7 @@ class OneHot(base.Attr):
 
 class CartesianTensor(base.Attr):
     formula: str
-    keep_ir: Optional[Union[e3j.Irreps, list[e3j.Irrep]]]
+    keep_ir: Optional[e3j.Irreps | list[e3j.Irrep]]
     irreps_dict: dict
     change_of_basis: jax.Array
     _indices: str

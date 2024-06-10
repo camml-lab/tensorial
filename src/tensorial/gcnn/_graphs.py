@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations  # For py39
+
 import logging
 import numbers
-from typing import Optional
+from typing import Optional, Union
 
 import beartype
 import e3nn_jax as e3j
@@ -20,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = ("graph_from_points", "with_edge_vectors")
 
 
-PbcType = tuple[bool, bool, bool] | jt.Bool[jax.typing.ArrayLike, "3"]
+PbcType = Union[tuple[bool, bool, bool], jt.Bool[jax.typing.ArrayLike, "3"]]
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)
@@ -31,7 +33,7 @@ def graph_from_points(
     self_interaction: bool = False,
     strict_self_interaction: bool = True,
     cell: Optional[jt.Float[jax.typing.ArrayLike, "3 3"]] = None,
-    pbc: Optional[bool | PbcType] = None,
+    pbc: Optional[Union[bool, PbcType]] = None,
     nodes: dict[str, jt.Num[jax.typing.ArrayLike, "n_nodes *"]] = None,
     edges: dict = None,
     graph_globals: dict = None,

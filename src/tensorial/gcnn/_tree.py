@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations  # For py39
+
 import functools
+from typing import Union
 
 import jax
 
 TreePath = tuple[str, ...]
-TreePathLike = str | TreePath
+TreePathLike = Union[str, TreePath]
 
 
 @functools.singledispatch

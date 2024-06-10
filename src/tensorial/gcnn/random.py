@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from typing import Sequence, Union
+from __future__ import annotations  # For py39
+
+from typing import Sequence
 
 import jax.random
 import jraph
@@ -9,7 +11,7 @@ from . import _graphs
 
 def spatial_graph(
     key: jax.Array, num_nodes: int = None, num_graphs=None, cutoff=0.2
-) -> Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]]:
+) -> jraph.GraphsTuple | Sequence[jraph.GraphsTuple]:
     graphs = []
     for _ in range(num_graphs or 1):
         if num_nodes is None:

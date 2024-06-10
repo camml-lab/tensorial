@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations  # For py39
+
 from collections.abc import Iterable
 import numbers
 from typing import Any, Hashable, Mapping, MutableMapping, Optional, Sequence

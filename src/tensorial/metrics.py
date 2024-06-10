@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from typing import Any, Callable, ClassVar, Optional, Type, TypeVar, Union
+from __future__ import annotations  # For py39
+
+from typing import Any, Callable, ClassVar, Optional, Type, TypeVar
 
 import clu.internal.utils
 import clu.metrics
@@ -187,7 +189,7 @@ metrics = {
 }
 
 
-def metric(metric_type: Union[str, Type[clu.metrics.Metric]]) -> Type[clu.metrics.Metric]:
+def metric(metric_type: str | Type[clu.metrics.Metric]) -> Type[clu.metrics.Metric]:
     if isinstance(metric_type, str):
         try:
             return metrics[metric_type]

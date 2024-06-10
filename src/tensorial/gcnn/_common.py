@@ -2,7 +2,7 @@
 """
 Common utility functions that operate on graphs
 """
-from typing import Union
+from __future__ import annotations  # For py39
 
 import jax
 import jax.numpy as jnp
@@ -14,7 +14,7 @@ from . import utils
 __all__ = ("reduce",)
 
 
-def reduce(graph: jraph.GraphsTuple, field: Union[str, jax.Array], reduction="sum") -> jax.Array:
+def reduce(graph: jraph.GraphsTuple, field: str | jax.Array, reduction="sum") -> jax.Array:
     try:
         op = getattr(jraph, f"segment_{reduction}")
     except AttributeError:

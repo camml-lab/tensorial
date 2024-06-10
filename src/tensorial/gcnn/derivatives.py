@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations  # For py39
+
 from collections.abc import Sequence
 from typing import Any, Union
 
@@ -21,7 +23,7 @@ class Grad(linen.Module):
     func: _base.GraphFunction
     of: str
     wrt: Union[str, TreePath]
-    out_field: Union[str, Sequence[str]] = None
+    out_field: str | Sequence[str] = None
     sign: float = 1.0
 
     def setup(self):

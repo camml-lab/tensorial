@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations  # For py39
+
 import numpy as np
 import pytest
 

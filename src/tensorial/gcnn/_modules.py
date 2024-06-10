@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations  # For py39
+
 import logging
-from typing import Hashable, Optional, Sequence, Union
+from typing import Hashable, Optional, Sequence
 
 import e3nn_jax as e3j
 from flax import linen
@@ -28,8 +30,8 @@ class Rescale(linen.Module):
     Note that if the field is missing from the graph, then this module will ignore it.
     """
 
-    shift_fields: Union[str, Sequence[Hashable]] = tuple()
-    scale_fields: Union[str, Sequence[Hashable]] = tuple()
+    shift_fields: str | Sequence[Hashable] = tuple()
+    scale_fields: str | Sequence[Hashable] = tuple()
     shift: jax.Array = 0.0
     scale: jax.Array = 1.0
 
@@ -154,7 +156,7 @@ class IndexedLinear(linen.Module):
     linear layer the value gets passed to.  Weights are per index.
     """
 
-    irreps_out: Union[str, e3j.Irreps]
+    irreps_out: str | e3j.Irreps
     num_types: int
     index_field: str
     field: str

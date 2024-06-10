@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations  # For py39
+
 import collections
 import enum
 import functools
-from typing import Any, Iterator, Optional, Sequence, Tuple, Union
+from typing import Any, Iterator, Optional, Sequence, Tuple
 
 import jax.numpy as jnp
 import jraph
@@ -165,7 +167,7 @@ class GraphLoader(data.DataLoader[Tuple[jraph.GraphsTuple, ...]]):
 class GraphBatcher:
     def __init__(
         self,
-        graphs: Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]],
+        graphs: jraph.GraphsTuple | Sequence[jraph.GraphsTuple],
         batch_size: int = 1,
         shuffle=False,
         pad=False,

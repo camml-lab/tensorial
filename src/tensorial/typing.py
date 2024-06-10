@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations  # For py39
+
 from collections.abc import Sequence
 from typing import Generic, TypeVar, Union
 
@@ -7,15 +9,15 @@ import jax.typing
 import jaxtyping as jt
 import numpy as np
 
-IrrepLike = str | e3j.Irrep
-IrrepsLike = str | e3j.Irreps | tuple[e3j.MulIrrep]
+IrrepLike = Union[str, e3j.Irrep]
+IrrepsLike = Union[str, e3j.Irreps, tuple[e3j.MulIrrep]]
 IntoIrreps = Union[
     None,
     e3j.Irrep,
     e3j.MulIrrep,
     str,
     e3j.Irreps,
-    Sequence[str | e3j.Irrep | e3j.MulIrrep | tuple[int, "IntoIrrep"]],
+    Sequence[Union[str, e3j.Irrep, e3j.MulIrrep, tuple[int, "IntoIrrep"]]],
 ]
 
 

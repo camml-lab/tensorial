@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations  # For py39
+
 from collections.abc import Callable, Iterable
 import functools
 import math

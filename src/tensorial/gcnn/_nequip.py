@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations  # For py39
+
 from collections.abc import Mapping
 import functools
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 import beartype
 import e3nn_jax as e3j
@@ -19,7 +21,7 @@ __all__ = ("NequipLayer",)
 
 # Default activations used by gate
 DEFAULT_ACTIVATIONS = linen.FrozenDict({"e": "silu", "o": "tanh"})
-ActivationLike = str | nn_utils.ActivationFunction
+ActivationLike = Union[str, nn_utils.ActivationFunction]
 
 
 class InteractionBlock(linen.Module):
