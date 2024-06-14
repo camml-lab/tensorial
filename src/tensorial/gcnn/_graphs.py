@@ -145,9 +145,6 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
     that they will not be recalculated if already done so.
     """
     edges = graph.edges
-    if keys.EDGE_VECTORS in edges:
-        return graph
-
     pos = graph.nodes[keys.POSITIONS]
     edge_vecs = pos[graph.receivers] - pos[graph.senders]
 
@@ -170,7 +167,7 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
     # To allow grad to work, we need to mask off the padded edge vectors that are zero, see:
     # * https://github.com/google/jax/issues/6484,
     # * https://stackoverflow.com/q/74864427/1257417
-    if with_lengths and keys.EDGE_LENGTHS not in edges:
+    if with_lengths:
         lengths = jnp.expand_dims(jnp.linalg.norm(edge_vecs, axis=-1), -1)
         if edge_mask is not None:
             lengths = jnp.where(edge_mask, lengths, 0.0)

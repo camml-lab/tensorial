@@ -2,7 +2,7 @@
 from __future__ import annotations  # For py39
 
 from collections.abc import Sequence
-from typing import Any, Union
+from typing import Any, Callable
 
 from flax import linen
 import jax
@@ -12,7 +12,7 @@ from pytray import tree
 
 import tensorial
 
-from . import _base, _tree
+from . import _base, _tree, _typing
 
 __all__ = ("Grad",)
 
@@ -20,9 +20,9 @@ TreePath = tuple[Any, ...]
 
 
 class Grad(linen.Module):
-    func: _base.GraphFunction
-    of: str
-    wrt: Union[str, TreePath]
+    func: _typing.GraphFunction
+    of: _typing.TreePathLike
+    wrt: str | Sequence[_typing.TreePathLike]
     out_field: str | Sequence[str] = None
     sign: float = 1.0
 
@@ -30,8 +30,8 @@ class Grad(linen.Module):
         # pylint: disable=attribute-defined-outside-init
         if isinstance(self.wrt, str):
             self._wrt = (_tree.path_from_str(self.wrt),)
-        elif isinstance(self.wrt, (list, tuple)):
-            self._wrt = tuple(map(_tree.path_from_str(self.wrt)))
+        elif isinstance(self.wrt, Sequence):
+            self._wrt = tuple(map(_tree.path_from_str, self.wrt))
         else:
             raise ValueError(
                 f"wrt must be str or list or tuple thereof, got {type(self.wrt).__name__}"
@@ -46,15 +46,20 @@ class Grad(linen.Module):
         else:
             self._out_field = [_tree.path_from_str(self.out_field)]
 
-        self._grad_fn = jax.grad(grad_shim, argnums=4, has_aux=True)
+        # Creat the shim which will be a function that takes the graph as first argument, and
+        # the remaining values are the values to take the gradient at
+        shim = _create_grad_shim(self.func, self._of, *self._wrt)
+        self._grad_fn = jax.grad(
+            shim, argnums=jnp.arange(1, len(self._wrt) + 1).tolist(), has_aux=True
+        )
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
-        graph_dict = graph._asdict()
-        wrt_variables = tuple(map(lambda path: tree.get_by_path(graph_dict, path), self._wrt))
+        wrt_values = _tree.get(graph, *self._wrt)
+        if len(self._wrt) == 1:
+            wrt_values = (wrt_values,)
 
-        grads, graph_out = self._grad_fn(self.func, graph, self._of, self._wrt, *wrt_variables)
-        grads = (grads,)
+        grads, graph_out = self._grad_fn(graph, *wrt_values)
 
         # Add the gradient quantity to the output graph
         out_graph_dict = graph_out._asdict()
@@ -64,10 +69,10 @@ class Grad(linen.Module):
 
 
 def grad_shim(
-    fn: _base.GraphFunction,
+    fn: _typing.GraphFunction,
     graph: jraph.GraphsTuple,
     of: tuple,
-    paths: tuple[TreePath],
+    paths: tuple[_typing.TreePath],
     *wrt_variables,
 ) -> tuple[jax.Array, jraph.GraphsTuple]:
     def repl(path, val):
@@ -85,3 +90,26 @@ def grad_shim(
     out_graph = fn(graph)
     # Extract the quantity that we want to differentiate
     return jnp.sum(tensorial.as_array(tree.get_by_path(out_graph._asdict(), of))), out_graph
+
+
+def _create_grad_shim(
+    fn: _typing.GraphFunction,
+    of: _typing.TreePathLike,
+    *wrt: _typing.TreePathLike,
+) -> Callable[[jraph.GraphsTuple, ...], tuple[..., jraph.GraphsTuple]]:
+    def shim(graph: jraph.GraphsTuple, *args) -> tuple[..., jraph.GraphsTuple]:
+        # Create a function that takes the values of the quantities we want to take the derivatives
+        # with respect to
+        new_fn = _base.transform_fn(fn, *wrt, outs=[of], return_graphs=True)
+
+        # Pass the graph through the function
+        *vals, out_graph = new_fn(graph, *args)
+
+        # Extract the quantity that we want to differentiate
+        vals = tuple(map(jnp.sum, vals))
+        if len(vals) == 1:
+            vals = vals[0]
+
+        return vals, out_graph
+
+    return shim

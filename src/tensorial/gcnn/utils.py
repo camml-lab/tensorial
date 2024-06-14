@@ -2,7 +2,8 @@
 import collections.abc
 import logging
 
-from ._tree import TreePath, TreePathLike, path_from_str, path_to_str
+from ._tree import path_from_str, path_to_str
+from ._typing import TreePath, TreePathLike
 
 __all__ = "UpdateDict", "TreePath", "TreePathLike", "path_from_str", "path_to_str"
 
