@@ -52,6 +52,13 @@ def path_to_str(path: _typing.TreePathLike, delimiter=".") -> str:
 
 
 def get(graph: jraph.GraphsTuple, *path: _typing.TreePathLike) -> jax.Array | tuple[jax.Array, ...]:
+    """
+    Given a graph, this will extract the values as the passed path(s) and return them directly
+
+    :param graph: the graph to get values from
+    :param path: the path(s)
+    :return: the values at those paths
+    """
     path = tuple(map(path_from_str, path))
     graph_dict = graph._asdict()
     vals = tuple(map(functools.partial(tree.get_by_path, graph_dict), path))

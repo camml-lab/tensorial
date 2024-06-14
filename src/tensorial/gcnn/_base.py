@@ -65,6 +65,19 @@ def transform_fn(
     outs: Sequence[_typing.TreePathLike] = tuple(),
     return_graphs: bool = False,
 ) -> Callable[[jraph.GraphsTuple], ...] | Callable[[jraph.GraphsTuple, ...], ...]:
+    """
+    Given a graph function, this will return a function that takes a graph as the first argument
+    and then position arguments that will be mapped to the fields given by ``ins``.  Output paths
+    can optionally be specified with ``outs`` which, if supplied, will make the function return one
+    or more values from the graph as returned by ``fn``.
+
+    :param fn: the graph function
+    :param ins: the input paths
+    :param outs: the output paths
+    :param return_graphs: if `True` and ``outs`` is specified, this will return a tuple containing
+        the values at ``outs`` and the output graph return by ``fn``
+    :return: a function that wraps ``fn`` with the above properties
+    """
     ins = tuple(_tree.path_from_str(path) for path in ins)
     outs = tuple(_tree.path_from_str(path) for path in outs)
 
