@@ -102,7 +102,9 @@ class RadialBasisEdgeEncoding(linen.Module):
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         edge_dict = _graphs.with_edge_vectors(graph).edges
-        edge_dict[self.out_field] = self.radial_embedding(edge_dict[keys.EDGE_LENGTHS][:, 0])
+        edge_dict[self.out_field] = self.radial_embedding(
+            tensorial.as_array(edge_dict[keys.EDGE_LENGTHS])[:, 0]
+        )
         return graph._replace(edges=edge_dict)
 
 

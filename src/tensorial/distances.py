@@ -4,10 +4,16 @@ from __future__ import annotations  # For py39
 import collections
 import functools
 import math
+import numbers
+from typing import Optional
 
+import beartype
 import equinox
 import jax
 import jax.numpy as jnp
+import jaxtyping as jt
+
+from tensorial import typing
 
 Edges = collections.namedtuple("Edge", "from_idx to_idx cell_shift")
 i32 = jnp.int32  # pylint: disable=invalid-name
@@ -16,18 +22,20 @@ DEFAULT_MAX_CELL_MULTIPLES = 10_000
 MASK_VALUE = -1
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def get_num_plane_repetitions_to_bound_sphere(
-    radius: float, volume: float, cross_len: float
+    radius: numbers.Number, volume: numbers.Number, cross_len: numbers.Number
 ) -> float:
     # The vector normal to the plane
     return radius / volume * cross_len
 
 
-def cell_volume(cell: jax.Array) -> jax.Array:
+@jt.jaxtyped(typechecker=beartype.beartype)
+def cell_volume(cell: typing.CellType) -> jax.Array:
     return jnp.abs(jnp.dot(cell[0], jnp.cross(cell[1], cell[2])))
 
 
-def sphere_volume(radius: float) -> float:
+def sphere_volume(radius: numbers.Number) -> float:
     return (4 / 3) * jnp.pi * radius**3
 
 
@@ -87,8 +95,9 @@ class NeighbourList(equinox.Module):
         return self._finder.get_neighbours(positions, max_neighbours=self.actual_max_neighbours)
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def get_edge_vectors(
-    positions: jax.typing.ArrayLike, edges: Edges, cell: jax.typing.ArrayLike
+    positions: jax.typing.ArrayLike, edges: Edges, cell: typing.CellType
 ) -> jax.Array:
     return positions[edges.to_idx] + (edges.cell_shift @ cell) - positions[edges.from_idx]
 
@@ -107,8 +116,8 @@ class OpenBoundary(NeighbourFinder):
     _cutoff: float
     _include_self: bool
 
-    def __init__(self, cutoff: float, include_self=False):
-        self._cutoff = cutoff
+    def __init__(self, cutoff: int | float, include_self=False):
+        self._cutoff = float(cutoff)
         self._include_self = include_self
 
     def get_neighbours(
@@ -158,15 +167,15 @@ class PeriodicBoundary(NeighbourFinder):
 
     def __init__(
         self,
-        cell: jax.typing.ArrayLike,
-        cutoff: float,
-        pbc: tuple[bool, bool, bool] = None,
+        cell: typing.CellType,
+        cutoff: int | float,
+        pbc: Optional[typing.PbcType] = None,
         max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
         include_self=False,
         include_images=True,
     ):
         self._cell = jnp.asarray(cell)
-        self._cutoff = cutoff
+        self._cutoff = float(cutoff)
         self._cell_list, self._grid_points = get_cell_list(
             self._cell, cutoff, pbc, max_cell_multiples=max_cell_multiples
         )
@@ -222,26 +231,29 @@ class PeriodicBoundary(NeighbourFinder):
         return int(1.3 * jnp.ceil(density * sphere_volume(self._cutoff) + 1.0).item())
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def neighbour_finder(
-    cutoff: float,
-    cell: jax.typing.ArrayLike = None,
-    pbc: tuple[bool, bool, bool] = None,
+    cutoff: int | float,
+    cell: Optional[typing.CellType] = None,
+    pbc: Optional[typing.PbcType] = None,
+    include_self: bool = False,
     **kwargs,
 ) -> NeighbourFinder:
     if pbc is not None and any(pbc):
-        return PeriodicBoundary(cell, cutoff, pbc, **kwargs)
+        return PeriodicBoundary(cell, cutoff, pbc, include_self=include_self, **kwargs)
 
-    return OpenBoundary(cutoff)
+    return OpenBoundary(cutoff, include_self=include_self)
 
 
 def generate_positions(cell: jax.Array, positions: jax.Array, cell_shifts: jax.Array) -> jax.Array:
     return jax.vmap(lambda shift: (shift @ cell) + positions)(cell_shifts)
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def get_cell_list(
-    cell: jax.typing.ArrayLike,
-    cutoff: float,
-    pbc: tuple[bool, bool, bool] = (True, True, True),
+    cell: typing.CellType,
+    cutoff: int | float,
+    pbc: Optional[typing.PbcType] = (True, True, True),
     max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
 ) -> tuple[jax.Array, jax.Array]:
     cell = jnp.asarray(cell)
@@ -274,25 +286,27 @@ def get_cell_list(
 
 
 def get_cell_multiple_range(
-    cell: jax.typing.ArrayLike, cell_vector: int, cutoff: float
+    cell: jax.typing.ArrayLike, cell_vector: int, cutoff: int | float
 ) -> tuple[int, int]:
     multiplier = get_max_cell_vector_repetitions(cell, cell_vector, cutoff=cutoff)
     return -math.ceil(multiplier), math.ceil(multiplier) + 1
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def get_cell_multiple_ranges(
-    cell: jax.typing.ArrayLike,
-    cutoff: float,
-    pbc: tuple[bool, bool, bool] = (True, True, True),
-) -> tuple[tuple[int, int]]:
+    cell: typing.CellType,
+    cutoff: int | float,
+    pbc: Optional[typing.PbcType] = (True, True, True),
+) -> tuple[tuple[int, int], ...]:
     return tuple(
         (get_cell_multiple_range(cell, cell_vector, cutoff=cutoff) if pbc[cell_vector] else (0, 1))
         for cell_vector in (0, 1, 2)
     )
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def get_max_cell_vector_repetitions(
-    cell: jax.typing.ArrayLike, cell_vector: int, cutoff: float
+    cell: typing.CellType, cell_vector: int, cutoff: int | float
 ) -> float:
     """
     Given a unit cell defined by three vectors this will return the number of multiples of the

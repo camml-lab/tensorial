@@ -93,6 +93,9 @@ line-length = 100
 
 [tool.pylint.messages_control]
 disable = [
+    # Unfortunately jaxtyping decorator creates a function that seems to mistakenly be identified as
+    # not returning anything, so we have to disable the error below for now
+    'assignment-from-no-return',
     'duplicate-code',
     'import-outside-toplevel',
     'missing-docstring',

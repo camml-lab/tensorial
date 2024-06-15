@@ -17,7 +17,7 @@ def test_transform_fn(cube_graph: jraph.GraphsTuple):
         "nodes.positions",
     )
     out_graph = fn(cube_graph, new_pos)
-    assert np.allclose(out_graph.edges[gcnn.keys.EDGE_LENGTHS], ref_lengths)
+    assert np.allclose(out_graph.edges[gcnn.keys.EDGE_LENGTHS].array, ref_lengths)
 
     # In only with graph (should do nothing)
     fn = gcnn.transform_fn(
@@ -36,7 +36,7 @@ def test_transform_fn(cube_graph: jraph.GraphsTuple):
     )
 
     edge_lengths = fn(cube_graph, new_pos)
-    assert np.allclose(edge_lengths, ref_lengths)
+    assert np.allclose(edge_lengths.array, ref_lengths)
 
     # In and out return graph
     fn = gcnn.transform_fn(
@@ -47,7 +47,7 @@ def test_transform_fn(cube_graph: jraph.GraphsTuple):
     )
 
     edge_lengths, out_graph = fn(cube_graph, new_pos)
-    assert np.allclose(edge_lengths, ref_lengths)
+    assert np.allclose(edge_lengths.array, ref_lengths)
     assert isinstance(out_graph, jraph.GraphsTuple)
 
     # Out only
@@ -56,4 +56,4 @@ def test_transform_fn(cube_graph: jraph.GraphsTuple):
         outs=[("edges", gcnn.keys.EDGE_LENGTHS)],
     )
     edge_lengths = fn(cube_graph)
-    assert np.allclose(edge_lengths, cube_graph.edges[gcnn.keys.EDGE_LENGTHS])
+    assert np.allclose(edge_lengths.array, cube_graph.edges[gcnn.keys.EDGE_LENGTHS].array)

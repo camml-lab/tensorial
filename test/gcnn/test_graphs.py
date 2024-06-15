@@ -20,6 +20,68 @@ def test_graph_from_points():
     gcnn.graph_from_points(pos, r_max=2)
 
 
+def test_graph_from_points_open_boundary():
+    r_max = 1.0
+    pos = np.array([[0.0, 0.0, 0.0], [0.5, 0.0, 0.0]])
+
+    graph = gcnn.graph_from_points(pos, r_max=r_max)
+    assert graph.n_edge.item() == 2
+
+    # Self interaction shouldn't make a difference here but strict self interaction should
+    for self_interaction in (True, False):
+        graph = gcnn.graph_from_points(
+            pos, r_max=r_max, self_interaction=self_interaction, strict_self_interaction=True
+        )
+        # 0 -> 0, 0 -> 1, 1 -> 1
+        assert graph.n_edge.item() == 4
+
+
+def test_graph_from_points_periodic():
+    r_max = 0.6
+    pos = np.array([[0.0, 0.0, 0.0], [0.5, 0.0, 0.0]])
+    cell = np.eye(3)
+
+    graph = gcnn.graph_from_points(
+        pos,
+        r_max=r_max,
+        cell=cell,
+        pbc=False,
+        self_interaction=False,
+        strict_self_interaction=False,
+    )
+    assert graph.n_edge == 2
+
+    graph = gcnn.graph_from_points(
+        pos,
+        r_max=r_max,
+        cell=cell,
+        pbc=(True, False, False),
+        self_interaction=True,
+        strict_self_interaction=False,
+    )
+    assert graph.n_edge.item() == 4
+
+    graph = gcnn.graph_from_points(
+        pos,
+        r_max=r_max,
+        cell=cell,
+        pbc=(True, True, True),
+        self_interaction=True,
+        strict_self_interaction=False,
+    )
+    assert graph.n_edge.item() == 4
+
+    graph = gcnn.graph_from_points(
+        pos,
+        r_max=r_max,
+        cell=cell,
+        pbc=(True, True, True),
+        self_interaction=True,
+        strict_self_interaction=True,
+    )
+    assert graph.n_edge.item() == 6
+
+
 @pytest.mark.parametrize("with_lengths", (True, False))
 def test_with_edge_vectors(with_lengths):
     pos = np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
@@ -53,7 +115,7 @@ def test_with_edge_vectors_grad(jit):
         sum_n_edge = jax.tree_util.tree_leaves(graph.edges)[0].shape[0]
         node_gr_idx = jnp.repeat(graph_idx, graph.n_edge, axis=0, total_repeat_length=sum_n_edge)
 
-        inputs = graph.edges[gcnn.keys.EDGE_LENGTHS]
+        inputs = graph.edges[gcnn.keys.EDGE_LENGTHS].array
         return jnp.sum(
             jax.tree_util.tree_map(lambda n: jraph.segment_sum(n, node_gr_idx, n_graph), inputs)
         )
@@ -62,6 +124,7 @@ def test_with_edge_vectors_grad(jit):
     if jit:
         get_length = jax.jit(get_length)
 
-    length, grad = jax.value_and_grad(get_length)(pos)
-    assert jnp.isclose(length, length)
+    length_, grad = jax.value_and_grad(get_length)(pos)
+    # Two times length as we sum the length from 0->1 and 1->0
+    assert jnp.isclose(length_, 2 * length)
     assert jnp.array_equal(grad, jnp.array([[-2.0, 0.0, 0.0], [2.0, 0.0, 0.0]]))

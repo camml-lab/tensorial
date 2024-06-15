@@ -76,7 +76,7 @@ def test_edgewise_decoding(rng_key):
 
     # Let's use a one-hot for testing
     cart = tensorial.CartesianTensor("ij=ji", i="1e")
-    edge_attrs = random.uniform(rng_key, (n_edges, cart.irreps.dim))
+    edge_attrs = e3j.IrrepsArray(cart.irreps, random.uniform(rng_key, (n_edges, cart.irreps.dim)))
 
     graph = jraph.GraphsTuple(
         nodes=None,

@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
 
-from tensorial import base
+from tensorial import base, typing
 
 from . import _graphs, _modules, keys
 
@@ -40,7 +40,7 @@ def graph_from_ase(
     atom_include_keys: Optional[Iterable] = ("numbers",),
     edge_include_keys: Optional[Iterable] = tuple(),
     global_include_keys: Optional[Iterable] = tuple(),
-    cell: Optional[jt.Float[jax.typing.ArrayLike, "3 3"]] = None,
+    cell: Optional[typing.CellType] = None,
     pbc: Optional[bool | _graphs.PbcType] = None,
     **kwargs,
 ) -> jraph.GraphsTuple:

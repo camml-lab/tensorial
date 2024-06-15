@@ -37,3 +37,5 @@ class _Helper(Generic[ArrayT, ValueT]):
 ArrayType = Union[jax.Array, np.ndarray]
 IrrepsArrayShape = _Helper(e3j.IrrepsArray, jt.Float)
 IndexArray = _Helper(ArrayType, jt.Int)
+CellType = jt.Float[ArrayType, "3 3"]
+PbcType = Union[tuple[bool, bool, bool], jt.Bool[jax.typing.ArrayLike, "3"]]

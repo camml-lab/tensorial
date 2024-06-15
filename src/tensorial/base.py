@@ -4,11 +4,13 @@ from __future__ import annotations  # For py39
 import functools
 from typing import Any, Mapping, Type, Union
 
+import beartype
 import e3nn_jax as e3j
 import equinox
 from flax import linen
 import jax
 import jax.numpy as jnp
+import jaxtyping as jt
 
 from . import typing
 
@@ -36,6 +38,15 @@ def atleast_1d(arr) -> jax.Array:
 
 
 def as_array(arr: jax.typing.ArrayLike | e3j.IrrepsArray) -> jax.Array:
+    """
+    Get a standard JAX array given either:
+        1. a numpy.ndarray
+        2. an e3nn_jax.IrrepsArray, or
+        3. a jax.Array (in which case it is returned unmodified)
+
+    :param arr: the array to get the value for
+    :return: the JAX array
+    """
     if isinstance(arr, e3j.IrrepsArray):
         return arr.array
 
@@ -50,9 +61,11 @@ class Attr(equinox.Module):
     def __init__(self, irreps: typing.IntoIrreps) -> None:  # pylint: disable=redefined-outer-name
         self.irreps = e3j.Irreps(irreps)
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def create_tensor(self, value: Any) -> e3j.IrrepsArray:
         return e3j.IrrepsArray(self.irreps, atleast_1d(value))
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def from_tensor(self, tensor: e3j.IrrepsArray) -> Any:
         """This can be overwritten to perform the backward transform of `create_tensor`"""
         return tensor

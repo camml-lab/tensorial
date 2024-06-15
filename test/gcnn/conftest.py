@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import jraph
 import pytest
 
+import tensorial
 from tensorial import gcnn
 from tensorial.gcnn import keys
 
@@ -40,7 +41,9 @@ def cube_graph_gcnn(cube_graph):  # pylint: disable=redefined-outer-name
     nodes = cube_graph.nodes
     nodes[keys.FEATURES] = nodes[keys.ATTRIBUTES]
     edges = cube_graph.edges
-    edges[keys.RADIAL_EMBEDDINGS] = e3j.bessel(edges[keys.EDGE_LENGTHS][:, 0], 4, 2.0)
+    edges[keys.RADIAL_EMBEDDINGS] = e3j.bessel(
+        tensorial.as_array(edges[keys.EDGE_LENGTHS])[:, 0], 4, 2.0
+    )
     edges[keys.ATTRIBUTES] = e3j.spherical_harmonics(
         "1o + 2e",
         edges[keys.EDGE_VECTORS],

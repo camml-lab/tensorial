@@ -4,9 +4,11 @@ from __future__ import annotations  # For py39
 from collections.abc import Sequence
 from typing import Any, Callable
 
+import beartype
 from flax import linen
 import jax
 import jax.numpy as jnp
+import jaxtyping as jt
 import jraph
 from pytray import tree
 
@@ -68,6 +70,7 @@ class Grad(linen.Module):
         return jraph.GraphsTuple(**out_graph_dict)
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def grad_shim(
     fn: _typing.GraphFunction,
     graph: jraph.GraphsTuple,
@@ -106,7 +109,7 @@ def _create_grad_shim(
         *vals, out_graph = new_fn(graph, *args)
 
         # Extract the quantity that we want to differentiate
-        vals = tuple(map(jnp.sum, vals))
+        vals = tuple(map(lambda x: tensorial.as_array(x).sum(), vals))
         if len(vals) == 1:
             vals = vals[0]
 

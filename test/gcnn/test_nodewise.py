@@ -143,7 +143,7 @@ def test_nodewise_decoding(rng_key):
 
     # Let's use a one-hot for testing
     cart = tensorial.CartesianTensor("ij=ji", i="1e")
-    node_attrs = random.uniform(rng_key, (n_nodes, cart.irreps.dim))
+    node_attrs = e3j.IrrepsArray(cart.irreps, random.uniform(rng_key, (n_nodes, cart.irreps.dim)))
 
     graph = jraph.GraphsTuple(
         nodes={in_field: node_attrs},

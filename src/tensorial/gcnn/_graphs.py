@@ -3,7 +3,7 @@ from __future__ import annotations  # For py39
 
 import logging
 import numbers
-from typing import Optional, Union
+from typing import Optional
 
 import beartype
 import e3nn_jax as e3j
@@ -13,7 +13,8 @@ import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
 
-from tensorial import distances, nn_utils
+import tensorial
+from tensorial import distances, nn_utils, typing
 
 from . import keys
 
@@ -22,18 +23,15 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = ("graph_from_points", "with_edge_vectors")
 
 
-PbcType = Union[tuple[bool, bool, bool], jt.Bool[jax.typing.ArrayLike, "3"]]
-
-
 @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_points(
     pos: jt.Float[jax.typing.ArrayLike, "n_nodes 3"],
     r_max: numbers.Number,
     fractional_positions: bool = False,
-    self_interaction: bool = False,
-    strict_self_interaction: bool = True,
-    cell: Optional[jt.Float[jax.typing.ArrayLike, "3 3"]] = None,
-    pbc: Optional[Union[bool, PbcType]] = None,
+    self_interaction: bool = True,
+    strict_self_interaction: bool = False,
+    cell: Optional[typing.CellType] = None,
+    pbc: Optional[bool | typing.PbcType] = None,
     nodes: dict[str, jt.Num[jax.typing.ArrayLike, "n_nodes *"]] = None,
     edges: dict = None,
     graph_globals: dict = None,
@@ -91,8 +89,8 @@ def graph_from_points(
         r_max,
         cell,
         pbc=pbc,
-        include_self=self_interaction,
-        include_images=strict_self_interaction,
+        include_self=strict_self_interaction,
+        include_images=self_interaction,
     )
     get_neighbours = equinox.filter_jit(neighbour_finder.get_neighbours)
     neighbour_list = get_neighbours(pos, max_neighbours=neighbour_finder.estimate_neighbours(pos))
@@ -162,15 +160,19 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
     if edge_mask is not None:
         edge_mask = nn_utils.prepare_mask(edge_mask, edge_vecs)
         edge_vecs = jnp.where(edge_mask, edge_vecs, 1.0)
-    edges[keys.EDGE_VECTORS] = e3j.IrrepsArray("1o", edge_vecs)
+    if not isinstance(edge_vecs, e3j.IrrepsArray):
+        edge_vecs = e3j.IrrepsArray("1o", edge_vecs)
+    edges[keys.EDGE_VECTORS] = edge_vecs
 
     # To allow grad to work, we need to mask off the padded edge vectors that are zero, see:
     # * https://github.com/google/jax/issues/6484,
     # * https://stackoverflow.com/q/74864427/1257417
     if with_lengths:
-        lengths = jnp.expand_dims(jnp.linalg.norm(edge_vecs, axis=-1), -1)
+        lengths = jnp.expand_dims(jnp.linalg.norm(tensorial.as_array(edge_vecs), axis=-1), -1)
         if edge_mask is not None:
             lengths = jnp.where(edge_mask, lengths, 0.0)
+        if isinstance(edge_vecs, e3j.IrrepsArray):
+            lengths = e3j.as_irreps_array(lengths)
 
         edges[keys.EDGE_LENGTHS] = lengths
 
