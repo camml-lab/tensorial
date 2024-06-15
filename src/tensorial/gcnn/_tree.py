@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 import functools
+from typing import Union
 
 import jax
 import jraph
@@ -51,7 +50,9 @@ def path_to_str(path: _typing.TreePathLike, delimiter=".") -> str:
     return delimiter.join(path)
 
 
-def get(graph: jraph.GraphsTuple, *path: _typing.TreePathLike) -> jax.Array | tuple[jax.Array, ...]:
+def get(
+    graph: jraph.GraphsTuple, *path: _typing.TreePathLike
+) -> Union[jax.Array, tuple[jax.Array, ...]]:
     """
     Given a graph, this will extract the values as the passed path(s) and return them directly
 

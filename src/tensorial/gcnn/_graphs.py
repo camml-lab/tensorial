@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 import logging
 import numbers
-from typing import Optional
+from typing import Optional, Union
 
 import beartype
 import e3nn_jax as e3j
@@ -31,7 +29,7 @@ def graph_from_points(
     self_interaction: bool = True,
     strict_self_interaction: bool = False,
     cell: Optional[typing.CellType] = None,
-    pbc: Optional[bool | typing.PbcType] = None,
+    pbc: Optional[Union[bool, typing.PbcType]] = None,
     nodes: dict[str, jt.Num[jax.typing.ArrayLike, "n_nodes *"]] = None,
     edges: dict = None,
     graph_globals: dict = None,

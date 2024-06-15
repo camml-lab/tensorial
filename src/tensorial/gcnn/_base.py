@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 import functools
 import logging
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence, Union
 
 import jax
 from jax import tree_util
@@ -64,7 +62,7 @@ def transform_fn(
     *ins: _typing.TreePathLike,
     outs: Sequence[_typing.TreePathLike] = tuple(),
     return_graphs: bool = False,
-) -> Callable[[jraph.GraphsTuple], ...] | Callable[[jraph.GraphsTuple, ...], ...]:
+) -> Union[Callable[[jraph.GraphsTuple], Any], Callable[[jraph.GraphsTuple, ...], Any]]:
     """
     Given a graph function, this will return a function that takes a graph as the first argument
     and then position arguments that will be mapped to the fields given by ``ins``.  Output paths

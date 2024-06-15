@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 from collections.abc import Callable, Iterable
 import functools
 import math
-from typing import Optional
+from typing import Optional, Union
 
 import beartype
 import e3nn_jax as e3j
@@ -32,10 +30,10 @@ class SymmetricContraction(linen.Module):
     """
 
     correlation_order: int
-    keep_irrep_out: str | Iterable[tensorial.typing.IrrepLike]
+    keep_irrep_out: Union[str, Iterable[tensorial.typing.IrrepLike]]
 
     num_types: int = 1
-    gradient_normalisation: Optional[str | float] = None
+    gradient_normalisation: Optional[Union[str, float]] = None
     symmetric_tensor_product_basis: bool = True
     off_diagonal: bool = False
     param_dtype = jnp.float32
@@ -210,7 +208,7 @@ class EquivariantProductBasisBlock(linen.Module):
 class InteractionBlock(linen.Module):
     irreps_out: typing.IntoIrreps
     avg_num_neighbours: float = 1.0
-    radial_activation: str | nn_utils.ActivationFunction = "swish"
+    radial_activation: Union[str, nn_utils.ActivationFunction] = "swish"
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
@@ -394,7 +392,7 @@ class Mace(linen.Module):
 
     symmetric_tensor_product_basis: bool = True
     readout_mlp_irreps: typing.IntoIrreps = "16x0e"
-    interaction_irreps: str | typing.IntoIrreps = "o3_restricted"  # or o3_full
+    interaction_irreps: Union[str, typing.IntoIrreps] = "o3_restricted"  # or o3_full
 
     # Radial
     radial_activation: Callable = jax.nn.silu  # activation function

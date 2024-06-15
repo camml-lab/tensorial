@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 import abc
 from collections.abc import Callable, Sequence
 from typing import Optional, Union
@@ -62,7 +60,7 @@ class Loss(GraphLoss):
         self,
         field: str,
         target_field: str = None,
-        loss_fn: str | PureLossFn = optax.squared_error,
+        loss_fn: Union[str, PureLossFn] = optax.squared_error,
         reduction: str = "mean",
         label: str = None,
         mask_field: str = None,

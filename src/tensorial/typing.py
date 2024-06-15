@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 from collections.abc import Sequence
 from typing import Generic, TypeVar, Union
 

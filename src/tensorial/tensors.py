@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 import beartype
 import e3nn_jax as e3j
@@ -9,10 +7,7 @@ import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 
-import tensorial
-from tensorial import typing
-
-from . import base
+from . import base, typing
 
 __all__ = "SphericalHarmonic", "CartesianTensor", "NoOp", "OneHot", "AsIrreps"
 
@@ -69,10 +64,10 @@ class SphericalHarmonic(base.Attr):
         self.normalisation = normalization
         self.algorithm = algorithm
 
-    def create_tensor(self, value: jax.Array | e3j.IrrepsArray) -> jnp.array:
+    def create_tensor(self, value: Union[jax.Array, e3j.IrrepsArray]) -> jnp.array:
         return e3j.spherical_harmonics(
             self.irreps,
-            tensorial.as_array(value),
+            base.as_array(value),
             normalize=self.normalise,
             normalization=self.normalisation,
             algorithm=self.algorithm,
@@ -99,7 +94,7 @@ class OneHot(base.Attr):
 
 class CartesianTensor(base.Attr):
     formula: str
-    keep_ir: Optional[e3j.Irreps | list[e3j.Irrep]]
+    keep_ir: Optional[Union[e3j.Irreps, list[e3j.Irrep]]]
     irreps_dict: dict
     change_of_basis: jax.Array
     _indices: str
@@ -123,8 +118,9 @@ class CartesianTensor(base.Attr):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def from_tensor(
-        self, tensor: typing.IrrepsArrayShape["irreps"] | typing.IrrepsArrayShape["batch irreps"]
-    ) -> jt.Float[jax.Array, "..."] | jt.Float[jax.Array, "batch ..."]:
+        self,
+        tensor: Union[typing.IrrepsArrayShape["irreps"], typing.IrrepsArrayShape["batch irreps"]],
+    ) -> Union[jt.Float[jax.Array, "..."], jt.Float[jax.Array, "batch ..."]]:
         """
         Take an irrep tensor and perform the change of basis transformation back to a Cartesian
         tensor

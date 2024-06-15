@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 import functools
 from typing import Any, Mapping, Type, Union
 
@@ -37,7 +35,7 @@ def atleast_1d(arr) -> jax.Array:
     return arr if jnp.ndim(arr) >= 1 else jnp.reshape(arr, -1)
 
 
-def as_array(arr: jax.typing.ArrayLike | e3j.IrrepsArray) -> jax.Array:
+def as_array(arr: Union[jax.typing.ArrayLike, e3j.IrrepsArray]) -> jax.Array:
     """
     Get a standard JAX array given either:
         1. a numpy.ndarray

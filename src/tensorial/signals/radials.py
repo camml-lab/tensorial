@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import abc
+from collections.abc import Callable
 import math
-from typing import Callable, Optional
+from typing import Optional
 
 import e3nn_jax
 import jax
@@ -43,7 +44,7 @@ class RadialBasis(tensorial.Attr):
         """Evaluate the radial basis at `r`"""
 
     def create_tensor(self, value) -> jnp.array:
-        return super().create_tensor(self.evaluate(value))
+        return super().create_tensor(self.evaluate(value))  # pylint: disable=not-callable
 
 
 class E3nnRadial(RadialBasis):

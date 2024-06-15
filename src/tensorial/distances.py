@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 import collections
 import functools
 import math
@@ -116,7 +114,7 @@ class OpenBoundary(NeighbourFinder):
     _cutoff: float
     _include_self: bool
 
-    def __init__(self, cutoff: int | float, include_self=False):
+    def __init__(self, cutoff: numbers.Number, include_self=False):
         self._cutoff = float(cutoff)
         self._include_self = include_self
 
@@ -168,7 +166,7 @@ class PeriodicBoundary(NeighbourFinder):
     def __init__(
         self,
         cell: typing.CellType,
-        cutoff: int | float,
+        cutoff: numbers.Number,
         pbc: Optional[typing.PbcType] = None,
         max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
         include_self=False,
@@ -233,7 +231,7 @@ class PeriodicBoundary(NeighbourFinder):
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def neighbour_finder(
-    cutoff: int | float,
+    cutoff: numbers.Number,
     cell: Optional[typing.CellType] = None,
     pbc: Optional[typing.PbcType] = None,
     include_self: bool = False,
@@ -252,7 +250,7 @@ def generate_positions(cell: jax.Array, positions: jax.Array, cell_shifts: jax.A
 @jt.jaxtyped(typechecker=beartype.beartype)
 def get_cell_list(
     cell: typing.CellType,
-    cutoff: int | float,
+    cutoff: numbers.Number,
     pbc: Optional[typing.PbcType] = (True, True, True),
     max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
 ) -> tuple[jax.Array, jax.Array]:
@@ -286,7 +284,7 @@ def get_cell_list(
 
 
 def get_cell_multiple_range(
-    cell: jax.typing.ArrayLike, cell_vector: int, cutoff: int | float
+    cell: jax.typing.ArrayLike, cell_vector: int, cutoff: numbers.Number
 ) -> tuple[int, int]:
     multiplier = get_max_cell_vector_repetitions(cell, cell_vector, cutoff=cutoff)
     return -math.ceil(multiplier), math.ceil(multiplier) + 1
@@ -295,7 +293,7 @@ def get_cell_multiple_range(
 @jt.jaxtyped(typechecker=beartype.beartype)
 def get_cell_multiple_ranges(
     cell: typing.CellType,
-    cutoff: int | float,
+    cutoff: numbers.Number,
     pbc: Optional[typing.PbcType] = (True, True, True),
 ) -> tuple[tuple[int, int], ...]:
     return tuple(
@@ -306,7 +304,7 @@ def get_cell_multiple_ranges(
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def get_max_cell_vector_repetitions(
-    cell: typing.CellType, cell_vector: int, cutoff: int | float
+    cell: typing.CellType, cell_vector: int, cutoff: numbers.Number
 ) -> float:
     """
     Given a unit cell defined by three vectors this will return the number of multiples of the

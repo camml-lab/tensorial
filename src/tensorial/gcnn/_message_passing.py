@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
-from typing import Optional
+from typing import Optional, Union
 
 import beartype
 import e3nn_jax as e3j
@@ -20,7 +18,7 @@ class MessagePassingConvolution(linen.Module):
     # Radial
     radial_num_layers: int = 1
     radial_num_neurons: int = 8
-    radial_activation: str | nn_utils.ActivationFunction = "swish"
+    radial_activation: Union[str, nn_utils.ActivationFunction] = "swish"
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init

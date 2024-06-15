@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
+import functools
 from typing import Any, Callable, ClassVar, Optional, Type, TypeVar
 
 import clu.internal.utils
@@ -189,19 +188,16 @@ metrics = {
 }
 
 
-def metric(metric_type: str | Type[clu.metrics.Metric]) -> Type[clu.metrics.Metric]:
-    if isinstance(metric_type, str):
-        try:
-            return metrics[metric_type]
-        except KeyError:
-            raise ValueError(f"Unknown metric {metric_type}") from None
-    try:
-        if issubclass(metric_type, clu.metrics.Metric):
-            return metric_type
-    except TypeError:
-        # This happens if metric_type isn't a type
-        pass
+@functools.singledispatch
+def metric(metric_type: Type[clu.metrics.Metric]) -> Type[clu.metrics.Metric]:
+    if issubclass(metric_type, clu.metrics.Metric):
+        return metric_type
 
     raise TypeError(
         f"metric_type has to be a string or Metric type, got {type(metric_type).__name__}"
     )
+
+
+@metric.register
+def metric(metric_type: str) -> Type[clu.metrics.Metric]:
+    return metrics[metric_type]

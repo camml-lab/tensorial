@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 import collections.abc
 import functools
 import itertools
-from typing import Hashable, Iterator, TypeVar
+from typing import Hashable, Iterator, TypeVar, Union
 
 import numpy as np
 
@@ -122,7 +120,7 @@ def create_sequence_sampler(
     batch_size: int = 1,
     replacements: bool = False,
     shuffle: bool = False,
-) -> _types.Sampler[int] | BatchSampler[int]:
+) -> Union[_types.Sampler[int], BatchSampler[int]]:
     if shuffle:
         sampler = RandomSampler(len(dataset), replacements=replacements)
     else:
@@ -140,7 +138,7 @@ def create_iterable_sampler(
     batch_size: int = 1,
     replacements: bool = False,
     shuffle: bool = False,
-) -> _types.Sampler[None] | _types.Sampler[list[None]]:
+) -> Union[_types.Sampler[None], _types.Sampler[list[None]]]:
     if shuffle:
         raise ValueError(
             f"``shuffle=True`` is not supported with dataset type {type(dataset).__name__} which "

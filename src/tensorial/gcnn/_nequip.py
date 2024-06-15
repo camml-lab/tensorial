@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 from collections.abc import Mapping
 import functools
 from typing import Callable, Optional, Union
@@ -48,7 +46,7 @@ class InteractionBlock(linen.Module):
 
     avg_num_neighbours: float = 1.0
     self_connection: bool = True
-    activations: str | Mapping[str, ActivationLike] = DEFAULT_ACTIVATIONS
+    activations: Union[str, Mapping[str, ActivationLike]] = DEFAULT_ACTIVATIONS
 
     num_species: int = 1
 
@@ -141,7 +139,7 @@ class NequipLayer(linen.Module):
     radial_activation: ActivationLike = "swish"
 
     avg_num_neighbours: float = 1.0
-    activations: str | Mapping[str, ActivationLike] = DEFAULT_ACTIVATIONS
+    activations: Union[str, Mapping[str, ActivationLike]] = DEFAULT_ACTIVATIONS
     node_features_field = keys.FEATURES
     self_connection: bool = True
     num_species: int = 1

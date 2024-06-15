@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 import e3nn_jax as e3j
 from flax import linen
@@ -21,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 class NodewiseLinear(linen.Module):
     """Nodewise linear operation"""
 
-    irreps_out: str | e3j.Irreps
+    irreps_out: Union[str, e3j.Irreps]
     irreps_in: Optional[e3j.Irreps] = None
     field: str = keys.FEATURES
     out_field: Optional[str] = keys.FEATURES

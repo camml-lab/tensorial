@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
-from collections.abc import Sequence
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any, Sequence, Union
 
 import beartype
 from flax import linen
@@ -24,8 +22,8 @@ TreePath = tuple[Any, ...]
 class Grad(linen.Module):
     func: _typing.GraphFunction
     of: _typing.TreePathLike
-    wrt: str | Sequence[_typing.TreePathLike]
-    out_field: str | Sequence[str] = None
+    wrt: Union[str, Sequence[_typing.TreePathLike]]
+    out_field: Union[str, Sequence[str]] = None
     sign: float = 1.0
 
     def setup(self):

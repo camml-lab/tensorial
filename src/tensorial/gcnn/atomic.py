@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations  # For py39
-
 from collections.abc import Iterable
 import numbers
-from typing import Any, Hashable, Mapping, MutableMapping, Optional, Sequence
+from typing import Any, Hashable, Mapping, MutableMapping, Optional, Sequence, Union
 
 import beartype
 import equinox
@@ -41,7 +39,7 @@ def graph_from_ase(
     edge_include_keys: Optional[Iterable] = tuple(),
     global_include_keys: Optional[Iterable] = tuple(),
     cell: Optional[typing.CellType] = None,
-    pbc: Optional[bool | _graphs.PbcType] = None,
+    pbc: Optional[Union[bool, typing.PbcType]] = None,
     **kwargs,
 ) -> jraph.GraphsTuple:
     """
