@@ -293,7 +293,7 @@ class MaceLayer(linen.Module):
     off_diagonal: bool
 
     soft_normalisation: Optional[float]
-    self_connection: bool = True
+    skip_connection: bool = True
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
@@ -318,15 +318,15 @@ class MaceLayer(linen.Module):
             symmetric_tensor_product_basis=self.symmetric_tensor_product_basis,
             off_diagonal=self.off_diagonal,
         )
-        if self.self_connection:
-            self._self_connection = e3j.flax.Linear(
+        if self.skip_connection:
+            self._skip_connection = e3j.flax.Linear(
                 num_features * hidden_irreps,
                 num_indexed_weights=self.num_types,
-                name="self_connection",
+                name="skip_connection",
                 force_irreps_out=True,
             )
         else:
-            self._self_connection = None
+            self._skip_connection = None
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
@@ -339,9 +339,9 @@ class MaceLayer(linen.Module):
         receivers: jt.Int[jax.typing.ArrayLike, "n_edges"],
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
     ) -> typing.IrrepsArrayShape["n_nodes node_irreps_out"]:
-        self_connection: Optional[typing.IrrepsArrayShape["n_nodes feature*hidden_irreps"]] = None
-        if self._self_connection is not None:
-            self_connection = self._self_connection(node_species, node_features)
+        skip_connection: Optional[typing.IrrepsArrayShape["n_nodes feature*hidden_irreps"]] = None
+        if self._skip_connection is not None:
+            skip_connection = self._skip_connection(node_species, node_features)
 
         node_features = self._interaction_block(
             node_features=node_features,
@@ -364,8 +364,8 @@ class MaceLayer(linen.Module):
                 node_features, [self._phi] * len(node_features.irreps)
             )
 
-        if self_connection is not None:
-            node_features = node_features + self_connection
+        if skip_connection is not None:
+            node_features = node_features + skip_connection
 
         return node_features
 
@@ -443,7 +443,7 @@ class Mace(linen.Module):
                 off_diagonal=self.off_diagonal,
                 # Radial
                 soft_normalisation=self.soft_normalisation,
-                self_connection=is_not_first or self.skip_connection_first_layer,
+                skip_connection=is_not_first or self.skip_connection_first_layer,
             )
 
             # Readout

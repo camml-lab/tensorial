@@ -35,7 +35,7 @@ class InteractionBlock(linen.Module):
     :param radial_num_neurons: the number of neurons per layer in the radial MLP
     :param radial_activation: activation function used by radial MLP
     :param avg_num_neighbours: average number of neighbours of each node, used for normalisation
-    :param self_connection: If True, self connection will be applied at end of interaction
+    :param skip_connection: If True, skip connection will be applied at end of interaction
     """
 
     irreps_out: typing.IntoIrreps = 4 * e3j.Irreps("0e + 1o + 2e")
@@ -45,7 +45,7 @@ class InteractionBlock(linen.Module):
     radial_activation: ActivationLike = "swish"
 
     avg_num_neighbours: float = 1.0
-    self_connection: bool = True
+    skip_connection: bool = True
     activations: Union[str, Mapping[str, ActivationLike]] = DEFAULT_ACTIVATIONS
 
     num_species: int = 1
@@ -108,11 +108,11 @@ class InteractionBlock(linen.Module):
         node_feats = e3j.flax.Linear(gate_irreps, name="linear_down")(node_feats)
 
         # self-connection: species weighted tensor product that maps to current irreps space
-        if self.self_connection:
+        if self.skip_connection:
             skip = e3j.flax.Linear(
                 node_feats.irreps,
                 num_indexed_weights=self.num_species,
-                name="self_connection",
+                name="skip_connection",
                 force_irreps_out=True,
             )(node_species, node_features)
             node_feats = 0.5 * (node_feats + skip)
@@ -141,7 +141,7 @@ class NequipLayer(linen.Module):
     avg_num_neighbours: float = 1.0
     activations: Union[str, Mapping[str, ActivationLike]] = DEFAULT_ACTIVATIONS
     node_features_field = keys.FEATURES
-    self_connection: bool = True
+    skip_connection: bool = True
     num_species: int = 1
 
     interaction_block: Callable = None
@@ -158,7 +158,7 @@ class NequipLayer(linen.Module):
                 radial_num_neurons=self.radial_num_neurons,
                 radial_activation=self.radial_activation,
                 avg_num_neighbours=self.avg_num_neighbours,
-                self_connection=self.self_connection,
+                skip_connection=self.skip_connection,
                 activations=self.activations,
                 num_species=self.num_species,
             )
