@@ -49,9 +49,7 @@ class Grad(linen.Module):
         # Creat the shim which will be a function that takes the graph as first argument, and
         # the remaining values are the values to take the gradient at
         shim = _create_grad_shim(self.func, self._of, *self._wrt)
-        self._grad_fn = jax.grad(
-            shim, argnums=jnp.arange(1, len(self._wrt) + 1).tolist(), has_aux=True
-        )
+        self._grad_fn = jax.grad(shim, argnums=tuple(range(1, len(self._wrt) + 1)), has_aux=True)
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
