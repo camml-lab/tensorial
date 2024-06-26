@@ -3,15 +3,19 @@ import numbers
 from typing import Any, Hashable, Mapping, MutableMapping, Optional, Sequence, Union
 
 import beartype
+import clu.metrics
 import equinox
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
+from pytray import tree
 
-from tensorial import base, typing
+from tensorial import base, metrics, typing
 
-from . import _graphs, _modules, keys
+from . import _common, _graphs, _modules, _typing, keys
+from . import metrics as gcnn_metrics
+from . import utils
 
 ENERGY_PER_ATOM = "energy/atom"
 TOTAL_ENERGY = "total_energy"
@@ -178,3 +182,86 @@ def per_species_rescale(
         shifts=shifts,
         scales=scales,
     )
+
+
+def estimate_species_contribution(
+    graphs: jraph.GraphsTuple,
+    value_field: _typing.TreePathLike,
+    type_field: _typing.TreePathLike = ("nodes", keys.SPECIES),
+    type_map: Sequence[int] = None,
+) -> tuple[jax.Array, jax.Array]:
+    """Estimates the contribution of the one hot encoded field to the final value
+
+    :param graphs: a graphs tuple containing all the atomic structures
+    :param value_field: the field containing the final values
+    :param type_field: the field containing the type index of atomic species
+    :return: the least squares contribution
+    """
+    graph_dict = graphs._asdict()
+    value_field = utils.path_from_str(value_field)
+    type_field = utils.path_from_str(type_field)
+    num_nodes = graphs.n_node
+
+    type_values = tree.get_by_path(graph_dict, type_field)
+    if type_map is not None:
+        # Transform the atomic numbers into from whatever they are to 0, 1, 2....
+        vwhere = jax.vmap(lambda num: jnp.argwhere(num == type_map, size=1)[0])
+        type_values = vwhere(type_values)[:, 0]
+
+    num_classes = type_values.max().item() + 1  # Assume the types go 0,1,2...N
+    one_hots = jax.nn.one_hot(type_values, num_classes)
+
+    one_hot_field = ("type_one_hot",)
+    tree.set_by_path(graphs.nodes, one_hot_field, one_hots)
+    type_values = _common.reduce(graphs, ("nodes",) + one_hot_field, reduction="sum")
+
+    # Predicting values
+    values = tree.get_by_path(graph_dict, value_field)
+
+    # Normalise by number of nodes
+    type_values = jax.vmap(lambda numer, denom: numer / denom, (0, 0))(type_values, num_nodes)
+    values = jax.vmap(lambda numer, denom: numer / denom, (0, 0))(values, num_nodes)
+
+    contributions = jnp.linalg.lstsq(type_values, values)[0]
+    estimates = type_values @ contributions
+    stds = jnp.std(values - estimates)
+
+    return contributions, stds
+
+
+def energy_per_atom_lstsq(graphs: jraph.GraphsTuple, stats: dict[str, jnp.ndarray]) -> jax.Array:
+    return estimate_species_contribution(
+        graphs,
+        value_field=("globals", "energy"),
+        type_field=("nodes", ATOMIC_NUMBERS),
+        type_map=stats["all_atomic_numbers"],
+    )[0]
+
+
+def _lst_squares_contribution(values: jraph.GraphsTuple, *args, **kwargs) -> jax.Array:
+    pass
+
+
+metrics.registry.register_many(
+    {
+        "atomic/max_species": gcnn_metrics.graph_metric(
+            metrics.NumUnique, ("values", "nodes", ATOMIC_NUMBERS)
+        ),
+        "atomic/all_atomic_numbers": gcnn_metrics.graph_metric(
+            metrics.Unique, ("values", "nodes", ATOMIC_NUMBERS)
+        ),
+        "atomic/avg_num_neighbours": gcnn_metrics.graph_metric(
+            clu.metrics.Average.from_fun(
+                lambda values, *_, **__: jnp.unique(values.senders, return_counts=True)[1]
+            ),
+            "values.senders",
+        ),
+        "atomic/force_std": gcnn_metrics.graph_metric(metrics.Std, ("values", "nodes", FORCES)),
+        "atomic/energy_per_atom_lstsq": gcnn_metrics.graph_metric(
+            metrics.LeastSquaresEstimate.from_fun(_lst_squares_contribution),
+            ("values", "nodes", ATOMIC_NUMBERS),
+            ("values", "globals", TOTAL_ENERGY),
+            _per_node=True,
+        ),
+    }
+)

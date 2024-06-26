@@ -7,19 +7,9 @@ import jax.numpy as jnp
 import jraph
 import optax
 
+import tensorial
 from tensorial import gcnn
 from tensorial.gcnn import metrics
-
-
-class Std(clu.metrics.Std):
-    @classmethod
-    def from_model_output(  # pylint: disable=arguments-differ
-        cls,
-        *,
-        values: jnp.array,
-        mask: Optional[jnp.array] = None,
-    ) -> Metric:
-        return clu.metrics.Std.from_model_output(jnp.astype(values, jnp.float32), mask=mask)
 
 
 def test_graph_metric(cube_graph: jraph.GraphsTuple, rng_key):
@@ -37,7 +27,7 @@ def test_graph_metric(cube_graph: jraph.GraphsTuple, rng_key):
     edges["energies"] = random.uniform(keys[1], (cube_graph.n_edge[0],))
     # This time use kwargs to graph_metric which will be passed to Std by kwargs this time
     # (instead of args)
-    edge_length_std = metrics.graph_metric(Std, values="graph.edges.energies")
+    edge_length_std = metrics.graph_metric(tensorial.metrics.Std, values="graph.edges.energies")
     res = edge_length_std.from_model_output(graph=cube_graph)
     assert jnp.isclose(res.compute(), edges["energies"].std())
 

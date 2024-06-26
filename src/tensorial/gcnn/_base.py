@@ -1,6 +1,7 @@
+from collections.abc import Callable
 import functools
 import logging
-from typing import Any, Callable, Sequence, Union
+from typing import Any, Sequence, Union
 
 import jax
 from jax import tree_util

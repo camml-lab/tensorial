@@ -1,7 +1,7 @@
-import collections.abc
+from collections.abc import Iterable, Iterator, Sequence
 import functools
 import itertools
-from typing import Hashable, Iterator, TypeVar, Union
+from typing import Hashable, TypeVar, Union
 
 import numpy as np
 
@@ -105,20 +105,20 @@ class IterableSampler(_types.Sampler[None]):
 
 @functools.singledispatch
 def create_sampler(
-    dataset: _types.Dataset[T_co],
-    batch_size: int = 1,
-    replacements: bool = False,
-    shuffle: bool = False,
+        dataset: _types.Dataset[T_co],
+        batch_size: int = 1,
+        replacements: bool = False,
+        shuffle: bool = False,
 ) -> _types.Sampler:
     raise TypeError(f"Unsupported type {type(dataset).__name__}")
 
 
-@create_sampler.register(collections.abc.Sequence)
+@create_sampler.register(Sequence)
 def create_sequence_sampler(
-    dataset: collections.abc.Sequence[T_co],
-    batch_size: int = 1,
-    replacements: bool = False,
-    shuffle: bool = False,
+        dataset: Sequence[T_co],
+        batch_size: int = 1,
+        replacements: bool = False,
+        shuffle: bool = False,
 ) -> Union[_types.Sampler[int], BatchSampler[int]]:
     if shuffle:
         sampler = RandomSampler(len(dataset), replacements=replacements)
@@ -131,12 +131,12 @@ def create_sequence_sampler(
     return BatchSampler(sampler, batch_size, False)
 
 
-@create_sampler.register(collections.abc.Iterable)
+@create_sampler.register(Iterable)
 def create_iterable_sampler(
-    dataset: collections.abc.Iterable[T_co],
-    batch_size: int = 1,
-    replacements: bool = False,
-    shuffle: bool = False,
+        dataset: Iterable[T_co],
+        batch_size: int = 1,
+        replacements: bool = False,
+        shuffle: bool = False,
 ) -> Union[_types.Sampler[None], _types.Sampler[list[None]]]:
     if shuffle:
         raise ValueError(
@@ -157,10 +157,10 @@ def create_iterable_sampler(
 
 
 def create_batch_sampler(
-    dataset: collections.abc.Sequence[T_co],
-    batch_size: int = 1,
-    replacements: bool = False,
-    shuffle: bool = False,
+        dataset: Sequence[T_co],
+        batch_size: int = 1,
+        replacements: bool = False,
+        shuffle: bool = False,
 ) -> BatchSampler[int]:
     if shuffle:
         sampler = RandomSampler(len(dataset), replacements=replacements)

@@ -1,7 +1,8 @@
 import collections
+from collections.abc import Iterator
 import enum
 import functools
-from typing import Any, Iterator, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Sequence, Union
 
 import jax.numpy as jnp
 import jraph
@@ -117,7 +118,7 @@ def add_padding_mask(
     return jraph.GraphsTuple(**updates._asdict())
 
 
-class GraphLoader(data.DataLoader[Tuple[jraph.GraphsTuple, ...]]):
+class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
     def __init__(
         self,
         *graphs: Optional[Sequence[jraph.GraphsTuple]],
@@ -141,7 +142,7 @@ class GraphLoader(data.DataLoader[Tuple[jraph.GraphsTuple, ...]]):
         create_batcher = functools.partial(
             GraphBatcher, batch_size=batch_size, shuffle=shuffle, pad=pad, padding=padding
         )
-        self._batchers: Tuple[Optional[GraphBatcher], ...] = tuple(
+        self._batchers: tuple[Optional[GraphBatcher], ...] = tuple(
             create_batcher(graph_batch) if graph_batch is not None else None
             for graph_batch in graphs
         )
@@ -153,7 +154,7 @@ class GraphLoader(data.DataLoader[Tuple[jraph.GraphsTuple, ...]]):
     def __len__(self) -> int:
         return len(self._sampler)
 
-    def __iter__(self) -> Iterator[Tuple[jraph.GraphsTuple, ...]]:
+    def __iter__(self) -> Iterator[tuple[jraph.GraphsTuple, ...]]:
         for idxs in self._sampler:
             batch_graphs = tuple(
                 batcher.fetch(idxs) if batcher is not None else None for batcher in self._batchers
@@ -248,7 +249,7 @@ def _fetch_batch(graphs: Sequence[jraph.GraphsTuple], idxs: Sequence[int]) -> jr
     return jraph.batch(batch)
 
 
-def get_by_path(graph: jraph.GraphsTuple, path: Tuple, pad_value=None) -> Any:
+def get_by_path(graph: jraph.GraphsTuple, path: tuple, pad_value=None) -> Any:
     res = tree.get_by_path(graph._asdict(), path)
     if pad_value is not None:
         mask = jnp.ones(res.shape[0], dtype=bool)

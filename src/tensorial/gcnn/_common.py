@@ -4,17 +4,23 @@ Common utility functions that operate on graphs
 
 from typing import Union
 
+import beartype
+import e3nn_jax as e3j
 import jax
 import jax.numpy as jnp
+import jaxtyping as jt
 import jraph
 from pytray import tree
 
-from . import utils
+from . import _typing, utils
 
 __all__ = ("reduce",)
 
 
-def reduce(graph: jraph.GraphsTuple, field: Union[str, jax.Array], reduction="sum") -> jax.Array:
+@jt.jaxtyped(beartype.beartype)
+def reduce(
+    graph: jraph.GraphsTuple, field: _typing.TreePathLike, reduction="sum"
+) -> Union[e3j.IrrepsArray, jax.Array]:
     try:
         op = getattr(jraph, f"segment_{reduction}")
     except AttributeError:

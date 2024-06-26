@@ -1,5 +1,3 @@
-from typing import Type
-
 import clu.metrics
 import flax.struct
 import jax
@@ -15,11 +13,11 @@ __all__ = ("graph_metric",)
 
 
 def graph_metric(
-    metric: Type[clu.metrics.Metric],
-    *field: utils.TreePathLike,
-    _per_node=False,
-    **kwargs: utils.TreePathLike,
-) -> Type[clu.metrics.Metric]:
+        metric: type[clu.metrics.Metric],
+        *field: utils.TreePathLike,
+        _per_node=False,
+        **kwargs: utils.TreePathLike,
+) -> type[clu.metrics.Metric]:
     arg_paths = tuple(map(utils.path_from_str, field))
     kwarg_paths = {key: utils.path_from_str(value) for key, value in kwargs.items()}
     mask = kwarg_paths.pop("mask", None)
@@ -29,7 +27,7 @@ def graph_metric(
         """Wrapper Metric class that collects output named `name`."""
 
         @classmethod
-        def from_model_output(cls, **out_kwargs) -> clu.metrics.Metric:
+        def from_model_output(cls, *args, **out_kwargs) -> clu.metrics.Metric:
             # Extract the paths we are interested in
             from_args = []
             from_kwrags = {}

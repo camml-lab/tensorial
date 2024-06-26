@@ -16,10 +16,11 @@ def test_array_loader(dataset_size, batch_size):
     # No outputs
     batches = tuple(data.ArrayLoader(inputs, batch_size=batch_size))
     assert len(batches) == num_batches
-    assert isinstance(batches[0][0], type(inputs))
-    assert np.allclose(batches[0][0], inputs[:batch_size])  # Check the first batch
+    assert isinstance(batches[0], type(inputs))
+    assert np.allclose(batches[0], inputs[:batch_size])  # Check the first batch
 
     batches = tuple(data.ArrayLoader(inputs, outputs, batch_size=batch_size))
+    assert isinstance(batches[0], tuple)
     assert isinstance(batches[0][0], type(inputs))
     assert len(batches) == num_batches
     assert len(batches[-1][0]) == dataset_size - (num_batches - 1) * batch_size

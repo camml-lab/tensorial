@@ -1,4 +1,4 @@
-from typing import Sequence, Tuple
+from typing import Sequence
 
 import e3nn_jax as e3j
 import jax
@@ -12,10 +12,10 @@ class GraphSpec:
     """Specification for the data types carried on a graph"""
 
     def __init__(
-        self,
-        nodes: tensorial.IrrepsObj = None,
-        edges: tensorial.Tensorial = None,
-        globals: tensorial.Tensorial = None,
+            self,
+            nodes: tensorial.IrrepsObj = None,
+            edges: tensorial.Tensorial = None,
+            globals: tensorial.Tensorial = None,
     ):  # pylint: disable=redefined-builtin
         self._nodes = nodes
         self._edges = edges
@@ -54,7 +54,7 @@ class SpeciesOneHot(tensorial.tensors.OneHot):
         super().__init__(len(self._species))
 
     @property
-    def species(self) -> Tuple:
+    def species(self) -> tuple:
         return self._species
 
     def create_tensor(self, value) -> jnp.array:

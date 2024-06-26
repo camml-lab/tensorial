@@ -1,4 +1,4 @@
-from typing import Callable
+from collections.abc import Callable
 
 import jax
 import jax.nn
@@ -24,7 +24,7 @@ def get_jaxnn_activation(func: ActivationFunction) -> ActivationFunction:
 
 
 def prepare_mask(
-    mask: jt.Bool[jax.Array, "n_elements"], array: jt.Float[jax.Array, "..."]
+        mask: jt.Bool[jax.Array, "n_elements"], array: jt.Float[jax.Array, "..."]
 ) -> jt.Float[jax.Array, "n_elements ..."]:
     """
     Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure the

@@ -1,14 +1,18 @@
+from collections.abc import Callable
 import itertools
-from typing import Any, Callable, Final, Generic, Optional, Tuple, TypeVar
+from typing import Any, Final, Generic, Optional, TypeVar
 import uuid
 
+import beartype
 import clu.metrics
 from flax.training import train_state
 import jax
 import jax.numpy as jnp
+import jaxtyping as jt
 import optax
 
 from tensorial import data, training
+import tensorial.metrics
 
 __all__ = (
     "Trainer",
@@ -25,7 +29,7 @@ PyTree = Any
 InputT_co = TypeVar("InputT_co", covariant=True)
 OutputT_co = TypeVar("OutputT_co", covariant=True)
 LabelT_co = TypeVar("LabelT_co", covariant=True)
-Batch = Tuple[InputT_co, LabelT_co]
+Batch = tuple[InputT_co, LabelT_co]
 ModelT = Callable[[PyTree, InputT_co], OutputT_co]
 LossFn = Callable[[OutputT_co, LabelT_co], jax.Array]
 
@@ -45,18 +49,19 @@ DefaultMetrics = clu.metrics.Collection.create(loss=clu.metrics.Average.from_out
 class Trainer(Generic[InputT_co, OutputT_co]):
     """Simple trainer with some convenience functionality built in"""
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
-        self,
-        model: ModelT[InputT_co, OutputT_co],
-        model_params: PyTree,
-        opt: optax.GradientTransformation,
-        loss_fn: LossFn[OutputT_co, LabelT_co],
-        train_data: data.DataLoader[Batch],
-        validate_data: data.DataLoader[Batch] = None,
-        metrics: type[clu.metrics.Collection] = None,
-        log_metrics_every=1,
-        overfitting_window=DEFAULT_OVERFITTING_WINDOW,
-        jit=JIT_ALL,
+            self,
+            model: ModelT[InputT_co, OutputT_co],
+            model_params: PyTree,
+            opt: optax.GradientTransformation,
+            loss_fn: LossFn[OutputT_co, LabelT_co],
+            train_data: data.DataLoader[Batch],
+            validate_data: data.DataLoader[Batch] = None,
+            metrics: type[clu.metrics.Collection] = None,
+            log_metrics_every=1,
+            overfitting_window=DEFAULT_OVERFITTING_WINDOW,
+            jit=JIT_ALL,
     ):
         super().__init__()
         self._model = model
@@ -84,12 +89,14 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         self._overfitting = training.EarlyStopping(overfitting_window)
 
         self._train_step = train_step
-        self._eval_step = eval_step
         # Use bitmask to see if the users wants to jit calls to the model
         if jit & JIT_TRAIN:
             self._train_step = jax.jit(train_step, static_argnums=2)
+
+        eval_fn = eval_step
         if jit & JIT_EVAL:
-            self._eval_step = jax.jit(eval_step, static_argnums=2)
+            eval_fn = jax.jit(eval_step, static_argnums=[1, 3])
+        self._evaluator = tensorial.metrics.Evaluator(self._metrics, eval_fn)
 
     @property
     def train_data(self) -> data.DataLoader:
@@ -130,9 +137,9 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         return self._events.remove_listener(handle)
 
     def train(
-        self,
-        min_epochs: int = None,
-        max_epochs=DEFAULT_MAX_EPOCHS,
+            self,
+            min_epochs: int = None,
+            max_epochs=DEFAULT_MAX_EPOCHS,
     ) -> str:
         """
         Train the model by passing the training data through and upgrading the parameters using the
@@ -167,12 +174,9 @@ class Trainer(Generic[InputT_co, OutputT_co]):
 
                 if self._validate_data is not None:
                     # Now do validation pass
-                    metrics = self._metrics.empty()
-                    for batch in self._validate_data:
-                        _loss, metrics = self._eval_step(
-                            self._train_state, batch, loss_fn=self._loss_fn, metrics=metrics
-                        )
-                    self._validate_metrics = metrics.compute()
+                    self._validate_metrics = self._evaluator.evaluate(
+                        self._validate_data, state=self._train_state, loss_fn=self._loss_fn
+                    )
 
                 self._events.fire_event(training.TrainerListener.on_epoch_finishing, self, epoch)
                 # Tell everyone that the epoch is finishing
@@ -191,12 +195,13 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         return stop_msg
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def train_step(
-    state: train_state.TrainState,
-    batch: Batch[InputT_co, LabelT_co],
-    loss_fn: LossFn[OutputT_co, LabelT_co],
-    metrics: clu.metrics.Collection,
-) -> Tuple[train_state.TrainState, Any, clu.metrics.Collection]:
+        state: train_state.TrainState,
+        batch: Batch[InputT_co, LabelT_co],
+        loss_fn: LossFn[OutputT_co, LabelT_co],
+        metrics: clu.metrics.Collection,
+) -> tuple[train_state.TrainState, Any, clu.metrics.Collection]:
     """Train for a single step."""
     inputs, labels = batch
     if labels is None:
@@ -207,33 +212,36 @@ def train_step(
         Shim to have a function that takes parameters of the model and returns the loss.  This makes
         it possible to call grad to get derivatives.
         """
-        predictions = state.apply_fn(params, inputs)
-        return loss_fn(predictions, labels), predictions
+        outputs = state.apply_fn(params, inputs)
+        return loss_fn(outputs, labels), outputs
 
     grad_fn = jax.value_and_grad(loss_fn_shim, has_aux=True)
     (loss, predictions), grads = grad_fn(state.params)
     state = state.apply_gradients(grads=grads)
 
     update = metrics.single_from_model_output(
-        loss=jnp.astype(loss, jnp.float32), labels=labels, predictions=predictions
+        loss=jnp.astype(loss, jnp.float32),
+        values=predictions,
+        targets=labels,
     )
     return state, loss, metrics.merge(update)
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def eval_step(
-    state: train_state.TrainState,
-    batch: Batch[InputT_co, LabelT_co],
-    loss_fn: LossFn[OutputT_co, LabelT_co],
-    metrics: clu.metrics.Collection,
-) -> Tuple[Any, clu.metrics.Collection]:
+        batch: Batch[InputT_co, LabelT_co],
+        metrics: type[clu.metrics.Collection],
+        state: train_state.TrainState,
+        loss_fn: LossFn[OutputT_co, LabelT_co],
+) -> clu.metrics.Collection:
     """Evaluate for a single step."""
     inputs, labels = batch
     if labels is None:
         labels = inputs
 
-    predictions = state.apply_fn(state.params, inputs)
-    loss = loss_fn(predictions, labels)
+    outputs = state.apply_fn(state.params, inputs)
+    loss = loss_fn(outputs, labels)
     update = metrics.single_from_model_output(
-        loss=jnp.astype(loss, jnp.float32), labels=labels, predictions=predictions
+        loss=jnp.astype(loss, jnp.float32), values=outputs, targets=labels
     )
-    return loss, metrics.merge(update)
+    return update

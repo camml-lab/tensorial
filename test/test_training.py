@@ -6,21 +6,41 @@ from flax import linen
 import jax
 import optax
 
+import tensorial
 from tensorial import training
 
 
+def create_test_validate(
+    rng_key,
+    n_train: int,
+    n_validate: int,
+    samples_per_batch=10,
+    features=4,
+) -> tuple[tensorial.data.ArrayLoader, tensorial.data.ArrayLoader]:
+    keys = jax.random.split(rng_key, 5)
+
+    train = tensorial.data.ArrayLoader(
+        jax.random.uniform(keys[0], (n_train, samples_per_batch, features)),
+        jax.random.uniform(keys[1], (n_train, samples_per_batch, features)),
+    )
+    validate = tensorial.data.ArrayLoader(
+        jax.random.uniform(keys[2], (n_validate, samples_per_batch, features)),
+        jax.random.uniform(keys[3], (n_validate, samples_per_batch, features)),
+    )
+    return train, validate
+
+
 def test_trainer(rng_key):
-    rng_key, *keys = jax.random.split(rng_key, 4)
+    rng_key, *keys = jax.random.split(rng_key, 6)
 
     # Make up some data
     samples_per_batch = 10
     features = 4
     # [n batches, test/train, samples per batch, n features]
-    train = jax.random.uniform(keys[0], (3, 2, samples_per_batch, features))
-    validate = jax.random.uniform(keys[1], (2, 2, samples_per_batch, features))
+    train, validate = create_test_validate(rng_key, 3, 2, samples_per_batch, features)
 
     model = linen.linear.Dense(features=features)
-    params = model.init(keys[2], train[0, 0])
+    params = model.init(keys[4], train.first()[0])
 
     metrics = clu.metrics.Collection.create(
         loss=clu.metrics.Average.from_output("loss"),
@@ -49,14 +69,11 @@ def test_trainer(rng_key):
 
 
 def test_trainer_early_stop(rng_key):
-    rng_key, *keys = jax.random.split(rng_key, 4)
-
     # Make up some data
     samples_per_batch = 10
     features = 4
     # [n batches, test/train, samples per batch, n features]
-    train = jax.random.uniform(keys[0], (3, 2, samples_per_batch, features))
-    validate = jax.random.uniform(keys[1], (2, 2, samples_per_batch, features))
+    train, validate = create_test_validate(rng_key, 3, 2, samples_per_batch, features)
 
     # Dummy model that doesn't learn
     def model(_params, x):  # pylint: disable=invalid-name
@@ -83,11 +100,10 @@ def test_trainer_logging(rng_key):
     samples_per_batch = 10
     features = 4
     # [n batches, test/train, samples per batch, n features]
-    train = jax.random.uniform(keys[0], (3, 2, samples_per_batch, features))
-    validate = jax.random.uniform(keys[1], (2, 2, samples_per_batch, features))
+    train, validate = create_test_validate(rng_key, 3, 2, samples_per_batch, features)
 
     model = linen.linear.Dense(features=features)
-    params = model.init(keys[2], train[0, 0])
+    params = model.init(keys[2], train.first()[0])
 
     trainer = training.Trainer(
         model.apply,

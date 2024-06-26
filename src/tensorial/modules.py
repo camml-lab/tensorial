@@ -1,4 +1,5 @@
-from typing import Any, Callable, Dict, Sequence
+from collections.abc import Callable
+from typing import Any, Sequence
 
 from flax import linen
 
@@ -28,7 +29,7 @@ class Sequential(linen.Module):
 
         outputs = self.layers[0](*args, **kwargs)
         for layer in self.layers[1:]:
-            if isinstance(outputs, Dict):
+            if isinstance(outputs, dict):
                 outputs = layer(**outputs)
             elif type(outputs) is tuple:  # pylint: disable=unidiomatic-typecheck
                 outputs = layer(**outputs)

@@ -1,14 +1,16 @@
 import functools
 from typing import Any, Dict, Union
 
+import clu.metrics
 from flax import linen
 from flax.training import orbax_utils
 import flax.training.train_state
 import hydra
+import jax
 import omegaconf
 import orbax.checkpoint
 
-from . import modules
+from . import data, metrics, modules
 
 __all__ = ("create_module", "load_module_state")
 
@@ -76,3 +78,22 @@ def load_module_state(path) -> tuple[Config, Any]:
     checkpointer = orbax.checkpoint.PyTreeCheckpointer()
     state = checkpointer.restore(path)
     return omegaconf.OmegaConf.create(state[MODULE_CONFIG]), state[MODULE_STATE]
+
+
+def calculate_stats(from_data: omegaconf.DictConfig, training_data: data.DataLoader):
+    """
+    TODO: Update the name of this
+    Update configuration with statistics gathered from the data
+
+    :param from_data: the configuration dictionary to update (this will be done in place, i.e.
+        overwrite the current value sof the dictionary)
+    :param training_data: the trainig dataset to gather statistics from
+    """
+    coll_dict = {label: metrics.metric(name) for name, label in from_data.items()}
+    collection = clu.metrics.Collection.create(**coll_dict)
+    results = metrics.evaluate_stats(collection, training_data)
+
+    # Update the configuration with the values we calculated
+    for name, label in from_data.items():
+        value = results[label]
+        from_data[name] = value.tolist() if isinstance(value, jax.Array) else value

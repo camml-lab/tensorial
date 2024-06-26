@@ -57,6 +57,7 @@ dev = [
     'pandas', # Needed because we optionally support this in some files
     'pytest',
     'pytest-cov',
+    'pytest-env',
     'pre-commit',
     'pylint',
     'black',
@@ -112,6 +113,9 @@ max-locals = 20
 [pytest]
 log_cli = "True"
 log_cli_level = "DEBUG"
+
+[tool.pytest_env]
+XLA_PYTHON_CLIENT_PREALLOCATE = false # Don't allow JAX to preallocate memory
 
 [tool.pytest.ini_options]
 minversion = '6.0'

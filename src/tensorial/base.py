@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Mapping, Type, Union
+from typing import Any, Mapping, Union
 
 import beartype
 import e3nn_jax as e3j
@@ -269,7 +269,7 @@ def _tensorial_attrs(irreps_obj: linen.FrozenDict) -> dict[str, Tensorial]:
     return tensorial_attrs(irreps_obj.unfreeze())
 
 
-def get(irreps_obj: Type[IrrepsObj], tensor: Array, attr_name: str = None) -> Array:
+def get(irreps_obj: type[IrrepsObj], tensor: Array, attr_name: str = None) -> Array:
     if not attr_name:
         return tensor
 

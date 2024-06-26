@@ -54,13 +54,13 @@ class SphericalHarmonic(base.Attr):
         self,
         irreps,
         normalise,
-        normalization: Optional[Literal["integral", "component", "norm"]] = None,
+        normalisation: Optional[Literal["integral", "component", "norm"]] = None,
         *,
         algorithm: tuple[str] = None,
     ):
         super().__init__(irreps)
         self.normalise = normalise
-        self.normalisation = normalization
+        self.normalisation = normalisation
         self.algorithm = algorithm
 
     def create_tensor(self, value: Union[jax.Array, e3j.IrrepsArray]) -> jnp.array:

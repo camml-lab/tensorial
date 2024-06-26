@@ -1,7 +1,8 @@
+from collections.abc import Callable
 import contextlib
 import logging
 import math
-from typing import Any, Callable
+from typing import Any
 import uuid
 
 from tensorial import training

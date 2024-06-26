@@ -1,16 +1,33 @@
-import collections.abc
-from typing import Iterator
+from collections.abc import Iterable, Iterator
+from typing import TypeVar, Union
 
+import beartype
 import jax
+import jaxtyping as jt
 
 from . import _types, samplers
 
 __all__ = ("ArrayLoader", "CachingLoader")
 
 
-class ArrayLoader(collections.abc.Iterable[tuple[jax.typing.ArrayLike, ...]]):
+T = TypeVar("T")
+
+
+def _single_or_value(value: tuple[T, ...], to_test=None) -> Union[T, tuple[T, ...]]:
+    if to_test is None:
+        to_test = value
+    if len(to_test) > 1:
+        return tuple(value)
+    return value[0]
+
+
+ArrayOrArrayTuple = Union[jax.typing.ArrayLike, tuple[jax.typing.ArrayLike, ...]]
+
+
+class ArrayLoader(Iterable[ArrayOrArrayTuple]):
     """A dataset of arrays"""
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         *arrays: jax.typing.ArrayLike,
@@ -25,15 +42,21 @@ class ArrayLoader(collections.abc.Iterable[tuple[jax.typing.ArrayLike, ...]]):
             arrays[0], batch_size=batch_size, shuffle=shuffle
         )
 
-    def __iter__(self) -> Iterator[tuple[jax.typing.ArrayLike, ...]]:
+    @jt.jaxtyped(typechecker=beartype.beartype)
+    def __iter__(self) -> Iterator[ArrayOrArrayTuple]:
         for idx in self._sampler:
-            yield tuple(array[idx] for array in self._arrays)
+            value = tuple(array[idx] for array in self._arrays)
+            yield _single_or_value(value, self._arrays)
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __len__(self) -> int:
         return len(self._sampler)
 
+    def first(self) -> ArrayOrArrayTuple:
+        return next(iter(self))
 
-class CachingLoader(collections.abc.Iterable):
+
+class CachingLoader(Iterable):
     """
     Caching loader is useful, for example, if you don't want to shuffle data every time but at
     some interval defined by ``repeat_every``.  Naturally, this means you need to have enough memory
