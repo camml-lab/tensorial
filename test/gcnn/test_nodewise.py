@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from typing import Final
 
 import e3nn_jax as e3j

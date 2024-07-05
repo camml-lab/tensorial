@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import itertools
 from typing import Any, Callable, Final, Generic, Optional, Tuple, TypeVar
 import uuid

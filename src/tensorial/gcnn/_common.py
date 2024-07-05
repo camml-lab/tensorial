@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 Common utility functions that operate on graphs
 """
+
 from typing import Union
 
 import jax

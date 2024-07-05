@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import jax.numpy as jnp
 import jraph
 

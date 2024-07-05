@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """Module for functions performing expansion of functions with a basis"""
+
 import functools
 
 import jax.numpy as jnp

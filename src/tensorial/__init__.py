@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Library for machine learning on physical tensors"""
 
 from tensorial.metrics import metric

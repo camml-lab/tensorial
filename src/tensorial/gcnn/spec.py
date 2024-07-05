@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from typing import Sequence, Tuple
 
 import e3nn_jax as e3j

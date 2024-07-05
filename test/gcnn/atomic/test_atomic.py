@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import ase.build
 import jax
 import jax.numpy as jnp

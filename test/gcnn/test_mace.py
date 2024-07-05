@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import functools
 
 import e3nn_jax as e3j

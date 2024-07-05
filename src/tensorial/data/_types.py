@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from typing import Iterable, Sequence, TypeVar, Union
 
 __all__ = "Sampler", "DataLoader", "Dataset"

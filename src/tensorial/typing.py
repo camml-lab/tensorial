@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from collections.abc import Sequence
 from typing import Generic, TypeVar, Union
 

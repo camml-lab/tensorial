@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import e3nn_jax as e3j
 import jax
 import jax.numpy as jnp

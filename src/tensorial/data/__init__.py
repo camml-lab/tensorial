@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import _loaders, _types, samplers
 from ._loaders import *
 from ._types import *

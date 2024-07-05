@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from jax import random
 import jax.numpy as jnp
 import optax

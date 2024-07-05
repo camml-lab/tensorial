@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import functools
 from typing import Any, Callable, ClassVar, Optional, Type, TypeVar
 

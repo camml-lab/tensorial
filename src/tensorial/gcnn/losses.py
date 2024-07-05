@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import abc
 from collections.abc import Callable, Sequence
 from typing import Optional, Union

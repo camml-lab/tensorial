@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from jax import config, random
 import pytest
 

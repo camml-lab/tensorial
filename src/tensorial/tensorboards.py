@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import jax
 
 from . import training

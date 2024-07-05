@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # pylint: disable=undefined-variable,cyclic-import
 from tensorial.training._listeners import *
 from tensorial.training._trainer import *

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from typing import Literal, Optional, Union
 
 import beartype
