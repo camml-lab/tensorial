@@ -1,7 +1,6 @@
 import functools
 from typing import Any, Dict, Union
 
-import clu.metrics
 from flax import linen
 from flax.training import orbax_utils
 import flax.training.train_state
@@ -87,11 +86,11 @@ def calculate_stats(from_data: omegaconf.DictConfig, training_data: data.DataLoa
 
     :param from_data: the configuration dictionary to update (this will be done in place, i.e.
         overwrite the current value sof the dictionary)
-    :param training_data: the trainig dataset to gather statistics from
+    :param training_data: the training dataset to gather statistics from
     """
-    coll_dict = {label: metrics.metric(name) for name, label in from_data.items()}
-    collection = clu.metrics.Collection.create(**coll_dict)
-    results = metrics.evaluate_stats(collection, training_data)
+    coll_dict = {label: metrics.get_registry()[name] for name, label in from_data.items()}
+    collection = metrics.MetricCollection(coll_dict)
+    results = metrics.Evaluator(collection).evaluate(training_data)
 
     # Update the configuration with the values we calculated
     for name, label in from_data.items():

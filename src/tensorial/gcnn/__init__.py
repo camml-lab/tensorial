@@ -11,7 +11,6 @@ from . import (
     derivatives,
     keys,
     losses,
-    metrics,
     random,
     utils,
 )
@@ -35,5 +34,5 @@ __all__ = (
     + _modules.__all__
     + derivatives.__all__
     + losses.__all__
-    + ("atomic", "data", "derivatives", "keys", "metrics", "losses", "utils", "random")
+    + ("atomic", "data", "derivatives", "keys", "losses", "utils", "random")
 )

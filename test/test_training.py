@@ -42,9 +42,11 @@ def test_trainer(rng_key):
     model = linen.linear.Dense(features=features)
     params = model.init(keys[4], train.first()[0])
 
-    metrics = clu.metrics.Collection.create(
-        loss=clu.metrics.Average.from_output("loss"),
-        loss_std=clu.metrics.Std.from_output("loss"),
+    metrics = tensorial.metrics.MetricCollection(
+        dict(
+            loss=clu.metrics.Average.from_output("loss"),
+            loss_std=clu.metrics.Std.from_output("loss"),
+        )
     )
 
     trainer = training.Trainer(

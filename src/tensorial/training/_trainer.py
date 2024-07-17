@@ -1,16 +1,15 @@
 from collections.abc import Callable
-import dataclasses
 import itertools
 from typing import Any, Final, Generic, Optional, TypeVar
 import uuid
 
 import beartype
-import clu.metrics
 from flax.training import train_state
 import jax
 import jaxtyping as jt
 import optax
 
+import tensorial
 from tensorial import data, training
 
 from . import _steps
@@ -19,7 +18,7 @@ __all__ = (
     "Trainer",
     "DEFAULT_MAX_EPOCHS",
     "TRAIN_MAX_EPOCHS",
-    "Batch",
+    "BatchT",
     "ModelT",
     "JIT_ALL",
     "JIT_EVAL",
@@ -30,7 +29,7 @@ PyTree = Any
 InputT_co = TypeVar("InputT_co", covariant=True)
 OutputT_co = TypeVar("OutputT_co", covariant=True)
 LabelT_co = TypeVar("LabelT_co", covariant=True)
-Batch = tuple[InputT_co, LabelT_co]
+BatchT = TypeVar("BatchT")
 ModelT = Callable[[PyTree, InputT_co], OutputT_co]
 LossFn = Callable[[OutputT_co, LabelT_co], jax.Array]
 
@@ -44,22 +43,6 @@ JIT_TRAIN = 0b001
 JIT_EVAL = 0b010
 JIT_ALL = JIT_TRAIN | JIT_EVAL
 
-DefaultMetrics = clu.metrics.Collection.create(loss=clu.metrics.Average.from_output("loss"))
-
-
-@dataclasses.dataclass
-class TrainStepOutput:
-    """Class for keeping track of an item in inventory."""
-
-    state: train_state.TrainState
-    metric: Optional[clu.metrics.Collection] = None
-
-
-class EvalStepOutput:
-    """Class for keeping track of an item in inventory."""
-
-    metric: Optional[clu.metrics.Collection] = None
-
 
 class Trainer(Generic[InputT_co, OutputT_co]):
     """Simple trainer with some convenience functionality built in"""
@@ -71,9 +54,9 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         model_params: PyTree,
         opt: optax.GradientTransformation,
         loss_fn: LossFn[OutputT_co, LabelT_co],
-        train_data: data.DataLoader[Batch],
-        validate_data: data.DataLoader[Batch] = None,
-        metrics: type[clu.metrics.Collection] = None,
+        train_data: data.DataLoader[BatchT],
+        validate_data: data.DataLoader[BatchT] = None,
+        metrics: tensorial.metrics.MetricCollection = None,
         log_metrics_every=1,
         overfitting_window=DEFAULT_OVERFITTING_WINDOW,
         jit=JIT_ALL,
@@ -97,15 +80,13 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         self._train_state = train_state.TrainState.create(
             apply_fn=model, params=model_params, tx=opt
         )
-        self._metrics = metrics or DefaultMetrics
-
         self._logger = training.TrainingLogger(log_metrics_every)
         self.add_listener(self._logger)
         self._overfitting = training.EarlyStopping(overfitting_window)
 
-        self._steps = _steps.SimpleTrainerSteps(self._loss_fn, self._metrics)
+        self._steps = _steps.SimpleTrainerSteps(self._loss_fn, metrics)
 
-        self._train_step = jax.grad(self._steps.train, argnums=0, has_aux=True)
+        self._train_step = jax.grad(self._steps.training_step, argnums=0, has_aux=True)
         # Use bitmask to see if the users wants to jit calls to the model
         if jit & JIT_TRAIN:
             self._train_step = jax.jit(self._train_step, static_argnums=1)
@@ -180,13 +161,11 @@ class Trainer(Generic[InputT_co, OutputT_co]):
                 metrics = None
                 state = self._train_state
                 for batch_idx, batch in enumerate(self._train_data):
-                    grads, train_out = self._train_step(state.params, state.apply_fn, batch)
+                    grads, outs = self._train_step(state.params, state.apply_fn, batch)
                     # Update state
                     state = state.apply_gradients(grads=grads)
                     # Update metrics
-                    metrics = (
-                        train_out.metric if batch_idx == 0 else metrics.merge(train_out.metric)
-                    )
+                    metrics = outs.metric if batch_idx == 0 else metrics.merge(outs.metric)
 
                 self._train_metrics = metrics.compute()
 
@@ -197,10 +176,8 @@ class Trainer(Generic[InputT_co, OutputT_co]):
                     # Now do validation pass
                     metrics = None
                     for batch_idx, batch in enumerate(self._train_data):
-                        eval_out = self._eval_step(state.params, state.apply_fn, batch)
-                        metrics = (
-                            eval_out.metric if batch_idx == 0 else metrics.merge(eval_out.metric)
-                        )
+                        loss, outs = self._eval_step(state.params, state.apply_fn, batch)
+                        metrics = outs.metric if batch_idx == 0 else metrics.merge(outs.metric)
 
                     self._validate_metrics = metrics.compute()
 

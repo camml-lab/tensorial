@@ -1,10 +1,15 @@
+from collections.abc import Sequence
+
 import ase.build
 import jax
 import jax.numpy as jnp
 import jax.random
+import jraph
 import numpy as np
 import pytest
 
+import tensorial
+from tensorial import gcnn
 from tensorial.gcnn import atomic
 
 
@@ -35,7 +40,7 @@ def test_graph_from_ase(ase_cubic_si):  # pylint: disable=redefined-outer-name
 
 
 def test_species_transform(h2coh: ase.Atoms):  # pylint: disable=redefined-outer-name
-    atomic_numbers = tuple(set(h2coh.numbers))
+    atomic_numbers = np.unique(h2coh.numbers).tolist()
     num_atoms = len(h2coh)
     graph = atomic.graph_from_ase(h2coh, r_max=3.0)
 
@@ -58,7 +63,7 @@ def test_species_transform(h2coh: ase.Atoms):  # pylint: disable=redefined-outer
 
 def test_per_species_rescale():
     molecule = ase.build.molecule("SiH4")
-    types = list(set(molecule.get_atomic_numbers()))
+    types = np.unique(molecule.get_atomic_numbers())
     energies = np.random.rand(len(molecule))
     molecule.arrays[atomic.ENERGY_PER_ATOM] = energies
 
@@ -79,3 +84,25 @@ def test_per_species_rescale():
     # Check before and after
     assert jnp.all(molecule_graph.nodes[atomic.ENERGY_PER_ATOM] == energies)
     assert jnp.all(rescaled.nodes[atomic.ENERGY_PER_ATOM] != energies)
+
+
+def test_metrics(molecule_dataset: Sequence[jraph.GraphsTuple]):
+    batch_size = 4
+    all_molecules = jraph.batch(molecule_dataset)
+    batcher = gcnn.data.GraphLoader(molecule_dataset, batch_size=batch_size)
+
+    metrics = [
+        "atomic/num_species",
+        "atomic/all_atomic_numbers",
+        "atomic/avg_num_neighbours",
+        "atomic/force_std",
+    ]
+
+    for name in metrics:
+        metric_type = tensorial.metrics.get(name)
+        # Compute using the data loader
+        res = tensorial.metrics.Evaluator(metric_type).evaluate(batcher)
+        # Compute directly
+        value = metric_type.create(all_molecules).compute()
+
+        assert jnp.allclose(res, value), f"Problem with metric {name}"

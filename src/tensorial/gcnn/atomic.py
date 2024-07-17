@@ -3,7 +3,6 @@ import numbers
 from typing import Any, Hashable, Mapping, MutableMapping, Optional, Sequence, Union
 
 import beartype
-import clu.metrics
 import equinox
 import jax
 import jax.numpy as jnp
@@ -13,9 +12,7 @@ from pytray import tree
 
 from tensorial import base, metrics, typing
 
-from . import _common, _graphs, _modules, _typing, keys
-from . import metrics as gcnn_metrics
-from . import utils
+from . import _common, _graphs, _modules, _typing, keys, utils
 
 ENERGY_PER_ATOM = "energy/atom"
 TOTAL_ENERGY = "total_energy"
@@ -151,14 +148,23 @@ class SpeciesTransform(equinox.Module):
     field: str = ATOMIC_NUMBERS
     out_field: str = keys.SPECIES
 
-    def __init__(self, atomic_numbers: Sequence[int], field=ATOMIC_NUMBERS, out_field=keys.SPECIES):
+    @jt.jaxtyped(typechecker=beartype.beartype)
+    def __init__(
+        self,
+        atomic_numbers: Union[Sequence[int], jt.Int[typing.ArrayType, "numbers"]],
+        field: str = ATOMIC_NUMBERS,
+        out_field: str = keys.SPECIES,
+    ):
         self.atomic_numbers = jnp.asarray(
             atomic_numbers
         )  # pylint: disable=attribute-defined-outside-init
         self.field = field
         self.out_field = out_field
 
-    def __call__(self, graph: jraph.GraphsTuple):  # pylint: disable=arguments-differ
+    @jt.jaxtyped(typechecker=beartype.beartype)
+    def __call__(
+        self, graph: jraph.GraphsTuple
+    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         vwhere = jax.vmap(lambda num: jnp.argwhere(num == self.atomic_numbers, size=1)[0])
         nodes = graph.nodes
         nodes[self.out_field] = vwhere(nodes[self.field])[:, 0]
@@ -238,30 +244,41 @@ def energy_per_atom_lstsq(graphs: jraph.GraphsTuple, stats: dict[str, jnp.ndarra
     )[0]
 
 
-def _lst_squares_contribution(values: jraph.GraphsTuple, *args, **kwargs) -> jax.Array:
-    pass
+AllAtomicNumbers = metrics.from_fun(
+    lambda graph: metrics.Unique.create(
+        graph.nodes[ATOMIC_NUMBERS], mask=graph.nodes.get(keys.MASK)
+    )
+)
 
+NumSpecies = metrics.from_fun(
+    lambda graph: metrics.NumUnique.create(
+        graph.nodes[ATOMIC_NUMBERS], mask=graph.nodes.get(keys.MASK)
+    )
+)
 
-metrics.registry.register_many(
+ForceStd = metrics.from_fun(
+    lambda graph: metrics.Std.create(graph.nodes[FORCES], mask=graph.nodes.get(keys.MASK))
+)
+
+AvgNumNeighbours = metrics.from_fun(
+    lambda graph: metrics.Average.create(
+        jnp.unique(graph.senders, return_counts=True)[1], mask=graph.nodes.get(keys.MASK)
+    )
+)
+
+EnergyPerAtomLstsq = metrics.from_fun(
+    lambda graph: metrics.LeastSquaresEstimate.create(
+        graph.nodes[keys.SPECIES],
+        graph.globals[TOTAL_ENERGY],
+    )
+)
+
+metrics.get_registry().register_many(
     {
-        "atomic/max_species": gcnn_metrics.graph_metric(
-            metrics.NumUnique, ("values", "nodes", ATOMIC_NUMBERS)
-        ),
-        "atomic/all_atomic_numbers": gcnn_metrics.graph_metric(
-            metrics.Unique, ("values", "nodes", ATOMIC_NUMBERS)
-        ),
-        "atomic/avg_num_neighbours": gcnn_metrics.graph_metric(
-            clu.metrics.Average.from_fun(
-                lambda values, *_, **__: jnp.unique(values.senders, return_counts=True)[1]
-            ),
-            "values.senders",
-        ),
-        "atomic/force_std": gcnn_metrics.graph_metric(metrics.Std, ("values", "nodes", FORCES)),
-        "atomic/energy_per_atom_lstsq": gcnn_metrics.graph_metric(
-            metrics.LeastSquaresEstimate.from_fun(_lst_squares_contribution),
-            ("values", "nodes", ATOMIC_NUMBERS),
-            ("values", "globals", TOTAL_ENERGY),
-            _per_node=True,
-        ),
+        "atomic/num_species": NumSpecies,
+        "atomic/all_atomic_numbers": AllAtomicNumbers,
+        "atomic/avg_num_neighbours": AvgNumNeighbours,
+        "atomic/force_std": ForceStd,
+        # "atomic/energy_per_atom_lstsq": EnergyPerAtomLstsq,
     }
 )

@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-from typing import Generic, Iterator, TypeVar
+from typing import Generic, Iterable, TypeVar
 
 T = TypeVar("T")
 
@@ -21,14 +20,20 @@ class Registry(Generic[T]):
     def __iter__(self):
         return iter(self._registry)
 
-    def items(self) -> Iterator[tuple[str, T]]:
+    def items(self) -> Iterable[tuple[str, T]]:
         return self._registry.items()
 
     def register(self, name: str, obj: T):
         self._registry[name] = obj
 
     def register_many(self, objects: dict[str, T]):
-        [self.register(*vals) for vals in objects.items()]
+        for vals in objects.items():
+            self.register(*vals)
 
     def unregister(self, name: str) -> T:
         return self._registry.pop(name)
+
+    def find(self, starts_with: str) -> Iterable[tuple[str, T]]:
+        for name, obj in self._registry.items():
+            if name.startswith(starts_with):
+                yield name, obj
