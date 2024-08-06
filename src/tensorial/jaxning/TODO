@@ -1,0 +1,8 @@
+
+TODO:
+
+* Enable logging on epoch (as well as on step)
+
+
+DONE:
+* Capture KeyboardInterrupted to give a more smooth exit experience

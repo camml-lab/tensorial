@@ -1,5 +1,5 @@
 import collections
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 import enum
 import functools
 from typing import Any, Optional, Sequence, Union
@@ -162,7 +162,11 @@ class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
             yield batch_graphs
 
 
-class GraphBatcher:
+class GraphBatcher(Iterable[jraph.GraphsTuple]):
+    """
+    Take an iterable of graphs tuples and break it up into batches
+    """
+
     def __init__(
         self,
         graphs: Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]],
@@ -200,6 +204,7 @@ class GraphBatcher:
     def calculate_padding(
         graphs: Sequence[jraph.GraphsTuple], batch_size: int, with_shuffle: bool = False
     ) -> GraphPadding:
+        """Calculate the padding necessary to fit the given graphs into a batch"""
         if with_shuffle:
             # Calculate the maximum possible number of nodes and edges over any possible shuffling
             pad_nodes = (

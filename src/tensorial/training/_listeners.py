@@ -2,7 +2,7 @@ from collections.abc import Callable
 import contextlib
 import logging
 import math
-from typing import Any
+from typing import Any, Generic, TypeVar
 import uuid
 
 from tensorial import training
@@ -20,19 +20,21 @@ __all__ = (
 
 _LOGGER = logging.getLogger(__name__)
 
+ListenerT = TypeVar("ListenerT")
 
-class EventGenerator:
+
+class EventGenerator(Generic[ListenerT]):
     """Manage listeners and fire events"""
 
     def __init__(self):
-        self._event_listeners = {}
+        self._event_listeners: dict[uuid.UUID, ListenerT] = {}
 
-    def add_listener(self, listener) -> Any:
+    def add_listener(self, listener: ListenerT) -> uuid.UUID:
         handle = uuid.uuid4()
         self._event_listeners[handle] = listener
         return handle
 
-    def remove_listener(self, handle) -> Any:
+    def remove_listener(self, handle: uuid.UUID) -> ListenerT:
         return self._event_listeners.pop(handle)
 
     def fire_event(self, event_fn: Callable, *args, **kwargs):
@@ -40,7 +42,7 @@ class EventGenerator:
             getattr(listener, event_fn.__name__)(*args, **kwargs)
 
     @contextlib.contextmanager
-    def listen_context(self, *listener: "TrainerListener"):
+    def listen_context(self, *listener: ListenerT):
         uuids = tuple()
         try:
             uuids = tuple(map(self.add_listener, listener))

@@ -84,7 +84,7 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         self.add_listener(self._logger)
         self._overfitting = training.EarlyStopping(overfitting_window)
 
-        self._steps = _steps.SimpleTrainerSteps(self._loss_fn, metrics)
+        self._steps = _steps.SimpleModule(self._loss_fn, metrics)
 
         self._train_step = jax.grad(self._steps.training_step, argnums=0, has_aux=True)
         # Use bitmask to see if the users wants to jit calls to the model
