@@ -17,7 +17,7 @@ from . import _typing, utils
 __all__ = ("reduce",)
 
 
-@jt.jaxtyped(beartype.beartype)
+@jt.jaxtyped(typechecker=beartype.beartype)
 def reduce(
     graph: jraph.GraphsTuple, field: _typing.TreePathLike, reduction="sum"
 ) -> Union[e3j.IrrepsArray, jax.Array]:

@@ -133,7 +133,7 @@ class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
             jraph.unbatch(graph) if isinstance(graph, jraph.GraphsTuple) else graph
             for graph in graphs
         )
-        self._sampler = data.samplers.create_sequence_sampler(
+        self._sampler: data.Sampler[list[int]] = data.samplers.create_sequence_sampler(
             self._graphs[0], batch_size=batch_size, shuffle=shuffle
         )
         self._batch_size = batch_size

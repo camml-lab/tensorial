@@ -38,7 +38,7 @@ class ArrayLoader(Iterable[ArrayOrArrayTuple]):
             raise ValueError("Size mismatch between tensors")
 
         self._arrays = arrays
-        self._sampler = samplers.create_sequence_sampler(
+        self._sampler: _types.Sampler[list[int]] = samplers.create_sequence_sampler(
             arrays[0], batch_size=batch_size, shuffle=shuffle
         )
 
@@ -86,3 +86,11 @@ class CachingLoader(Iterable):
         if self._time_since_reset == self._reset_every:
             self._cache = []
             self._time_since_reset = 0
+
+    def __len__(self):
+        # Get it from the cache
+        if self._time_since_reset > 1:
+            return len(self._cache)
+
+        # otherwise, from the loader, but the loader may not be `Sized` which will cause TypeError
+        return len(self._loader)

@@ -8,6 +8,9 @@ import hydra
 import jax
 import omegaconf
 import orbax.checkpoint
+import reax
+
+import tensorial
 
 from . import data, metrics, modules
 
@@ -88,9 +91,9 @@ def calculate_stats(from_data: omegaconf.DictConfig, training_data: data.DataLoa
         overwrite the current value sof the dictionary)
     :param training_data: the training dataset to gather statistics from
     """
-    coll_dict = {label: metrics.get_registry()[name] for name, label in from_data.items()}
-    collection = metrics.MetricCollection(coll_dict)
-    results = metrics.Evaluator(collection).evaluate(training_data)
+    coll_dict = {label: reax.metrics.get_registry()[name] for name, label in from_data.items()}
+    collection = reax.metrics.MetricCollection(coll_dict)
+    results = tensorial.metrics.Evaluator(collection).evaluate(training_data)
 
     # Update the configuration with the values we calculated
     for name, label in from_data.items():

@@ -8,8 +8,8 @@ from flax.training import train_state
 import jax
 import jaxtyping as jt
 import optax
+import reax
 
-import tensorial
 from tensorial import data, training
 
 from . import _steps
@@ -56,7 +56,7 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         loss_fn: LossFn[OutputT_co, LabelT_co],
         train_data: data.DataLoader[BatchT],
         validate_data: data.DataLoader[BatchT] = None,
-        metrics: tensorial.metrics.MetricCollection = None,
+        metrics: reax.metrics.MetricCollection = None,
         log_metrics_every=1,
         overfitting_window=DEFAULT_OVERFITTING_WINDOW,
         jit=JIT_ALL,

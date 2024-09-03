@@ -1,8 +1,9 @@
 import jax.numpy as jnp
 import numpy as np
 import omegaconf
+import reax
 
-from tensorial import config, data, metrics
+from tensorial import config, data
 
 
 def test_calculate_stats():
@@ -20,5 +21,5 @@ def test_calculate_stats():
 
     # Check that our configuration has been updated with the correct metric values
     for name, value in from_data.items():
-        res = metrics.get(name).create(array).compute()
+        res = reax.metrics.get(name).create(array).compute()
         assert jnp.allclose(res, value)

@@ -14,7 +14,6 @@ IdxT = TypeVar("IdxT", bound=Hashable)
 
 
 class SequentialSampler(_types.Sampler[int]):
-
     def __init__(self, length: int) -> None:
         if not isinstance(length, int):
             raise TypeError("Length must be an integer")
@@ -62,7 +61,6 @@ class RandomSampler(_types.Sampler[int]):
 
 
 class BatchSampler(_types.Sampler[list[IdxT]]):
-
     def __init__(self, sampler: _types.Sampler[IdxT], batch_size: int, drop_last: bool) -> None:
         self._sampler = sampler
         self._batch_size = batch_size
@@ -98,45 +96,41 @@ class BatchSampler(_types.Sampler[list[IdxT]]):
 
 
 class IterableSampler(_types.Sampler[None]):
-
     def __iter__(self) -> Iterator[None]:
         yield from itertools.repeat(None)
 
 
 @functools.singledispatch
 def create_sampler(
-        dataset: _types.Dataset[T_co],
-        batch_size: int = 1,
-        replacements: bool = False,
-        shuffle: bool = False,
+    dataset: _types.Dataset[T_co],
+    batch_size: int = 1,
+    replacements: bool = False,
+    shuffle: bool = False,
 ) -> _types.Sampler:
     raise TypeError(f"Unsupported type {type(dataset).__name__}")
 
 
 @create_sampler.register(Sequence)
 def create_sequence_sampler(
-        dataset: Sequence[T_co],
-        batch_size: int = 1,
-        replacements: bool = False,
-        shuffle: bool = False,
-) -> Union[_types.Sampler[int], BatchSampler[int]]:
+    dataset: Sequence[T_co],
+    batch_size: int = 1,
+    replacements: bool = False,
+    shuffle: bool = False,
+) -> _types.Sampler[list[IdxT]]:
     if shuffle:
         sampler = RandomSampler(len(dataset), replacements=replacements)
     else:
         sampler = SequentialSampler(len(dataset))
-
-    if batch_size == 1:
-        return sampler  # No batching
 
     return BatchSampler(sampler, batch_size, False)
 
 
 @create_sampler.register(Iterable)
 def create_iterable_sampler(
-        dataset: Iterable[T_co],
-        batch_size: int = 1,
-        replacements: bool = False,
-        shuffle: bool = False,
+    dataset: Iterable[T_co],
+    batch_size: int = 1,
+    replacements: bool = False,
+    shuffle: bool = False,
 ) -> Union[_types.Sampler[None], _types.Sampler[list[None]]]:
     if shuffle:
         raise ValueError(
@@ -157,10 +151,10 @@ def create_iterable_sampler(
 
 
 def create_batch_sampler(
-        dataset: Sequence[T_co],
-        batch_size: int = 1,
-        replacements: bool = False,
-        shuffle: bool = False,
+    dataset: Sequence[T_co],
+    batch_size: int = 1,
+    replacements: bool = False,
+    shuffle: bool = False,
 ) -> BatchSampler[int]:
     if shuffle:
         sampler = RandomSampler(len(dataset), replacements=replacements)

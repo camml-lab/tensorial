@@ -7,6 +7,7 @@ import jax.random
 import jraph
 import numpy as np
 import pytest
+import reax
 
 import tensorial
 from tensorial import gcnn
@@ -99,7 +100,7 @@ def test_metrics(molecule_dataset: Sequence[jraph.GraphsTuple]):
     ]
 
     for name in metrics:
-        metric_type = tensorial.metrics.get(name)
+        metric_type = reax.metrics.get(name)
         # Compute using the data loader
         res = tensorial.metrics.Evaluator(metric_type).evaluate(batcher)
         # Compute directly

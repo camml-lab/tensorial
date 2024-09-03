@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
+import numpy as np
 
 import tensorial
 from tensorial import distances, nn_utils, typing
@@ -32,6 +33,7 @@ def graph_from_points(
     nodes: dict[str, jt.Num[jax.typing.ArrayLike, "n_nodes *"]] = None,
     edges: dict = None,
     graph_globals: dict = None,
+    np_=np,
 ) -> jraph.GraphsTuple:
     """
     Create a jraph Graph from a set of atomic positions and other related data.
@@ -51,7 +53,7 @@ def graph_from_points(
     :param graph_globals: a dictionary containing additional global data
     :return: the corresponding jraph Graph
     """
-    pos = jnp.asarray(pos)
+    pos = np_.asarray(pos)
     nodes = nodes if nodes else {}
     num_nodes = len(pos)
 
@@ -106,18 +108,18 @@ def graph_from_points(
 
     graph_globals = graph_globals or {}
     if pbc is not None:
-        graph_globals[keys.PBC] = jnp.array(pbc, dtype=bool)
+        graph_globals[keys.PBC] = np_.array(pbc, dtype=bool)
     graph_globals[keys.CELL] = cell
     # We have to pad out the globals to make things like batching work
     graph_globals = {
-        key: jnp.expand_dims(value, 0) for key, value in graph_globals.items() if value is not None
+        key: np_.expand_dims(value, 0) for key, value in graph_globals.items() if value is not None
     }
 
     edges = edges or {}
     edges = {key: value[from_idx, to_idx] for key, value in edges.items()}
     # Make sure the edge arrays have array-like (rather than scalar) entries for each edge
     edges = {
-        key: jnp.expand_dims(value, -1) if value.ndim == 1 else value
+        key: np_.expand_dims(value, -1) if value.ndim == 1 else value
         for key, value in edges.items()
     }
     edges[keys.EDGE_CELL_SHIFTS] = cell_shifts
@@ -128,8 +130,8 @@ def graph_from_points(
         senders=from_idx,
         receivers=to_idx,
         globals=graph_globals,
-        n_node=jnp.array([len(pos)]),
-        n_edge=jnp.array([len(from_idx)]),
+        n_node=np_.array([len(pos)]),
+        n_edge=np_.array([len(from_idx)]),
     )
 
 

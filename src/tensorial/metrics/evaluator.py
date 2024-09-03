@@ -4,10 +4,10 @@ from typing import Any, TypeVar, Union
 import beartype
 import jax
 import jaxtyping as jt
+import reax
 
 from tensorial import typing
 
-from .collections import MetricCollection
 from .metric import Metric
 
 __all__ = ("Evaluator",)
@@ -15,7 +15,7 @@ __all__ = ("Evaluator",)
 OutT = TypeVar("OutT")
 
 
-M = TypeVar("M", bound=Union[Metric, MetricCollection])
+M = TypeVar("M", bound=Union[Metric, reax.metrics.MetricCollection])
 T_co = TypeVar("T_co", covariant=True)
 
 
@@ -29,7 +29,9 @@ class Evaluator:
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        metric: Union[type[Metric], Metric, MetricCollection],
+        metric: Union[
+            type[reax.metrics.Metric], reax.metrics.Metric, reax.metrics.MetricCollection
+        ],
         eval_fn: Callable[[M, T_co, ...], M] = None,
     ):
         self._metric = metric

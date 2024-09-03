@@ -11,6 +11,7 @@ from . import (
     derivatives,
     keys,
     losses,
+    metrics,
     random,
     utils,
 )
@@ -23,6 +24,7 @@ from ._nequip import *
 from ._nodewise import *
 from .derivatives import *
 from .losses import *
+from .metrics import *
 
 __all__ = (
     _base.__all__
@@ -34,5 +36,6 @@ __all__ = (
     + _modules.__all__
     + derivatives.__all__
     + losses.__all__
+    + metrics.__all__
     + ("atomic", "data", "derivatives", "keys", "losses", "utils", "random")
 )

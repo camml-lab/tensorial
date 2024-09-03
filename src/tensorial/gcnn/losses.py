@@ -1,10 +1,12 @@
 import abc
 from collections.abc import Callable, Sequence
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
+import beartype
 import equinox
 import jax
 import jax.numpy as jnp
+import jaxtyping as jt
 import jraph
 import optax.losses
 from pytray import tree
@@ -14,7 +16,7 @@ from tensorial import nn_utils
 
 from . import keys, utils
 
-__all__ = ("PureLossFn", "GraphLoss", "WeightedLoss", "Loss")
+__all__ = "PureLossFn", "GraphLoss", "WeightedLoss", "Loss"
 
 # A pure loss function that doesn't know about graphs, just takes arrays and produces a loss array
 PureLossFn = Callable[[jax.Array, jax.Array], jax.Array]
@@ -53,22 +55,18 @@ class Loss(GraphLoss):
     _prediction_field: utils.TreePath
     _target_field: utils.TreePath
     _mask_field: Optional[utils.TreePath]
-    _reduction: str
+    _reduction: Optional[Literal["sum", "mean"]]
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         field: str,
         target_field: str = None,
         loss_fn: Union[str, PureLossFn] = optax.squared_error,
-        reduction: str = "mean",
+        reduction: Optional[Literal["sum", "mean"]] = "mean",
         label: str = None,
         mask_field: str = None,
     ):
-        if reduction not in ("sum", "mean", None):
-            raise ValueError(
-                f"Invalid reduction, must be one of 'sum', 'mean', `None`, got {reduction}"
-            )
-
         self._loss_fn = _get_pure_loss_fn(loss_fn)
         self._prediction_field = utils.path_from_str(field)
         self._target_field = utils.path_from_str(target_field or field)
@@ -148,14 +146,14 @@ class WeightedLoss(GraphLoss):
     def weights(self):
         return jax.lax.stop_gradient(jnp.array(self._weights))
 
-    def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> float:
+    def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> jax.Array:
         # Calculate the loss for each function
         losses = jnp.array(list(map(lambda loss_fn: loss_fn(predictions, targets), self._loss_fns)))
         return jnp.dot(self.weights, losses)
 
     def loss_with_contributions(
         self, predictions: jraph.GraphsTuple, target: jraph.GraphsTuple
-    ) -> tuple[float, dict[str, float]]:
+    ) -> tuple[jax.Array, dict[str, float]]:
         # Calculate the loss for each function
         losses = jax.array(list(map(lambda loss_fn: loss_fn(predictions, target), self._loss_fns)))
         # Group the contributions into a dictionary keyed by the label
