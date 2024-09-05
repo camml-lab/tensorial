@@ -39,7 +39,9 @@ class TrainingModule(reax.Module):
 
             # Create the metrics to be used during fitting
             if train_cfg.get("metrics"):
-                self._metrics = reax.metrics.MetricCollection(create_metrics(train_cfg.metrics))
+                self._metrics = reax.metrics.MetricCollection(
+                    config_.create_metrics(train_cfg.metrics)
+                )
 
             # Create and initialise the model
             self._model = config_.create_module(self._cfg.model)
@@ -173,17 +175,3 @@ def find_iterpol(root, path=()):
                 yield path, key
         elif omegaconf.OmegaConf.is_dict(value):
             yield from find_iterpol(value, (key,))
-
-
-def create_metrics(metrics: omegaconf.DictConfig) -> MetricsDict:
-    """Create all the metrics from the configuration"""
-    found: dict[str, reax.Metric] = {}
-    for label, metric_name in metrics.items():
-        try:
-            metric = reax.metrics.get(metric_name)
-        except KeyError:
-            raise ValueError(f"Unknown metric: {label} {metric_name}") from None
-
-        found[label] = metric
-
-    return found

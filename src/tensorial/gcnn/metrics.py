@@ -21,7 +21,7 @@ def graph_metric(
     targets: Optional[_typing.TreePathLike] = None,
     mask: Optional[_typing.TreePathLike] = None,
     normalise_by: Optional[_typing.TreePathLike] = None,
-) -> type["GraphMetric"]:
+) -> "GraphMetric":
 
     predictions_from = _tree.path_from_str(predictions)
     targets_from = _tree.path_to_str(targets) if targets is not None else predictions_from
@@ -35,7 +35,7 @@ def graph_metric(
         mask_key = mask_from
         normalise_by = norm_by
 
-    return _GraphMetric
+    return _GraphMetric()
 
 
 def mdiv(

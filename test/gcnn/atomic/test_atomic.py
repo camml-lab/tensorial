@@ -92,6 +92,12 @@ def test_metrics(molecule_dataset: Sequence[jraph.GraphsTuple]):
     all_molecules = jraph.batch(molecule_dataset)
     batcher = gcnn.data.GraphLoader(molecule_dataset, batch_size=batch_size)
 
+    avg_num_neighbours = jnp.mean(jnp.bincount(all_molecules.senders))
+    assert jnp.allclose(
+        avg_num_neighbours,
+        reax.metrics.get("atomic/avg_num_neighbours").create(all_molecules).compute(),
+    )
+
     metrics = [
         "atomic/num_species",
         "atomic/all_atomic_numbers",
@@ -100,10 +106,10 @@ def test_metrics(molecule_dataset: Sequence[jraph.GraphsTuple]):
     ]
 
     for name in metrics:
-        metric_type = reax.metrics.get(name)
+        metric = reax.metrics.get(name)
         # Compute using the data loader
-        res = tensorial.metrics.Evaluator(metric_type).evaluate(batcher)
+        res = tensorial.metrics.Evaluator(metric).evaluate(batcher)
         # Compute directly
-        value = metric_type.create(all_molecules).compute()
+        value = metric.create(all_molecules).compute()
 
         assert jnp.allclose(res, value), f"Problem with metric {name}"

@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Dict, Union
+from typing import Any, Dict, Mapping, Union
 
 from flax import linen
 from flax.training import orbax_utils
@@ -97,3 +97,20 @@ def calculate_stats(from_data: omegaconf.DictConfig, training_data: data.DataLoa
     for name, label in from_data.items():
         value = results[label]
         from_data[name] = value.tolist() if isinstance(value, jax.Array) else value
+
+
+def create_metrics(metrics: Mapping[str, Any]) -> dict[str, reax.Metric]:
+    """Create all the metrics from the configuration"""
+    found: dict[str, reax.Metric] = {}
+    for label, value in metrics.items():
+        if isinstance(value, omegaconf.DictConfig):
+            metric = hydra.utils.instantiate(value)
+        else:
+            try:
+                metric = reax.metrics.get(value)
+            except KeyError:
+                raise ValueError(f"Unknown metric: {label} {value}") from None
+
+        found[label] = metric
+
+    return found

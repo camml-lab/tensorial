@@ -258,11 +258,14 @@ ForceStd = reax.metrics.Std.from_fun(
 )
 
 AvgNumNeighbours = reax.metrics.Average.from_fun(
-    lambda graph, *_: (jnp.unique(graph.senders, return_counts=True)[1], graph.nodes.get(keys.MASK))
+    lambda graph, *_: (
+        jnp.bincount(graph.senders, length=jnp.sum(graph.n_node)),
+        graph.nodes.get(keys.MASK),
+    )
 )
 
 
-class EnergyPerAtomLstsq(reax.metrics.metric.FromFun):
+class EnergyPerAtomLstsq(reax.metrics.FromFun):
     """Calculate the least squares estimate of the energy per atom"""
 
     metric = reax.metrics.LeastSquaresEstimate()
