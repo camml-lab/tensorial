@@ -4,7 +4,6 @@ from typing import Any, Hashable, Mapping, MutableMapping, Optional, Sequence, U
 
 import beartype
 import equinox
-import flax.struct
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
@@ -287,6 +286,7 @@ class TypeContributionLstsq(reax.metrics.Metric[jax.typing.ArrayLike]):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def create(
+        # pylint: disable=arguments-differ
         self,
         type_counts: jt.Float[typing.ArrayType, "batch_size ..."],
         values: jt.Float[typing.ArrayType, "batch_size ..."],
@@ -296,6 +296,7 @@ class TypeContributionLstsq(reax.metrics.Metric[jax.typing.ArrayLike]):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def update(
+        # pylint: disable=arguments-differ
         self,
         type_counts: jt.Float[typing.ArrayType, "batch_size ..."],
         values: jt.Float[typing.ArrayType, "batch_size ..."],
@@ -355,14 +356,19 @@ class EnergyContributionLstsq(reax.Metric):
             return other
 
         return EnergyContributionLstsq(
-            type_map=self._type_map, metric=self._metric.merge(other._metric)
+            type_map=self._type_map,
+            metric=self._metric.merge(other._metric),  # pylint: disable=protected-access
         )
 
-    def create(self, graphs: jraph.GraphsTuple, *_) -> "EnergyContributionLstsq":
+    def create(  # pylint: disable=arguments-differ
+        self, graphs: jraph.GraphsTuple, *_
+    ) -> "EnergyContributionLstsq":
         val = self._fun(graphs)
         return type(self)(type_map=self._type_map, metric=TypeContributionLstsq(*val))
 
-    def update(self, graphs: jraph.GraphsTuple, *_) -> "EnergyContributionLstsq":
+    def update(  # pylint: disable=arguments-differ
+        self, graphs: jraph.GraphsTuple, *_
+    ) -> "EnergyContributionLstsq":
         if self._metric is None:
             return self.create(graphs)
 

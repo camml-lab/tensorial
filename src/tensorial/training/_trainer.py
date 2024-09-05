@@ -1,6 +1,6 @@
 from collections.abc import Callable
 import itertools
-from typing import Any, Final, Generic, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Final, Generic, Optional, TypeVar
 import uuid
 
 import beartype
@@ -10,9 +10,12 @@ import jaxtyping as jt
 import optax
 import reax
 
-from tensorial import data, training
+from tensorial import data
 
-from . import _steps
+from . import _listeners, _steps
+
+if TYPE_CHECKING:
+    import tensorial
 
 __all__ = (
     "Trainer",
@@ -68,7 +71,7 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         self._train_data = train_data
         self._validate_data = validate_data
 
-        self._events = training.EventGenerator()
+        self._events = _listeners.EventGenerator()
         self._stopping = False
         self._stop_msg = None
         self._train_metrics = None
@@ -80,9 +83,9 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         self._train_state = train_state.TrainState.create(
             apply_fn=model, params=model_params, tx=opt
         )
-        self._logger = training.TrainingLogger(log_metrics_every)
+        self._logger = _listeners.TrainingLogger(log_metrics_every)
         self.add_listener(self._logger)
-        self._overfitting = training.EarlyStopping(overfitting_window)
+        self._overfitting = _listeners.EarlyStopping(overfitting_window)
 
         self._steps = _steps.SimpleModule(self._loss_fn, metrics)
 
@@ -119,7 +122,7 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         return self._validate_metrics
 
     @property
-    def metrics_log(self) -> training.TrainingLogger:
+    def metrics_log(self) -> "tensorial.TrainingLogger":
         return self._logger
 
     def stop(self, reason: str):
@@ -127,7 +130,7 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         self._stop_msg = reason
         self._stopping = True
 
-    def add_listener(self, listener: training.TrainerListener) -> uuid.UUID:
+    def add_listener(self, listener: "tensorial.TrainerListener") -> uuid.UUID:
         return self._events.add_listener(listener)
 
     def remove_listener(self, handle):
@@ -150,12 +153,12 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         iterator = itertools.count() if max_epochs == -1 else range(max_epochs)
 
         with self._events.listen_context(self._overfitting):
-            self._events.fire_event(training.TrainerListener.on_training_starting, self)
+            self._events.fire_event(_listeners.TrainerListener.on_training_starting, self)
 
             # Loop over epochs
             for local_epoch in iterator:
                 epoch = self._epoch
-                self._events.fire_event(training.TrainerListener.on_epoch_starting, self, epoch)
+                self._events.fire_event(_listeners.TrainerListener.on_epoch_starting, self, epoch)
 
                 # Iterate over training batches
                 metrics = None
@@ -176,16 +179,16 @@ class Trainer(Generic[InputT_co, OutputT_co]):
                     # Now do validation pass
                     metrics = None
                     for batch_idx, batch in enumerate(self._train_data):
-                        loss, outs = self._eval_step(state.params, state.apply_fn, batch)
+                        _loss, outs = self._eval_step(state.params, state.apply_fn, batch)
                         metrics = outs.metric if batch_idx == 0 else metrics.merge(outs.metric)
 
                     self._validate_metrics = metrics.compute()
 
-                self._events.fire_event(training.TrainerListener.on_epoch_finishing, self, epoch)
+                self._events.fire_event(_listeners.TrainerListener.on_epoch_finishing, self, epoch)
                 # Tell everyone that the epoch is finishing
                 self._epoch += 1
                 # And tell everyone that this epoch is over
-                self._events.fire_event(training.TrainerListener.on_epoch_finished, self, epoch)
+                self._events.fire_event(_listeners.TrainerListener.on_epoch_finished, self, epoch)
 
                 if (min_epochs is not None and local_epoch > (min_epochs - 1)) and self._stopping:
                     break
@@ -193,6 +196,6 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         stop_msg = TRAIN_MAX_EPOCHS if not self._stopping else self._stop_msg
 
         # Tell everyone that we are stopping
-        self._events.fire_event(training.TrainerListener.on_training_stopping, self, stop_msg)
+        self._events.fire_event(_listeners.TrainerListener.on_training_stopping, self, stop_msg)
 
         return stop_msg

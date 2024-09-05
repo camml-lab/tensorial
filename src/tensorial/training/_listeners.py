@@ -2,10 +2,11 @@ from collections.abc import Callable
 import contextlib
 import logging
 import math
-from typing import Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar
 import uuid
 
-from tensorial import training
+if TYPE_CHECKING:
+    import tensorial
 
 TRAIN_OVERFITTING = "overfitting"
 
@@ -52,19 +53,19 @@ class EventGenerator(Generic[ListenerT]):
 
 
 class TrainerListener:
-    def on_training_starting(self, trainer: "training.Trainer"):
+    def on_training_starting(self, trainer: "tensorial.Trainer"):
         """A training run is starting"""
 
-    def on_epoch_starting(self, trainer: "training.Trainer", epoch_num: int):
+    def on_epoch_starting(self, trainer: "tensorial.Trainer", epoch_num: int):
         """A training epoch has started"""
 
-    def on_epoch_finishing(self, trainer: "training.Trainer", epoch_num: int):
+    def on_epoch_finishing(self, trainer: "tensorial.Trainer", epoch_num: int):
         """An epoch is finishing but the model state has not been updated yet"""
 
-    def on_epoch_finished(self, trainer: "training.Trainer", epoch_num: int):
+    def on_epoch_finished(self, trainer: "tensorial.Trainer", epoch_num: int):
         """An epoch has finished and the model state has been updated"""
 
-    def on_training_stopping(self, trainer: "training.Trainer", stop_msg: str):
+    def on_training_stopping(self, trainer: "tensorial.Trainer", stop_msg: str):
         """A training run is stopping"""
 
 
@@ -84,11 +85,11 @@ class TrainingLogger(TrainerListener):
 
         return pandas.DataFrame(self._log)
 
-    def on_epoch_finishing(self, trainer: "training.Trainer", epoch_num: int):
+    def on_epoch_finishing(self, trainer: "tensorial.Trainer", epoch_num: int):
         if epoch_num % self._log_ever_n_epochs == 0:
             self._save_log(trainer, epoch_num)
 
-    def _save_log(self, trainer: "training.Trainer", epoch):
+    def _save_log(self, trainer: "tensorial.Trainer", epoch):
         log_entry = {"epoch": epoch}
         if trainer.train_metrics is not None:
             log_entry.update(
@@ -124,7 +125,7 @@ class EarlyStopping(TrainerListener):
     def has_improved(self) -> bool:
         return self._has_improved
 
-    def on_epoch_finished(self, trainer: "training.Trainer", epoch_num):
+    def on_epoch_finished(self, trainer: "tensorial.Trainer", epoch_num):
         new_value = trainer.validate_metrics[self._metric]
         if math.isinf(self._best_value) or self._best_value - new_value > self._min_delta:
             # Reset
@@ -160,10 +161,10 @@ class MetricsLogging(TrainerListener):
 
         self._log_every = log_every
 
-    def on_training_starting(self, trainer: "training.Trainer"):
+    def on_training_starting(self, trainer: "tensorial.Trainer"):
         if self._header:
             _LOGGER.log(self._log_level, self._header)
 
-    def on_epoch_finished(self, trainer: "training.Trainer", epoch_num: int):
+    def on_epoch_finished(self, trainer: "tensorial.Trainer", epoch_num: int):
         if epoch_num % self._log_every == 0:
             _LOGGER.log(self._log_level, self._msg, trainer.metrics_log.raw_log()[-1])

@@ -80,7 +80,6 @@ class GraphMetric(reax.Metric):
         self,
         predictions: jraph.GraphsTuple,
         targets: Optional[jraph.GraphsTuple] = None,
-        *_,
     ) -> "GraphMetric":
         if targets is None:
             # In this case, the user is typically using a different key in the same graph
@@ -110,7 +109,7 @@ class GraphMetric(reax.Metric):
         if self.is_empty:
             return other
 
-        return type(self)(self._state.merge(other._state))
+        return type(self)(self._state.merge(other._state))  # pylint: disable=protected-access
 
     def compute(self) -> OutT:
         if self.is_empty:

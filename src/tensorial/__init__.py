@@ -6,6 +6,7 @@ from . import base, config, data, metrics, tensorboards, tensors, training, typi
 from .base import *
 from .tensors import *
 from .training import *
+from .training import TrainingModule
 
 __version__ = "0.2.0"
 
@@ -21,5 +22,6 @@ __all__ = (
         "tensorboards",
         "data",
         "typing",
+        "TrainingModule",
     )
 )
