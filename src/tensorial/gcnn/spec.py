@@ -12,10 +12,10 @@ class GraphSpec:
     """Specification for the data types carried on a graph"""
 
     def __init__(
-            self,
-            nodes: tensorial.IrrepsObj = None,
-            edges: tensorial.Tensorial = None,
-            globals: tensorial.Tensorial = None,
+        self,
+        nodes: tensorial.IrrepsObj = None,
+        edges: tensorial.Tensorial = None,
+        globals: tensorial.Tensorial = None,
     ):  # pylint: disable=redefined-builtin
         self._nodes = nodes
         self._edges = edges

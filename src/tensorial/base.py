@@ -126,12 +126,12 @@ def irreps(tensorial: Tensorial) -> e3j.Irreps:
 
 
 @irreps.register
-def _irreps(attr: Attr) -> e3j.Irreps:
+def _irreps_attr(attr: Attr) -> e3j.Irreps:
     return attr.irreps
 
 
 @irreps.register
-def _irreps(tensorial: e3j.Irreps) -> e3j.Irreps:
+def _irreps_irreps(tensorial: e3j.Irreps) -> e3j.Irreps:
     return tensorial
 
 
@@ -142,7 +142,7 @@ def create_tensor(tensorial: Tensorial, value: ValueType) -> e3j.IrrepsArray:
         # issubclass can fail if the value is not a class, so we guard against that here
         # and raise later with a more meaningful message
         is_subclass = issubclass(tensorial, IrrepsObj)
-    except TypeError as _exc:
+    except TypeError:
         pass  # Will raise at bottom of function
     else:
         if is_subclass:
@@ -152,31 +152,31 @@ def create_tensor(tensorial: Tensorial, value: ValueType) -> e3j.IrrepsArray:
 
 
 @create_tensor.register
-def _create_tensor(tensorial: IrrepsObj, value) -> e3j.IrrepsArray:
+def _create_tensor_irreps_obj(tensorial: IrrepsObj, value) -> e3j.IrrepsArray:
     return create_tensor(tensorial_attrs(tensorial), value)
 
 
 @create_tensor.register
-def _create_tensor(tensorial: dict, value) -> e3j.IrrepsArray:
+def _create_tensor_dict(tensorial: dict, value) -> e3j.IrrepsArray:
     return e3j.concatenate(
         [create_tensor(attr, value[key]) for key, attr in tensorial.items()],
     )
 
 
 @create_tensor.register
-def _create_tensor(tensorial: linen.FrozenDict, value):
+def _create_tensor_frozen_dict(tensorial: linen.FrozenDict, value):
     return create_tensor(tensorial.unfreeze(), value)
 
 
 @create_tensor.register
-def _create_tensor(  # pylint: disable=redefined-outer-name
+def _create_tensor_irreps(  # pylint: disable=redefined-outer-name
     irreps: e3j.Irreps, value: Array
 ) -> e3j.IrrepsArray:
     return e3j.IrrepsArray(irreps, value)
 
 
 @create_tensor.register
-def _create_tensor(attr: Attr, value) -> e3j.IrrepsArray:
+def _create_tensor_attr(attr: Attr, value) -> e3j.IrrepsArray:
     return attr.create_tensor(value)
 
 
@@ -187,7 +187,7 @@ def from_tensor(tensorial: Tensorial, value) -> ValueType:
         # issubclass can fail if the value is a class, so we guard against that here
         # and raise later with a more meaningful message
         is_subclass = issubclass(tensorial, IrrepsObj)
-    except TypeError as _exc:
+    except TypeError:
         pass  # Will raise at bottom of function
     else:
         if is_subclass:
@@ -197,12 +197,12 @@ def from_tensor(tensorial: Tensorial, value) -> ValueType:
 
 
 @from_tensor.register
-def _from_tensor(tensorial: IrrepsObj, value) -> dict[str, ValueType]:
+def _from_tensor_irreps_obj(tensorial: IrrepsObj, value) -> dict[str, ValueType]:
     return from_tensor(tensorial_attrs(tensorial), value)
 
 
 @from_tensor.register
-def _from_tensor(tensorial: dict, value: Array) -> dict[str, ValueType]:
+def _from_tensor_dict(tensorial: dict, value: Array) -> dict[str, ValueType]:
     dims = jnp.array(tuple(map(lambda val: irreps(val).dim, tensorial.values())))
     split_points = jnp.array(tuple(jnp.sum(dims[:i]) for i in range(len(dims) - 1)))
     split_value = jnp.split(value, split_points)
@@ -214,12 +214,12 @@ def _from_tensor(tensorial: dict, value: Array) -> dict[str, ValueType]:
 
 
 @from_tensor.register
-def _from_tensor(tensorial: linen.FrozenDict, value):
+def _from_tensor_frozen_dict(tensorial: linen.FrozenDict, value):
     return from_tensor(tensorial.unfreeze(), value)
 
 
 @from_tensor.register
-def _from_tensor(  # pylint: disable=redefined-outer-name
+def _from_tensor_irreps(  # pylint: disable=redefined-outer-name
     irreps: e3j.Irreps, value: e3j.IrrepsArray
 ) -> e3j.IrrepsArray:
     # Nothing to do
@@ -246,7 +246,7 @@ def tensorial_attrs(irreps_obj) -> dict[str, Tensorial]:
 
 
 @tensorial_attrs.register
-def _tensorial_attrs(irreps_obj: IrrepsObj) -> dict[str, Tensorial]:
+def _tensorial_attrs_irreps_obj(irreps_obj: IrrepsObj) -> dict[str, Tensorial]:
     """Get the irrep attributes for the passed object"""
     attrs = tensorial_attrs(type(irreps_obj))
     attrs.update(
@@ -260,12 +260,12 @@ def _tensorial_attrs(irreps_obj: IrrepsObj) -> dict[str, Tensorial]:
 
 
 @tensorial_attrs.register
-def _tensorial_attrs(irreps_obj: dict) -> dict[str, Tensorial]:
+def _tensorial_attrs_dict(irreps_obj: dict) -> dict[str, Tensorial]:
     return {name: val for name, val in irreps_obj.items() if not name.startswith("_")}
 
 
 @tensorial_attrs.register
-def _tensorial_attrs(irreps_obj: linen.FrozenDict) -> dict[str, Tensorial]:
+def _tensorial_attrs_frozen_dict(irreps_obj: linen.FrozenDict) -> dict[str, Tensorial]:
     return tensorial_attrs(irreps_obj.unfreeze())
 
 

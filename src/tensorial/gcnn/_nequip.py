@@ -70,14 +70,14 @@ class InteractionBlock(linen.Module):
     @linen.compact
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
-            self,
-            node_features: typing.IrrepsArrayShape["n_nodes irreps"],
-            edge_features: typing.IrrepsArrayShape["n_edges edge_irreps"],
-            radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding_dim"],
-            senders: typing.IndexArray["n_edges"],
-            receivers: typing.IndexArray["n_edges"],
-            node_species: Optional[jt.Int[jax.Array, "n_nodes"]] = None,
-            edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
+        self,
+        node_features: typing.IrrepsArrayShape["n_nodes irreps"],
+        edge_features: typing.IrrepsArrayShape["n_edges edge_irreps"],
+        radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding_dim"],
+        senders: typing.IndexArray["n_edges"],
+        receivers: typing.IndexArray["n_edges"],
+        node_species: Optional[jt.Int[jax.Array, "n_nodes"]] = None,
+        edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
     ) -> e3j.IrrepsArray:
         """
         A NequIP interaction made up of the following steps:
@@ -167,7 +167,7 @@ class NequipLayer(linen.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     @_base.shape_check
     def __call__(
-            self, graph: jraph.GraphsTuple
+        self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         """
         Apply a standard NequIP layer followed by an optional resnet step

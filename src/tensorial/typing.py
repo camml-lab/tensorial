@@ -42,7 +42,7 @@ IntoIrreps = Union[
     e3j.MulIrrep,
     str,
     e3j.Irreps,
-    Sequence[Union[str, e3j.Irrep, e3j.MulIrrep, tuple[int, "IntoIrrep"]]],
+    Sequence[Union[str, e3j.Irrep, e3j.MulIrrep, tuple[int, "IntoIrreps"]]],
 ]
 # "IrrepsArray with explicit shape"
 IrrepsArrayShape = _Helper(e3j.IrrepsArray, jt.Float)

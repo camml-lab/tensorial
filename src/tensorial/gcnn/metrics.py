@@ -16,7 +16,7 @@ __all__ = ("GraphMetric", "graph_metric")
 
 
 def graph_metric(
-    metric: Union[reax.Metric, type[reax.Metric]],
+    metric: Union[str, reax.Metric, type[reax.Metric]],
     predictions: _typing.TreePathLike,
     targets: Optional[_typing.TreePathLike] = None,
     mask: Optional[_typing.TreePathLike] = None,
@@ -29,7 +29,7 @@ def graph_metric(
     norm_by = _tree.path_to_str(normalise_by) if normalise_by is not None else None
 
     class _GraphMetric(GraphMetric):
-        parent = metric
+        parent = reax.metrics.get(metric)
         pred_key = predictions_from
         target_key = targets_from
         mask_key = mask_from
