@@ -58,7 +58,7 @@ class GraphMetric(reax.Metric):
     parent: ClassVar[reax.Metric]
     pred_key: ClassVar[_typing.TreePathLike]
     target_key: ClassVar[Optional[_typing.TreePathLike]] = None
-    mask_key: ClassVar[Optional[_typing.TreePathLike]] = None
+    mask_key: ClassVar[Optional[_typing.TreePathLike]] = "auto"
     normalise_by: ClassVar[Optional[_typing.TreePathLike]] = None
 
     _state: Optional[reax.Metric[OutT]]
@@ -90,8 +90,14 @@ class GraphMetric(reax.Metric):
 
         mask = None
         if self.mask_key is not None:
+            if self.mask_key == "auto":
+                pred_key = _tree.path_from_str(self.pred_key)
+                mask_key = pred_key + ("mask",)
+            else:
+                mask_key = self.mask_key
+
             # todo: add check to this for what happens if mask doesn't exist
-            mask = _tree.get(predictions, self.mask_key)
+            mask = _tree.get(predictions, mask_key)
 
         if self.normalise_by is not None:
             pred = mdiv(pred, _tree.get(predictions, self.normalise_by), where=mask)

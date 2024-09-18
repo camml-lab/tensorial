@@ -306,7 +306,7 @@ class TypeContributionLstsq(reax.metrics.Metric[jax.typing.ArrayLike]):
         mask: jt.Bool[typing.ArrayType, "batch_size ..."] = None,
     ) -> "TypeContributionLstsq":
         if self.is_empty:
-            return self.create(type_counts, values)
+            return self.create(type_counts, values)  # pylint: disable=not-callable
 
         return TypeContributionLstsq(
             type_counts=jnp.stack((self.type_counts, values)),
@@ -353,7 +353,7 @@ class EnergyContributionLstsq(reax.Metric):
         return EnergyContributionLstsq(self._type_map)
 
     def merge(self, other: "EnergyContributionLstsq") -> "EnergyContributionLstsq":
-        if other._metric is None:
+        if other._metric is None:  # pylint: disable=protected-access
             return self
         if self._metric is None:
             return other
@@ -366,7 +366,7 @@ class EnergyContributionLstsq(reax.Metric):
     def create(  # pylint: disable=arguments-differ
         self, graphs: jraph.GraphsTuple, *_
     ) -> "EnergyContributionLstsq":
-        val = self._fun(graphs)
+        val = self._fun(graphs)  # pylint: disable=not-callable
         return type(self)(type_map=self._type_map, metric=TypeContributionLstsq(*val))
 
     def update(  # pylint: disable=arguments-differ
@@ -375,7 +375,7 @@ class EnergyContributionLstsq(reax.Metric):
         if self._metric is None:
             return self.create(graphs)
 
-        val = self._fun(graphs)
+        val = self._fun(graphs)  # pylint: disable=not-callable
         return EnergyContributionLstsq(type_map=self._type_map, metric=self._metric.update(*val))
 
     def compute(self):

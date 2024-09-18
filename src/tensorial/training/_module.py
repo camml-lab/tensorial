@@ -1,9 +1,10 @@
 import functools
-from typing import Any, Callable, Optional, cast
+from typing import Callable, Optional, cast
 
 from flax import linen
 import hydra
 import jax
+import jaxtyping as jt
 import jraph
 import omegaconf
 import reax
@@ -69,12 +70,12 @@ class TrainingModule(reax.Module):
         (loss, metrics), grads = jax.value_and_grad(self.step, argnums=0, has_aux=True)(
             self.parameters(), inputs, outputs, self._model.apply, self._loss_fn, self._metrics
         )
-        self.log("loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=True)
 
         if metrics:
             metrics = cast(dict[str, reax.Metric], metrics)
             for name, metric in metrics.items():
-                self.log(name, metric, on_step=True, prog_bar=True)
+                self.log(name, metric, on_step=False, on_epoch=True, logger=True, prog_bar=False)
 
         return loss, grads
 
@@ -86,20 +87,20 @@ class TrainingModule(reax.Module):
         loss, metrics = self.step(
             self.parameters(), inputs, outputs, self._model.apply, self._loss_fn, self._metrics
         )
-        self.log("loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=True)
 
         if metrics is not None:
             metrics = cast(reax.metrics.MetricCollection, metrics)
             for name, metric in metrics.items():
-                self.log(name, metric, on_step=True, prog_bar=True)
+                self.log(name, metric, on_step=False, on_epoch=True, logger=True, prog_bar=False)
 
     @staticmethod
     @functools.partial(jax.jit, static_argnums=[3, 4, 5])
     def step(
-        params,
+        params: jt.PyTree,
         inputs: jraph.GraphsTuple,
         _targets: jraph.GraphsTuple,
-        model: Callable[[Any, jraph.GraphsTuple], jraph.GraphsTuple],
+        model: Callable[[jt.PyTree, jraph.GraphsTuple], jraph.GraphsTuple],
         loss_fn: Callable,
         metrics: Optional[reax.metrics.MetricCollection] = None,
     ) -> tuple[jax.Array, Optional[reax.metrics.MetricCollection]]:
