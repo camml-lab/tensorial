@@ -27,8 +27,8 @@ class TrainingModule(reax.Module):
         super().__init__()
         self._cfg = config
 
-    def setup(self, stage: str):
-        if stage == "training" and self.parameters() is None:
+    def setup(self, stage: reax.Stage):
+        if isinstance(stage, reax.stages.Train) and self.parameters() is None:
             # Calculate any statistics that the model will need to be configured
             if self._cfg.get("from_data"):
                 calculate_stats(self._cfg.from_data, self.trainer.train_dataloader)
