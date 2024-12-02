@@ -8,6 +8,7 @@ import jaxtyping as jt
 import jraph
 import omegaconf
 import reax
+from reax.modules import BatchT, OutputT_co
 import reax.utils
 
 from tensorial import config as config_
@@ -21,7 +22,7 @@ LossFn = Callable[[jraph.GraphsTuple, jraph.GraphsTuple], jax.Array]
 class TrainingModule(reax.Module):
     _loss_fn: LossFn
     _metrics: Optional[reax.metrics.MetricCollection] = None
-    _model: linen.Module
+    _model: linen.Module = None
 
     def __init__(self, config: omegaconf.DictConfig):
         super().__init__()
@@ -29,7 +30,7 @@ class TrainingModule(reax.Module):
 
     def setup(self, stage: reax.Stage):
         if isinstance(stage, reax.stages.Train) and self.parameters() is None:
-            # Calculate any statistics that the model will need to be configured
+            # Calculate any statistics that the model will need in order to be configured
             if self._cfg.get("from_data"):
                 calculate_stats(self._cfg.from_data, self.trainer.train_dataloader)
 
@@ -53,6 +54,10 @@ class TrainingModule(reax.Module):
                 inputs = batch[0]
             params = self._model.init(self.rng_key(), inputs)
             self.set_parameters(params)
+
+        elif self._model is None:
+            # Create the model
+            self._model = config_.create_module(self._cfg.model)
 
     def configure_optimizers(self):
         assert self.parameters() is not None  # nosec B101
@@ -93,6 +98,10 @@ class TrainingModule(reax.Module):
             metrics = cast(reax.metrics.MetricCollection, metrics)
             for name, metric in metrics.items():
                 self.log(name, metric, on_step=False, on_epoch=True, logger=True, prog_bar=False)
+
+    def predict_step(self, batch: jraph.GraphsTuple, batch_idx: int) -> jraph.GraphsTuple:
+        inputs, _outputs = batch
+        return self._model.apply(self.parameters(), inputs)
 
     @staticmethod
     @functools.partial(jax.jit, static_argnums=[3, 4, 5])
@@ -143,7 +152,7 @@ def calculate_stats(
         to_calculate[label] = stat
 
     # Calculate the statistics
-    calculated = reax.metrics.evaluate_stats(to_calculate, training_data)
+    calculated = reax.evaluate_stats(to_calculate, training_data)
 
     # Convert to types that can be used by omegaconf and update the configuration with the values
     calculated = {label: reax.utils.arrays.to_base(stat) for label, stat in calculated.items()}
@@ -161,7 +170,7 @@ def calculate_stats(
         to_calculate[label] = stat
 
     # Calculate the statistics
-    calculated = reax.metrics.evaluate_stats(to_calculate, training_data)
+    calculated = reax.evaluate_stats(to_calculate, training_data)
 
     # Convert to types that can be used by omegaconf and update the configuration with the values
     calculated = {label: reax.utils.arrays.to_base(stat) for label, stat in calculated.items()}
