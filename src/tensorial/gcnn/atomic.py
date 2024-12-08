@@ -386,7 +386,7 @@ class EnergyContributionLstsq(reax.Metric):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def _fun(self, graphs: jraph.GraphsTuple, *_) -> tuple[
-        jt.Float[typing.ArrayType, "batch_size 1"],
+        jt.Float[typing.ArrayType, "batch_size k"],
         jt.Float[typing.ArrayType, "batch_size 1"],
         Optional[jt.Bool[typing.ArrayType, "batch_size"]],
     ]:

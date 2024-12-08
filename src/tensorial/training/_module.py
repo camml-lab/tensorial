@@ -32,7 +32,7 @@ class TrainingModule(reax.Module):
         if isinstance(stage, reax.stages.Train) and self.parameters() is None:
             # Calculate any statistics that the model will need in order to be configured
             if self._cfg.get("from_data"):
-                calculate_stats(self._cfg.from_data, self.trainer.train_dataloader)
+                calculate_stats(self._cfg.from_data, stage.dataloader)
 
             train_cfg = self._cfg.training
 
@@ -48,7 +48,7 @@ class TrainingModule(reax.Module):
             # Create and initialise the model
             self._model = config_.create_module(self._cfg.model)
 
-            batch = next(iter(self.trainer.train_dataloader))
+            batch = next(iter(stage.dataloader))
             inputs = batch
             if isinstance(batch, tuple):
                 inputs = batch[0]
@@ -75,12 +75,22 @@ class TrainingModule(reax.Module):
         (loss, metrics), grads = jax.value_and_grad(self.step, argnums=0, has_aux=True)(
             self.parameters(), inputs, outputs, self._model.apply, self._loss_fn, self._metrics
         )
-        self.log("loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=True)
+        have_metrics = metrics is not None
+        self.log(
+            "train.loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=not have_metrics
+        )
 
         if metrics:
             metrics = cast(dict[str, reax.Metric], metrics)
             for name, metric in metrics.items():
-                self.log(name, metric, on_step=False, on_epoch=True, logger=True, prog_bar=False)
+                self.log(
+                    f"train.{name}",
+                    metric,
+                    on_step=False,
+                    on_epoch=True,
+                    logger=True,
+                    prog_bar=True,
+                )
 
         return loss, grads
 
@@ -92,12 +102,22 @@ class TrainingModule(reax.Module):
         loss, metrics = self.step(
             self.parameters(), inputs, outputs, self._model.apply, self._loss_fn, self._metrics
         )
-        self.log("loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=True)
+        have_metrics = metrics is not None
+        self.log(
+            "val.loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=not have_metrics
+        )
 
-        if metrics is not None:
+        if have_metrics:
             metrics = cast(reax.metrics.MetricCollection, metrics)
             for name, metric in metrics.items():
-                self.log(name, metric, on_step=False, on_epoch=True, logger=True, prog_bar=False)
+                self.log(
+                    f"val.{name}",
+                    metric,
+                    on_step=False,
+                    on_epoch=True,
+                    logger=True,
+                    prog_bar=True,
+                )
 
     def predict_step(self, batch: jraph.GraphsTuple, batch_idx: int) -> jraph.GraphsTuple:
         inputs, _outputs = batch
@@ -169,13 +189,14 @@ def calculate_stats(
 
         to_calculate[label] = stat
 
-    # Calculate the statistics
-    calculated = reax.evaluate_stats(to_calculate, training_data)
+    if to_calculate:
+        # Calculate the dependent statistics
+        calculated = reax.evaluate_stats(to_calculate, training_data)
 
-    # Convert to types that can be used by omegaconf and update the configuration with the values
-    calculated = {label: reax.utils.arrays.to_base(stat) for label, stat in calculated.items()}
+        # Convert to types that can be used by omegaconf and update the configuration with the values
+        calculated = {label: reax.utils.arrays.to_base(stat) for label, stat in calculated.items()}
 
-    from_data.update(calculated)
+        from_data.update(calculated)
 
 
 def find_iterpol(root, path=()):
