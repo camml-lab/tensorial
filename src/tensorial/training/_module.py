@@ -7,6 +7,7 @@ import jax
 import jaxtyping as jt
 import jraph
 import omegaconf
+import orbax.checkpoint as ocp
 import reax
 from reax.modules import BatchT, OutputT_co
 import reax.utils
@@ -22,11 +23,28 @@ LossFn = Callable[[jraph.GraphsTuple, jraph.GraphsTuple], jax.Array]
 class TrainingModule(reax.Module):
     _loss_fn: LossFn
     _metrics: Optional[reax.metrics.MetricCollection] = None
-    _model: linen.Module = None
+    _model: Optional[linen.Module] = None
 
     def __init__(self, config: omegaconf.DictConfig):
         super().__init__()
         self._cfg = config
+
+    def create_and_init_model(self, example_inputs):
+        """Create the model and initialise parameters"""
+        self._model = config_.create_module(self._cfg.model)
+        params = self._model.init(self.rng_key(), example_inputs)
+        self.set_parameters(params)
+
+    def load_checkpoint(self, checkpoint_path, example_inputs):
+        if self._model is None:
+            self.create_and_init_model(example_inputs)
+
+        assert self.parameters() is not None
+        abstract_state = jax.tree_util.tree_map(ocp.utils.to_shape_dtype_struct, self.parameters())
+        ckptr = ocp.AsyncCheckpointer(ocp.StandardCheckpointHandler())
+        restored = ckptr.restore(
+            checkpoint_path / "1", args=ocp.args.StandardRestore(abstract_state)
+        )
 
     def setup(self, stage: reax.Stage):
         if isinstance(stage, reax.stages.Train) and self.parameters() is None:
@@ -45,16 +63,12 @@ class TrainingModule(reax.Module):
                     config_.create_metrics(train_cfg.metrics)
                 )
 
-            # Create and initialise the model
-            self._model = config_.create_module(self._cfg.model)
-
             batch = next(iter(stage.dataloader))
             inputs = batch
             if isinstance(batch, tuple):
                 inputs = batch[0]
-            params = self._model.init(self.rng_key(), inputs)
-            self.set_parameters(params)
 
+            self.create_and_init_model(inputs)
         elif self._model is None:
             # Create the model
             self._model = config_.create_module(self._cfg.model)
