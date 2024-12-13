@@ -5,6 +5,7 @@ import clu.metrics
 from flax import linen
 import jax
 import optax
+import reax.metrics
 
 import tensorial
 from tensorial import training
@@ -42,10 +43,10 @@ def test_trainer(rng_key):
     model = linen.linear.Dense(features=features)
     params = model.init(keys[4], train.first()[0])
 
-    metrics = tensorial.metrics.MetricCollection(
+    metrics = reax.metrics.MetricCollection(
         dict(
-            loss=clu.metrics.Average.from_output("loss"),
-            loss_std=clu.metrics.Std.from_output("loss"),
+            rmse=reax.metrics.RootMeanSquareError(),
+            mae=reax.metrics.MeanAbsoluteError(),
         )
     )
 
@@ -63,11 +64,11 @@ def test_trainer(rng_key):
     assert trainer.train(max_epochs=num_epochs) == training.TRAIN_MAX_EPOCHS
     assert trainer.epoch == num_epochs
     # Check that metrics have been computed for teh last step
-    assert "loss" in trainer.train_metrics
-    assert "loss_std" in trainer.train_metrics
+    assert "rmse" in trainer.train_metrics
+    assert "mae" in trainer.train_metrics
 
-    assert "loss" in trainer.validate_metrics
-    assert "loss_std" in trainer.validate_metrics
+    assert "rmse" in trainer.validate_metrics
+    assert "mae" in trainer.validate_metrics
 
 
 def test_trainer_early_stop(rng_key):

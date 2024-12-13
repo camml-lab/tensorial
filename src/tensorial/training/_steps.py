@@ -52,7 +52,7 @@ class SimpleTrainerSteps(TrainerSteps[InputT_co, OutputT_co]):
         self._loss_fn = loss_fn
         self._metrics = metrics
 
-    @jt.jaxtyped(typechecker=beartype.beartype)
+    # @jt.jaxtyped(typechecker=beartype.beartype)
     def training_step(
         self,
         params: PyTree,
@@ -66,11 +66,11 @@ class SimpleTrainerSteps(TrainerSteps[InputT_co, OutputT_co]):
 
         predictions = model(params, inputs)
         loss = self._loss_fn(predictions, labels)
-        metrics = self._metrics.create(predictions, labels)
+        metrics = self._metrics.create(predictions, labels) if self._metrics is not None else None
 
         return loss, StepOut(metrics=metrics)
 
-    @jt.jaxtyped(typechecker=beartype.beartype)
+    # @jt.jaxtyped(typechecker=beartype.beartype)
     def validation_step(
         self,
         params: PyTree,

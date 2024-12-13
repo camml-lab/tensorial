@@ -87,9 +87,10 @@ class Trainer(Generic[InputT_co, OutputT_co]):
         self.add_listener(self._logger)
         self._overfitting = _listeners.EarlyStopping(overfitting_window)
 
-        self._steps = _steps.SimpleModule(self._loss_fn, metrics)
+        metrics = metrics if metrics is not None else reax.metrics.MetricCollection({})
+        self._steps = _steps.SimpleTrainerSteps(self._loss_fn, metrics)
 
-        self._train_step = jax.grad(self._steps.training_step, argnums=0, has_aux=True)
+        self._train_step = jax.value_and_grad(self._steps.training_step, argnums=0, has_aux=True)
         # Use bitmask to see if the users wants to jit calls to the model
         if jit & JIT_TRAIN:
             self._train_step = jax.jit(self._train_step, static_argnums=1)
@@ -161,16 +162,18 @@ class Trainer(Generic[InputT_co, OutputT_co]):
                 self._events.fire_event(_listeners.TrainerListener.on_epoch_starting, self, epoch)
 
                 # Iterate over training batches
-                metrics = None
                 state = self._train_state
+                avg_loss = reax.metrics.Average()
                 for batch_idx, batch in enumerate(self._train_data):
-                    grads, outs = self._train_step(state.params, state.apply_fn, batch)
+                    ((loss, outs), grads) = self._train_step(state.params, state.apply_fn, batch)
                     # Update state
                     state = state.apply_gradients(grads=grads)
                     # Update metrics
-                    metrics = outs.metric if batch_idx == 0 else metrics.merge(outs.metric)
+                    metrics = outs.metrics if batch_idx == 0 else metrics.merge(outs.metrics)
+                    avg_loss = avg_loss.update(loss)
 
                 self._train_metrics = metrics.compute()
+                self._train_metrics.setdefault("loss", avg_loss.compute())
 
                 # Now update out state
                 self._train_state = state
@@ -178,11 +181,14 @@ class Trainer(Generic[InputT_co, OutputT_co]):
                 if self._validate_data is not None:
                     # Now do validation pass
                     metrics = None
+                    avg_loss = reax.metrics.Average()
                     for batch_idx, batch in enumerate(self._train_data):
-                        _loss, outs = self._eval_step(state.params, state.apply_fn, batch)
-                        metrics = outs.metric if batch_idx == 0 else metrics.merge(outs.metric)
+                        loss, outs = self._eval_step(state.params, state.apply_fn, batch)
+                        metrics = outs.metrics if batch_idx == 0 else metrics.merge(outs.metrics)
+                        avg_loss = avg_loss.update(loss)
 
                     self._validate_metrics = metrics.compute()
+                    self._validate_metrics.setdefault("loss", avg_loss.compute())
 
                 self._events.fire_event(_listeners.TrainerListener.on_epoch_finishing, self, epoch)
                 # Tell everyone that the epoch is finishing

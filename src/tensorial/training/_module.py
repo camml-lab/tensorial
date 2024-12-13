@@ -35,17 +35,6 @@ class TrainingModule(reax.Module):
         params = self._model.init(self.rng_key(), example_inputs)
         self.set_parameters(params)
 
-    def load_checkpoint(self, checkpoint_path, example_inputs):
-        if self._model is None:
-            self.create_and_init_model(example_inputs)
-
-        assert self.parameters() is not None
-        abstract_state = jax.tree_util.tree_map(ocp.utils.to_shape_dtype_struct, self.parameters())
-        ckptr = ocp.AsyncCheckpointer(ocp.StandardCheckpointHandler())
-        restored = ckptr.restore(
-            checkpoint_path / "1", args=ocp.args.StandardRestore(abstract_state)
-        )
-
     def setup(self, stage: reax.Stage):
         if isinstance(stage, reax.stages.Train) and self.parameters() is None:
             # Calculate any statistics that the model will need in order to be configured

@@ -9,7 +9,7 @@ from tensorial.gcnn import keys
 
 def test_grads():
     def get_norms(pos):
-        graph = gcnn.with_edge_vectors(gcnn.graph_from_points(pos, r_max=2.0))
+        graph = gcnn.with_edge_vectors(gcnn.graph_from_points(pos, r_max=2.0, np_=jnp))
         return tensorial.as_array(graph.edges[keys.EDGE_LENGTHS])[0, 0]
 
     pos = jnp.array(

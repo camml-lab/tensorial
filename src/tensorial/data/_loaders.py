@@ -4,6 +4,7 @@ from typing import TypeVar, Union
 import beartype
 import jax
 import jaxtyping as jt
+import numpy as np
 
 from . import _types, samplers
 
@@ -45,7 +46,7 @@ class ArrayLoader(Iterable[ArrayOrArrayTuple]):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __iter__(self) -> Iterator[ArrayOrArrayTuple]:
         for idx in self._sampler:
-            value = tuple(array[idx] for array in self._arrays)
+            value = tuple(array.take(np.array(idx), axis=0) for array in self._arrays)
             yield _single_or_value(value, self._arrays)
 
     @jt.jaxtyped(typechecker=beartype.beartype)

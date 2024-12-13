@@ -38,13 +38,13 @@ def test_mace(cube_graph: jraph.GraphsTuple):
 
     params = model.init(jax.random.PRNGKey(0), cube_graph)
 
-    def wrapper(positions):
-        cube_graph.nodes[gcnn.keys.POSITIONS] = positions
+    def wrapper(positions: e3j.IrrepsArray) -> e3j.IrrepsArray:
+        cube_graph.nodes[gcnn.keys.POSITIONS] = positions.array
         outs = model.apply(params, cube_graph)
-        return e3j.sum(outs.nodes[gcnn.atomic.ENERGY_PER_ATOM], axis=1)
+        return e3j.as_irreps_array(e3j.sum(outs.nodes[gcnn.atomic.ENERGY_PER_ATOM], axis=1))
 
     e3j.utils.assert_equivariant(
         wrapper,
         jax.random.PRNGKey(1),
-        cube_graph.nodes[gcnn.keys.POSITIONS],
+        e3j.IrrepsArray("1o", cube_graph.nodes[gcnn.keys.POSITIONS]),
     )

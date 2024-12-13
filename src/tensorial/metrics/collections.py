@@ -4,8 +4,7 @@ import beartype
 import equinox
 import flax.core
 import jaxtyping as jt
-
-from .metric import Metric
+from reax.metrics import Metric
 
 __all__ = ("MetricCollection",)
 
