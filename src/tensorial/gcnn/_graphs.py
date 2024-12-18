@@ -4,7 +4,6 @@ from typing import Optional, Union
 
 import beartype
 import e3nn_jax as e3j
-import equinox
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
@@ -12,7 +11,7 @@ import jraph
 import numpy as np
 
 import tensorial
-from tensorial import distances, nn_utils, typing
+from tensorial import geometry, nn_utils, typing
 
 from . import keys
 
@@ -84,25 +83,11 @@ def graph_from_points(
         # non-periodic coordinates are already Cartesian)
         pos[:, pbc] = (pos @ cell)[pbc]
 
-    neighbour_finder = distances.neighbour_finder(
-        r_max,
-        cell,
-        pbc=pbc,
-        include_self=strict_self_interaction,
-        include_images=self_interaction,
+    neighbour_finder = geometry.neighbour_finder(
+        r_max, cell, pbc=pbc, include_self=strict_self_interaction
     )
-    get_neighbours = equinox.filter_jit(neighbour_finder.get_neighbours)
-    neighbour_list = get_neighbours(pos, max_neighbours=neighbour_finder.estimate_neighbours(pos))
-    if neighbour_list.did_overflow:
-        _LOGGER.info(
-            "Neighbour list was too small (%i) for amount of actual neighbours (%i), "
-            "recalculating.",
-            neighbour_list.max_neighbours,
-            neighbour_list.actual_max_neighbours,
-        )
-        neighbour_list = neighbour_list.reallocate(pos)
-
-    from_idx, to_idx, cell_shifts = neighbour_list.get_edges()
+    neighbour_list = neighbour_finder.get_neighbours(pos)
+    from_idx, to_idx, cell_shifts = tuple(map(np_.array, neighbour_list.get_edges()))
 
     nodes[keys.POSITIONS] = pos
 

@@ -28,7 +28,9 @@ def cube_graph() -> jraph.GraphsTuple:
         gcnn.keys.ATTRIBUTES: e3j.as_irreps_array(jax.nn.one_hot(node_species, len(pts))),
     }
 
-    graph = gcnn.graph_from_points(pts, r_max=2.0, nodes=nodes)  # We don't connect across diagonals
+    graph = gcnn.graph_from_points(
+        pts, r_max=2.01, nodes=nodes
+    )  # We don't connect across diagonals
     assert graph.n_node[0] == 8
     # Graph contains two edges for along each edge of the cube i.e. i->j, j->i
     assert graph.n_edge[0] == 24
