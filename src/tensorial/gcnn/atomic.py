@@ -394,12 +394,14 @@ class EnergyContributionLstsq(reax.Metric):
         num_nodes = graphs.n_node
 
         types = tree.get_by_path(graph_dict, ("nodes", ATOMIC_NUMBERS))
-        if self._type_map is not None:
+        if self._type_map is None:
+            num_classes = types.max().item() + 1  # Assume the types go 0,1,2...N
+        else:
             # Transform the atomic numbers into from whatever they are to 0, 1, 2....
             vwhere = jax.vmap(lambda num: jnp.argwhere(num == self._type_map, size=1)[0])
             types = vwhere(types)[:, 0]
+            num_classes = len(self._type_map)
 
-        num_classes = types.max().item() + 1  # Assume the types go 0,1,2...N
         one_hots = jax.nn.one_hot(types, num_classes)
 
         # TODO: make it so we don't need to set the value in the graph

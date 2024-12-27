@@ -1,6 +1,7 @@
 import functools
 from typing import Callable, Optional, cast
 
+import equinox as eqx
 from flax import linen
 import hydra
 import jax
@@ -124,10 +125,10 @@ class TrainingModule(reax.Module):
 
     def predict_step(self, batch: jraph.GraphsTuple, batch_idx: int) -> jraph.GraphsTuple:
         inputs, _outputs = batch
-        return self._model.apply(self.parameters(), inputs)
+        return eqx.filter_jit(donate="all")(self._model.apply)(self.parameters(), inputs)
 
     @staticmethod
-    @functools.partial(jax.jit, static_argnums=[3, 4, 5])
+    @eqx.filter_jit(donate="all")
     def step(
         params: jt.PyTree,
         inputs: jraph.GraphsTuple,
@@ -144,7 +145,7 @@ class TrainingModule(reax.Module):
         return loss_fn(predictions, inputs), metrics
 
     @staticmethod
-    @functools.partial(jax.jit, static_argnums=2)
+    @eqx.filter_jit(donate="all")
     def calculate_metrics(
         predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple, metrics: MetricsDict
     ) -> dict[str, reax.Metric]:
