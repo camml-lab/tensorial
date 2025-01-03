@@ -36,11 +36,18 @@ class TrainingModule(reax.Module):
         params = self._model.init(self.rng_key(), example_inputs)
         self.set_parameters(params)
 
-    def setup(self, stage: reax.Stage):
-        if isinstance(stage, reax.stages.Train) and self.parameters() is None:
+    def setup(self, stage: reax.Stage, batch):
+        if self.parameters() is None:
             # Calculate any statistics that the model will need in order to be configured
             if self._cfg.get("from_data"):
-                calculate_stats(self._cfg.from_data, stage.dataloader)
+                if isinstance(stage, reax.stages.Fit):
+                    dataloader = stage.train_dataloader
+                elif isinstance(stage, reax.stages.EpochStage):
+                    dataloader = stage.dataloader
+                else:
+                    raise RuntimeError(f"Module could not find dataloader from stage {stage}")
+
+                calculate_stats(self._cfg.from_data, dataloader)
 
             train_cfg = self._cfg.training
 
@@ -53,7 +60,6 @@ class TrainingModule(reax.Module):
                     config_.create_metrics(train_cfg.metrics)
                 )
 
-            batch = next(iter(stage.dataloader))
             inputs = batch
             if isinstance(batch, tuple):
                 inputs = batch[0]
