@@ -63,6 +63,10 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
                 inputs = batch[0]
 
             self.create_and_init_model(inputs)
+
+            logger = self.trainer.logger
+            if logger is not None:
+                logger.log_hyperparams(omegaconf.OmegaConf.to_container(self._cfg, resolve=True))
         elif self._model is None:
             # Create the model
             self._model = config_.create_module(self._cfg.model)
