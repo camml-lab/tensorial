@@ -225,12 +225,13 @@ class InteractionBlock(linen.Module):
         radial_embedding: jt.Float[jnp.ndarray, "n_edges radial_embeddings"],
         senders: typing.IndexArray["n_edges"],
         receivers: typing.IndexArray["n_edges"],
+        *,
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
     ) -> typing.IrrepsArrayShape["n_nodes target_irreps"]:
         node_features = e3j.flax.Linear(node_features.irreps, name="linear_up")(node_features)
 
         node_features = self._message_passing(
-            node_features, edge_features, radial_embedding, senders, receivers, edge_mask
+            node_features, edge_features, radial_embedding, senders, receivers, edge_mask=edge_mask
         )
 
         node_features = self._linear_down(node_features)
@@ -336,6 +337,7 @@ class MaceLayer(linen.Module):
         radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding"],
         senders: jt.Int[jax.typing.ArrayLike, "n_edges"],
         receivers: jt.Int[jax.typing.ArrayLike, "n_edges"],
+        *,
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
     ) -> typing.IrrepsArrayShape["n_nodes node_irreps_out"]:
         skip_connection: Optional[typing.IrrepsArrayShape["n_nodes feature*hidden_irreps"]] = None

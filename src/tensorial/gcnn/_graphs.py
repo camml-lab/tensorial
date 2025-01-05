@@ -24,6 +24,7 @@ __all__ = ("graph_from_points", "with_edge_vectors")
 def graph_from_points(
     pos: jt.Float[jax.typing.ArrayLike, "n_nodes 3"],
     r_max: numbers.Number,
+    *,
     fractional_positions: bool = False,
     self_interaction: bool = True,
     strict_self_interaction: bool = False,
@@ -84,7 +85,11 @@ def graph_from_points(
         pos[:, pbc] = (pos @ cell)[pbc]
 
     neighbour_finder = geometry.neighbour_finder(
-        r_max, cell, pbc=pbc, include_self=strict_self_interaction
+        r_max,
+        cell,
+        pbc=pbc,
+        include_self=strict_self_interaction,
+        include_images=self_interaction,
     )
     neighbour_list = neighbour_finder.get_neighbours(pos)
     from_idx, to_idx, cell_shifts = tuple(map(np_.array, neighbour_list.get_edges()))

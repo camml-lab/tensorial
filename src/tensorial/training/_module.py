@@ -1,4 +1,3 @@
-import functools
 from typing import Callable, Optional, cast
 
 import equinox as eqx
@@ -8,10 +7,9 @@ import jax
 import jaxtyping as jt
 import jraph
 import omegaconf
-import orbax.checkpoint as ocp
 import reax
-from reax.modules import BatchT, OutputT_co
 import reax.utils
+from typing_extensions import override
 
 from tensorial import config as config_
 
@@ -21,7 +19,7 @@ MetricsDict = dict[str, reax.Metric]
 LossFn = Callable[[jraph.GraphsTuple, jraph.GraphsTuple], jax.Array]
 
 
-class TrainingModule(reax.Module):
+class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
     _loss_fn: LossFn
     _metrics: Optional[reax.metrics.MetricCollection] = None
     _model: Optional[linen.Module] = None
@@ -36,7 +34,7 @@ class TrainingModule(reax.Module):
         params = self._model.init(self.rng_key(), example_inputs)
         self.set_parameters(params)
 
-    def setup(self, stage: reax.Stage, batch):
+    def setup(self, stage: reax.Stage, batch, /):
         if self.parameters() is None:
             # Calculate any statistics that the model will need in order to be configured
             if self._cfg.get("from_data"):
@@ -76,7 +74,7 @@ class TrainingModule(reax.Module):
         return optimiser, state
 
     def training_step(
-        self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int
+        self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int, /
     ) -> tuple[jax.Array, jax.Array]:
         inputs, outputs = batch
         if outputs is None:
@@ -104,7 +102,10 @@ class TrainingModule(reax.Module):
 
         return loss, grads
 
-    def validation_step(self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int):
+    @override
+    def validation_step(
+        self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int, /
+    ):
         inputs, outputs = batch
         if outputs is None:
             outputs = inputs
@@ -129,7 +130,8 @@ class TrainingModule(reax.Module):
                     prog_bar=True,
                 )
 
-    def predict_step(self, batch: jraph.GraphsTuple, batch_idx: int) -> jraph.GraphsTuple:
+    @override
+    def predict_step(self, batch: jraph.GraphsTuple, batch_idx: int, /) -> jraph.GraphsTuple:
         inputs, _outputs = batch
         return eqx.filter_jit(donate="all")(self._model.apply)(self.parameters(), inputs)
 
@@ -203,7 +205,8 @@ def calculate_stats(
         # Calculate the dependent statistics
         calculated = reax.evaluate_stats(to_calculate, training_data)
 
-        # Convert to types that can be used by omegaconf and update the configuration with the values
+        # Convert to types that can be used by omegaconf and update the configuration with the
+        # values
         calculated = {label: reax.utils.arrays.to_base(stat) for label, stat in calculated.items()}
 
         from_data.update(calculated)

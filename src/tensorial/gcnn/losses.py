@@ -63,6 +63,7 @@ class Loss(GraphLoss):
         field: str,
         target_field: str = None,
         loss_fn: Union[str, PureLossFn] = optax.squared_error,
+        *,
         reduction: Optional[Literal["sum", "mean"]] = "mean",
         label: str = None,
         mask_field: str = None,

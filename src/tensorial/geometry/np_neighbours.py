@@ -6,6 +6,7 @@ import jax.typing
 import jaxtyping as jt
 import numpy as np
 import scipy.spatial.distance as ssd
+from typing_extensions import override
 
 from . import distances, unit_cells
 from .. import typing
@@ -84,9 +85,13 @@ class NeighbourList(distances.NeighbourList):
         self._n_particles = n_particles
         self._edges = edges
 
+    @override
+    @property
     def num_particles(self) -> int:
         return self._n_particles
 
+    @override
+    @property
     def max_neighbours(self) -> int:
         return np.unique(self._edges.from_idx, return_counts=True)[1].max()
 
@@ -119,10 +124,19 @@ class PeriodicBoundary(distances.NeighbourFinder):
         self,
         cell: typing.CellType,
         cutoff: numbers.Number,
-        pbc: Optional[typing.PbcType] = None,
+        pbc: typing.PbcType,
+        *,
         include_self=False,
         include_images=True,
     ):
+        """
+        :param cell: the unit cell
+        :param cutoff: the cutoff radius that defines if an atom is a neighbour or not
+        :param pbc: specifies which unit cell vectors are to be considered periodic
+        :param include_self: include an atom as its own neighbour within the central unit cell
+        :param include_images: include images of an atom in periodic repetitions of the central
+            unit cell as neighbours
+        """
         self._cell = cell
         self._cutoff = cutoff
         self._pbc = pbc

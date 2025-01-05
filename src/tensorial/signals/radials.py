@@ -54,7 +54,7 @@ class E3nnRadial(RadialBasis):
     _basis: Callable[[float], jnp.array]
     _cutoff: float
 
-    def __init__(self, basis: str, max_radius: float, number: int, cutoff=None, min_radius=0.0):
+    def __init__(self, basis: str, max_radius: float, number: int, *, cutoff=None, min_radius=0.0):
         super().__init__(number, domain=(min_radius, max_radius))
         self._basis = basis
         self._cutoff = cutoff

@@ -10,7 +10,9 @@ import omegaconf
 import orbax.checkpoint
 import reax
 
-from . import data, metrics, modules
+from . import data
+from . import metrics as metrics_
+from . import modules
 
 __all__ = ("create_module", "load_module_state")
 
@@ -91,7 +93,7 @@ def calculate_stats(from_data: omegaconf.DictConfig, training_data: data.DataLoa
     """
     coll_dict = {label: reax.metrics.get_registry()[name] for name, label in from_data.items()}
     collection = reax.metrics.MetricCollection(coll_dict)
-    results = metrics.Evaluator(collection).evaluate(training_data)
+    results = metrics_.Evaluator(collection).evaluate(training_data)
 
     # Update the configuration with the values we calculated
     for name, label in from_data.items():

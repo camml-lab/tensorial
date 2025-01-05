@@ -1,6 +1,6 @@
 import abc
 from collections.abc import Callable
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 import beartype
 import equinox
@@ -22,7 +22,7 @@ class StepOut(equinox.Module):
     metrics: metrics_mod.MetricCollection
 
 
-class TrainerSteps(Generic[InputT_co, OutputT_co], equinox.Module):
+class TrainerSteps(equinox.Module):
     @abc.abstractmethod
     def training_step(
         self,
@@ -42,7 +42,7 @@ class TrainerSteps(Generic[InputT_co, OutputT_co], equinox.Module):
         """Validate step"""
 
 
-class SimpleTrainerSteps(TrainerSteps[InputT_co, OutputT_co]):
+class SimpleTrainerSteps(TrainerSteps):
     _loss_fn: LossFn[OutputT_co, LabelT_co]
     _metrics: metrics_mod.MetricCollection
 
@@ -52,13 +52,13 @@ class SimpleTrainerSteps(TrainerSteps[InputT_co, OutputT_co]):
         self._loss_fn = loss_fn
         self._metrics = metrics
 
-    # @jt.jaxtyped(typechecker=beartype.beartype)
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def training_step(
         self,
         params: PyTree,
         model: ModelT[InputT_co, OutputT_co],
         batch: Batch[InputT_co, LabelT_co],
-    ) -> tuple[jax.Array, metrics_mod.MetricCollection]:
+    ) -> tuple[jax.Array, StepOut]:
         """Train for a single step."""
         inputs, labels = batch
         if labels is None:
@@ -70,13 +70,13 @@ class SimpleTrainerSteps(TrainerSteps[InputT_co, OutputT_co]):
 
         return loss, StepOut(metrics=metrics)
 
-    # @jt.jaxtyped(typechecker=beartype.beartype)
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def validation_step(
         self,
         params: PyTree,
         model: ModelT[InputT_co, OutputT_co],
         batch: Batch[InputT_co, LabelT_co],
-    ) -> tuple[jax.Array, metrics_mod.MetricCollection]:
+    ) -> tuple[jax.Array, StepOut]:
         """Validate for a single step."""
         inputs, labels = batch
         if labels is None:

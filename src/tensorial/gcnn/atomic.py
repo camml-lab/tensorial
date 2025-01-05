@@ -35,6 +35,7 @@ PyTree = Any
 def graph_from_ase(
     ase_atoms: "ase.atoms.Atoms",
     r_max: numbers.Number,
+    *,
     key_mapping: Optional[dict[str, str]] = None,
     atom_include_keys: Optional[Iterable] = ("numbers",),
     edge_include_keys: Optional[Iterable] = tuple(),
@@ -175,6 +176,7 @@ class SpeciesTransform(equinox.Module):
 def per_species_rescale(
     num_types: int,
     field: str,
+    *,
     types_field: str = None,
     out_field: str = None,
     shifts: jax.typing.ArrayLike = None,
@@ -279,9 +281,9 @@ class EnergyPerAtomLstsq(reax.metrics.FromFun):
 
 
 class TypeContributionLstsq(reax.metrics.Metric[jax.typing.ArrayLike]):
-    type_counts: Optional[jax.typing.ArrayLike] = None
-    values: Optional[jax.typing.ArrayLike] = None
-    mask: Optional[jax.typing.ArrayLike] = None
+    type_counts: Optional[typing.ArrayType] = None
+    values: Optional[typing.ArrayType] = None
+    mask: Optional[typing.ArrayType] = None
 
     @property
     def is_empty(self):
@@ -327,13 +329,16 @@ class TypeContributionLstsq(reax.metrics.Metric[jax.typing.ArrayLike]):
         )
 
     def compute(self):
+        if self.is_empty:
+            raise RuntimeError("This metric is empty, cannot compute!")
+
         # Check if we should mask off unused values
         if self.mask is None:
             type_counts = self.type_counts
             values = self.values
         else:
-            type_counts = self.type_counts[self.mask]
-            values = self.values[self.mask]
+            type_counts = self.type_counts[self.mask]  # pylint: disable=unsubscriptable-object
+            values = self.values[self.mask]  # pylint: disable=unsubscriptable-object
 
         return jnp.linalg.lstsq(type_counts, values)[0]
 

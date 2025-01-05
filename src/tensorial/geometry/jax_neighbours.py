@@ -142,6 +142,7 @@ class PeriodicBoundary(NeighbourFinder):
         cell: typing.CellType,
         cutoff: numbers.Number,
         pbc: Optional[typing.PbcType] = None,
+        *,
         max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
         include_self=False,
         include_images=True,

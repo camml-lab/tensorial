@@ -207,7 +207,7 @@ def test_np_periodic_boundary(self_interaction, cutoff, cell_angles, pbc):
     positions = pts_frac @ cell
 
     periodic = geometry.np_neighbours.PeriodicBoundary(
-        cell, cutoff, pbc=pbc, include_self=self_interaction
+        cell, cutoff, pbc=pbc, include_images=True, include_self=self_interaction
     )
     neighbours = periodic.get_neighbours(positions)
 

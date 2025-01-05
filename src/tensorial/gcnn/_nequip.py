@@ -77,6 +77,7 @@ class InteractionBlock(linen.Module):
         senders: typing.IndexArray["n_edges"],
         receivers: typing.IndexArray["n_edges"],
         node_species: Optional[jt.Int[jax.Array, "n_nodes"]] = None,
+        *,
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
     ) -> e3j.IrrepsArray:
         """

@@ -49,9 +49,5 @@ jobs:
         -   name: Create xml coverage
             run: coverage xml
 
-        -   name: Upload coverage to Codecov
-            if: github.repository == 'muhrin/tensorial'
-            uses: codecov/codecov-action@v2
-            with:
-                file: ./coverage.xml
-                name: tensorial
+        -   name: Upload coverage reports to Codecov with GitHub Action
+            uses: codecov/codecov-action@v5

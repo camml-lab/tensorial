@@ -171,6 +171,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         self,
         graphs: Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]],
         batch_size: int = 1,
+        *,
         shuffle=False,
         pad=False,
         add_mask=True,

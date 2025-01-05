@@ -37,6 +37,7 @@ dependencies = [
     "equinox",
     "reax",
     "tensorboardX",
+    "typing-extensions"
 ]
 
 [project.urls]
@@ -106,10 +107,12 @@ disable = [
     'too-many-arguments',
     'too-many-instance-attributes',
     'use-dict-literal',
+    'fixme',
 ]
 
 [tool.pylint.design]
 max-locals = 20
+max-positional-arguments = 7
 
 [pytest]
 log_cli = "True"

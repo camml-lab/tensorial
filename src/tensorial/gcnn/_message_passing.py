@@ -32,6 +32,7 @@ class MessagePassingConvolution(linen.Module):
         radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding_dim"],
         senders: typing.IndexArray["n_edges"],
         receivers: typing.IndexArray["n_edges"],
+        *,
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
     ) -> typing.IrrepsArrayShape["n_nodes node_irreps_out"]:
         irreps_out = e3j.Irreps(self.irreps_out)  # Recast, because flax converts to tuple
