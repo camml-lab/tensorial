@@ -29,9 +29,9 @@ __all__ = (
 Array = jax.typing.ArrayLike
 
 
-def atleast_1d(arr) -> jax.Array:
-    arr = jnp.asarray(arr)
-    return arr if jnp.ndim(arr) >= 1 else jnp.reshape(arr, -1)
+def atleast_1d(arr, np_=jnp) -> jax.Array:
+    arr = np_.asarray(arr)
+    return arr if np_.ndim(arr) >= 1 else np_.reshape(arr, -1)
 
 
 def as_array(arr: Union[jax.typing.ArrayLike, e3j.IrrepsArray]) -> jax.Array:

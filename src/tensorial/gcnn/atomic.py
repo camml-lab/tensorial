@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
+import numpy as np
 from pytray import tree
 import reax
 
@@ -94,9 +95,9 @@ def graph_from_ase(
 
         for key, val in ase_atoms.calc.results.items():
             if key in atom_include_keys:
-                atoms[key] = base.atleast_1d(val)
+                atoms[key] = base.atleast_1d(val, np_=np)
             elif key in global_include_keys:
-                graph_globals[key] = base.atleast_1d(val)
+                graph_globals[key] = base.atleast_1d(val, np_=np)
 
     # Transform ASE-style 6 element Voigt order stress to Cartesian
     for key in (STRESS, VIRIAL):

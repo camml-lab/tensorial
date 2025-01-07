@@ -52,7 +52,7 @@ def generated_padded_graphs(
     edges and graphs in each batch equal to the maximum found in the dataset
     """
     if None in (num_nodes, num_edges, num_graphs):
-        # We have o calculate a maximum for one or more of the padding numbers
+        # We have to calculate a maximum for one or more of the padding numbers
         max_nodes = 0
         max_edges = 0
         max_graphs = 0
