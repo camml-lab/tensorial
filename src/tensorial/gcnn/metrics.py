@@ -1,12 +1,12 @@
 import math
-from typing import ClassVar, Optional, TypeVar, Union
+from typing import ClassVar, Literal, Optional, TypeVar, Union
 
+import beartype
 import jax.numpy as jnp
 import jax.typing
+import jaxtyping as jt
 import jraph
 import reax
-
-from tensorial import nn_utils
 
 from . import _tree, _typing
 
@@ -15,14 +15,14 @@ OutT = TypeVar("OutT")
 __all__ = ("GraphMetric", "graph_metric")
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def graph_metric(
     metric: Union[str, reax.Metric, type[reax.Metric]],
     predictions: _typing.TreePathLike,
     targets: Optional[_typing.TreePathLike] = None,
-    mask: Optional[_typing.TreePathLike] = None,
+    mask: Optional[Union[_typing.TreePathLike, Literal["auto"]]] = "auto",
     normalise_by: Optional[_typing.TreePathLike] = None,
 ) -> "GraphMetric":
-
     predictions_from = _tree.path_from_str(predictions)
     targets_from = _tree.path_to_str(targets) if targets is not None else predictions_from
     mask_from = _tree.path_to_str(mask) if mask is not None else None
@@ -48,13 +48,13 @@ def mdiv(
             "Sizes of numerator and denominator must match, got {num.shape} and {denom.shape}"
         )
     if where is not None:
-        where = nn_utils.prepare_mask(where, denom)
+        where = reax.metrics.utils.prepare_mask(denom, where)
         denom = jnp.where(where, denom, 1.0)
+
     return num / denom.reshape(num.shape)
 
 
 class GraphMetric(reax.Metric):
-
     parent: ClassVar[reax.Metric]
     pred_key: ClassVar[_typing.TreePathLike]
     target_key: ClassVar[Optional[_typing.TreePathLike]] = None
@@ -92,12 +92,14 @@ class GraphMetric(reax.Metric):
         if self.mask_key is not None:
             if self.mask_key == "auto":
                 pred_key = _tree.path_from_str(self.pred_key)
-                mask_key = pred_key + ("mask",)
+                mask_key = pred_key[:-1] + ("mask",)
             else:
                 mask_key = self.mask_key
 
-            # todo: add check to this for what happens if mask doesn't exist
-            mask = _tree.get(predictions, mask_key)
+            try:
+                mask = _tree.get(predictions, mask_key)
+            except KeyError:
+                mask = None
 
         if self.normalise_by is not None:
             pred = mdiv(pred, _tree.get(predictions, self.normalise_by), where=mask)

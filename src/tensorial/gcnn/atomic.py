@@ -403,7 +403,7 @@ class EnergyContributionLstsq(reax.Metric):
         if self._type_map is None:
             num_classes = types.max().item() + 1  # Assume the types go 0,1,2...N
         else:
-            # Transform the atomic numbers into from whatever they are to 0, 1, 2....
+            # Transform the atomic numbers from whatever they are to 0, 1, 2....
             vwhere = jax.vmap(lambda num: jnp.argwhere(num == self._type_map, size=1)[0])
             types = vwhere(types)[:, 0]
             num_classes = len(self._type_map)

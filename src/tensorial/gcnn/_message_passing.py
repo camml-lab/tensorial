@@ -6,6 +6,7 @@ from flax import linen
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
+import reax.metrics
 
 from tensorial import nn_utils, typing
 
@@ -63,13 +64,15 @@ class MessagePassingConvolution(linen.Module):
         # Get weights for the tensor product from our full-connected MLP
         if edge_mask is not None:
             radial_embedding = jnp.where(
-                nn_utils.prepare_mask(edge_mask, radial_embedding),
+                reax.metrics.utils.prepare_mask(radial_embedding, edge_mask),
                 radial_embedding,
                 0.0,
             )
         weights = mlp(radial_embedding)
         if edge_mask is not None:
-            weights = jnp.where(nn_utils.prepare_mask(edge_mask, radial_embedding), weights, 0.0)
+            weights = jnp.where(
+                reax.metrics.utils.prepare_mask(radial_embedding, edge_mask), weights, 0.0
+            )
         messages = messages * weights
 
         zeros = e3j.zeros(messages.irreps, node_feats.shape[:1], messages.dtype)

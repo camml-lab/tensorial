@@ -10,9 +10,9 @@ import jaxtyping as jt
 import jraph
 import optax.losses
 from pytray import tree
+import reax
 
 import tensorial
-from tensorial import nn_utils
 
 from . import keys, utils
 
@@ -66,7 +66,7 @@ class Loss(GraphLoss):
         *,
         reduction: Optional[Literal["sum", "mean"]] = "mean",
         label: str = None,
-        mask_field: str = None,
+        mask_field: Optional[str] = None,
     ):
         self._loss_fn = _get_pure_loss_fn(loss_fn)
         self._prediction_field = utils.path_from_str(field)
@@ -80,7 +80,6 @@ class Loss(GraphLoss):
 
     def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> jax.Array:
         predictions_dict = predictions._asdict()
-        mask = predictions_dict[self._prediction_field[0]].get(keys.MASK)
 
         _predictions = tensorial.as_array(
             tree.get_by_path(predictions_dict, self._prediction_field)
@@ -88,30 +87,29 @@ class Loss(GraphLoss):
         _targets = tensorial.as_array(tree.get_by_path(targets._asdict(), self._target_field))
 
         loss = self._loss_fn(_predictions, _targets)
-        num_elements = loss.size
 
-        if mask is not None:
-            mask = nn_utils.prepare_mask(mask, loss)
-        # Check for the presence of a user-defined mask
+        # If there is a mask in the graph, then use it by default
+        mask = predictions_dict[self._prediction_field[0]].get(keys.MASK)
+        mask = reax.metrics.utils.prepare_mask(loss, mask)
+
+        # Now, check for the presence of a user-defined mask
         if self._mask_field:
-            user_mask = nn_utils.prepare_mask(
-                tensorial.as_array(tree.get_by_path(targets._asdict(), self._mask_field)),
-                loss,
-            )
+            user_mask = tensorial.as_array(tree.get_by_path(targets._asdict(), self._mask_field))
+            user_mask = reax.metrics.utils.prepare_mask(loss, user_mask)
             if mask is None:
                 mask = user_mask
             else:
                 mask = mask & user_mask
 
-        if mask is not None:
-            loss = jnp.where(mask, loss, 0.0)  # Zero out the masked elements
-            # Now calculate the number of elements that were masked so that we get the correct mean
-            num_elements = jnp.array([mask.sum(), *loss.shape[1:]]).prod()
+        # Now calculate the number of elements that were masked so that we get the correct mean
+        num_elements = (
+            loss.size if mask is None else jnp.array([mask.sum(), *loss.shape[1:]]).prod()
+        )
 
         if self._reduction == "mean":
-            loss = loss.sum() / num_elements
+            loss = loss.sum(where=mask) / num_elements
         elif self._reduction == "sum":
-            loss = loss.sum()
+            loss = loss.sum(where=mask)
 
         return loss
 

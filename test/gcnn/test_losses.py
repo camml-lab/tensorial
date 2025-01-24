@@ -60,11 +60,12 @@ def test_loss(jit, graph_batch: jraph.GraphsTuple):
     )
 
 
-@pytest.mark.parametrize("jit", [True, False])
-def test_masked_loss(jit, graph_batch: jraph.GraphsTuple):
+@pytest.mark.parametrize("jit", [False, True])
+@pytest.mark.parametrize("mask_field", [None, "nodes.mask"])
+def test_masked_loss(jit, mask_field, graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
     loss_fn = losses.Loss(
-        "nodes.force_predictions", "nodes.forces", optax_loss, mask_field="nodes.mask"
+        "nodes.force_predictions", "nodes.forces", optax_loss, mask_field=mask_field
     )
     if jit:
         loss_fn = jax.jit(loss_fn)

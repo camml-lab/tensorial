@@ -9,9 +9,10 @@ import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
 import numpy as np
+import reax.metrics
 
 import tensorial
-from tensorial import geometry, nn_utils, typing
+from tensorial import geometry, typing
 
 from . import keys
 
@@ -147,8 +148,9 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
 
     edge_mask = graph.edges.get(keys.MASK)
     if edge_mask is not None:
-        edge_mask = nn_utils.prepare_mask(edge_mask, edge_vecs)
+        edge_mask = reax.metrics.utils.prepare_mask(edge_vecs, edge_mask)
         edge_vecs = jnp.where(edge_mask, edge_vecs, 1.0)
+
     if not isinstance(edge_vecs, e3j.IrrepsArray):
         edge_vecs = e3j.IrrepsArray("1o", edge_vecs)
     edges[keys.EDGE_VECTORS] = edge_vecs

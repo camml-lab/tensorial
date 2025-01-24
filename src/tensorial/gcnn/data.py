@@ -119,6 +119,8 @@ def add_padding_mask(
 
 
 class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
+    """Data loader for graphs"""
+
     def __init__(
         self,
         *graphs: Optional[Sequence[jraph.GraphsTuple]],
