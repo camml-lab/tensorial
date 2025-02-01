@@ -52,6 +52,7 @@ class Trainer(Generic[InputT_co, OutputT_co]):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
+        # pylint: disable=too-many-positional-arguments
         self,
         model: ModelT[InputT_co, OutputT_co],
         model_params: PyTree,

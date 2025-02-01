@@ -107,9 +107,10 @@ class Loss(GraphLoss):
         )
 
         if self._reduction == "mean":
-            loss = loss.sum(where=mask) / num_elements
-        elif self._reduction == "sum":
-            loss = loss.sum(where=mask)
+            loss = loss / num_elements
+            # loss = loss.sum(where=mask) / num_elements
+        # elif self._reduction == "sum":
+        loss = loss.sum(where=mask)
 
         return loss
 

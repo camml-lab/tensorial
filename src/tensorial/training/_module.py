@@ -1,4 +1,4 @@
-from typing import Callable, Optional, cast
+from typing import Any, Callable, Optional, cast
 
 import equinox as eqx
 from flax import linen
@@ -20,13 +20,28 @@ LossFn = Callable[[jraph.GraphsTuple, jraph.GraphsTuple], jax.Array]
 
 
 class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
+    # pylint: disable=method-hidden
+
     _loss_fn: LossFn
     _metrics: Optional[reax.metrics.MetricCollection] = None
     _model: Optional[linen.Module] = None
 
-    def __init__(self, config: omegaconf.DictConfig):
+    def __init__(self, config: omegaconf.DictConfig, jit=True):
         super().__init__()
         self._cfg = config
+        self._debug = False
+        if jit:
+            self.step = eqx.filter_jit(donate="all")(self.step)
+            self.calculate_metrics = eqx.filter_jit(donate="all")(self.calculate_metrics)
+            self._forward = eqx.filter_jit(donate="all")(self._forward)
+
+    @property
+    def debug(self) -> bool:
+        return self._debug
+
+    @debug.setter
+    def debug(self, value: bool) -> None:
+        self._debug = value
 
     def create_and_init_model(self, example_inputs):
         """Create the model and initialise parameters"""
@@ -137,10 +152,17 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
     @override
     def predict_step(self, batch: jraph.GraphsTuple, batch_idx: int, /) -> jraph.GraphsTuple:
         inputs, _outputs = batch
-        return eqx.filter_jit(donate="all")(self._model.apply)(self.parameters(), inputs)
+        return self._forward(self.parameters(), inputs, self._model.apply)
 
     @staticmethod
-    @eqx.filter_jit(donate="all")
+    def _forward(
+        params: jt.PyTree,
+        inputs: jraph.GraphsTuple,
+        model: Callable[[jt.PyTree, jraph.GraphsTuple], jraph.GraphsTuple],
+    ) -> jraph.GraphsTuple:
+        return model(params, inputs)
+
+    @staticmethod
     def step(
         params: jt.PyTree,
         inputs: jraph.GraphsTuple,
@@ -156,8 +178,15 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
 
         return loss_fn(predictions, inputs), metrics
 
+    @override
+    def on_before_optimizer_step(self, optimizer: "reax.Optimizer", grad: dict[str, Any], /):
+        # Compute the 2-norm for each layer
+        # If using mixed precision, the gradients are already unscaled here
+        if self.debug and self.trainer.current_epoch % 25 == 0:
+            norms = reax.utils.grad_norm(grad, norm_type=2)
+            self.log_dict(norms, on_step=False, on_epoch=True, logger=True, prog_bar=False)
+
     @staticmethod
-    @eqx.filter_jit(donate="all")
     def calculate_metrics(
         predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple, metrics: MetricsDict
     ) -> dict[str, reax.Metric]:
