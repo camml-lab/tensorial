@@ -1,4 +1,5 @@
-from typing import Any, Callable, Optional, cast
+import functools
+from typing import Any, Callable, Optional, Union, cast
 
 import equinox as eqx
 from flax import linen
@@ -20,6 +21,8 @@ LossFn = Callable[[jraph.GraphsTuple, jraph.GraphsTuple], jax.Array]
 
 
 class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
+    """Tensorial REAX module"""
+
     # pylint: disable=method-hidden
 
     _loss_fn: LossFn
@@ -240,9 +243,24 @@ def calculate_stats(
 
         # Convert to types that can be used by omegaconf and update the configuration with the
         # values
-        calculated = {label: reax.utils.arrays.to_base(stat) for label, stat in calculated.items()}
+        calculated = _to_omega(calculated)
 
         from_data.update(calculated)
+
+
+@functools.singledispatch
+def _to_omega(value):
+    return value
+
+
+@_to_omega.register
+def _(value: dict) -> dict:
+    return {key: _to_omega(value) for key, value in value.items()}
+
+
+@_to_omega.register
+def _(value: jt.Array) -> Union[int, float, list]:
+    return reax.utils.arrays.to_base(value)
 
 
 def find_iterpol(root, path=()):

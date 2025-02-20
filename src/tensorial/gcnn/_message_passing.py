@@ -12,6 +12,8 @@ from tensorial import nn_utils, typing
 
 
 class MessagePassingConvolution(linen.Module):
+    """Equivariant message passing convolution operation."""
+
     irreps_out: typing.IntoIrreps
     avg_num_neighbours: float = 1.0
 

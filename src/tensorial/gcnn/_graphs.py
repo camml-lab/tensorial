@@ -31,7 +31,7 @@ def graph_from_points(
     strict_self_interaction: bool = False,
     cell: Optional[typing.CellType] = None,
     pbc: Optional[Union[bool, typing.PbcType]] = None,
-    nodes: dict[str, jt.Num[jax.typing.ArrayLike, "n_nodes *"]] = None,
+    nodes: Optional[dict[str, jt.Num[jax.typing.ArrayLike, "n_nodes *"]]] = None,
     edges: dict = None,
     graph_globals: dict = None,
     np_=np,

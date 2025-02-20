@@ -1,14 +1,15 @@
 import math
-from typing import ClassVar, Literal, Optional, TypeVar, Union
+from typing import ClassVar, Literal, Optional, Sequence, TypeVar, Union
 
 import beartype
 import jax.numpy as jnp
 import jax.typing
 import jaxtyping as jt
 import jraph
+from pytray import tree
 import reax
 
-from . import _tree, _typing
+from . import _tree, _typing, keys
 
 OutT = TypeVar("OutT")
 
@@ -124,3 +125,103 @@ class GraphMetric(reax.Metric):
             raise RuntimeError("Cannot compute, metric is empty")
 
         return self._state.compute()
+
+
+class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
+    """
+    Get the average number of node neighbours grouped by node type where the type is an integer
+    found in G.nodes[type_field].
+    """
+
+    Averages = list[reax.metrics.Average]
+    _type_field: str
+    _node_types: jt.Int[jax.Array, "n_types"]
+    _state: Optional[Averages]
+
+    @jt.jaxtyped(typechecker=beartype.beartype)
+    def __init__(
+        self,
+        node_types: Union[Sequence[int], jt.Int[jt.Array, "n_types"]],
+        type_field: str = "type_id",
+        state: Optional[Averages] = None,
+    ):
+        self._node_types = jnp.asarray(node_types)
+        self._type_field = type_field
+        self._state: Optional[AvgNumNeighboursByType.Averages] = state
+
+    @property
+    def is_empty(self) -> bool:
+        return self._state is None
+
+    def empty(self) -> "AvgNumNeighboursByType":
+        if self.is_empty:
+            return self
+
+        return AvgNumNeighboursByType(self._node_types)
+
+    def merge(self, other: "AvgNumNeighboursByType") -> "AvgNumNeighboursByType":
+        if not jnp.all(self._node_types == other._node_types):  # pylint: disable=protected-access
+            raise ValueError(
+                f"Type maps must match, got {self._node_types} and {other._node_types}"  # pylint: disable=protected-access
+            )
+
+        if other.is_empty:  # pylint: disable=protected-access
+            return self
+        if self.is_empty:
+            return other
+
+        return AvgNumNeighboursByType(
+            node_types=self._node_types,
+            state=[
+                avg.merge(other_avg)
+                for avg, other_avg in zip(
+                    self._state, other._state  # pylint: disable=protected-access
+                )
+            ],
+        )
+
+    def create(  # pylint: disable=arguments-differ
+        self, graphs: jraph.GraphsTuple, *_
+    ) -> "AvgNumNeighboursByType":
+        state = self._calc_averages(graphs)  # pylint: disable=not-callable
+        return AvgNumNeighboursByType(
+            node_types=self._node_types, type_field=self._type_field, state=state
+        )
+
+    def update(  # pylint: disable=arguments-differ
+        self, graphs: jraph.GraphsTuple, *_
+    ) -> "AvgNumNeighboursByType":
+        if self.is_empty:
+            return self.create(graphs)
+
+        # Create the updated state
+        state = [
+            avg.merge(other_avg) for avg, other_avg in zip(self._state, self._calc_averages(graphs))
+        ]
+        return AvgNumNeighboursByType(node_types=self._node_types, state=state)
+
+    def compute(self) -> dict[int, jax.Array]:
+        if self.is_empty:
+            raise RuntimeError("Nothing to compute, metric is empty!")
+
+        return {
+            type_id: avg.compute() for type_id, avg in zip(self._node_types.tolist(), self._state)
+        }
+
+    @jt.jaxtyped(typechecker=beartype.beartype)
+    def _calc_averages(self, graphs: jraph.GraphsTuple, *_) -> Averages:
+        graph_dict = graphs._asdict()
+
+        types = tree.get_by_path(graph_dict, ("nodes", self._type_field))
+        # Transform the type numbers from whatever they are to 0, 1, 2....
+        vwhere = jax.vmap(lambda num: jnp.argwhere(num == self._node_types, size=1)[0])
+        types = vwhere(types)[:, 0]
+
+        counts = jnp.bincount(graphs.senders, length=jnp.sum(graphs.n_node).item())
+        mask = reax.metrics.utils.prepare_mask(counts, graphs.nodes.get(keys.MASK))
+        mask = mask if mask is not None else True
+
+        num_classes = len(self._node_types)
+        return [
+            reax.metrics.Average.create(counts, mask & (types == idx)) for idx in range(num_classes)
+        ]

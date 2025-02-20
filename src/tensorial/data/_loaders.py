@@ -83,7 +83,7 @@ class CachingLoader(Iterable):
             self._cache = cache
 
         self._time_since_reset += 1
-        # Check if we should clear the cache
+        # Check if we should clear the cache for the next iteration
         if self._time_since_reset == self._reset_every:
             self._cache = []
             self._time_since_reset = 0

@@ -35,7 +35,7 @@ dependencies = [
     'pytray',
     'e3nn-jax',
     "equinox",
-    "reax",
+    "reax>=0.4",
     "tensorboardX",
     "typing-extensions"
 ]

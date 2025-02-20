@@ -273,13 +273,13 @@ class MaceLayer(linen.Module):
         * (optional) self connection
     """
 
-    irreps_out: e3j.Irreps
+    irreps_out: typing.IntoIrreps
     num_types: int
 
     # Interaction
     num_features: int
     interaction_irreps: typing.IntoIrreps
-    #   radial
+    #   Radial
     radial_activation: Callable
 
     # Normalisation

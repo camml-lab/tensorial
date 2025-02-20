@@ -14,7 +14,7 @@ import reax
 
 from tensorial import base, typing
 
-from . import _common, _graphs, _modules, _typing, keys, utils
+from . import _common, _graphs, _modules, _typing, keys, metrics, utils
 
 ENERGY_PER_ATOM = "energy/atom"
 TOTAL_ENERGY = "energy"
@@ -427,6 +427,17 @@ class EnergyContributionLstsq(reax.Metric):
         values = jax.vmap(lambda numer, denom: numer / denom, (0, 0))(values, num_nodes)
 
         return type_counts, values, mask
+
+
+class AvgNumNeighboursByAtomType(metrics.AvgNumNeighboursByType):
+    @jt.jaxtyped(typechecker=beartype.beartype)
+    def __init__(
+        self,
+        atom_types: Union[Sequence[int], jt.Int[jt.Array, "n_types"]],
+        type_field: str = ATOMIC_NUMBERS,
+        state: Optional[metrics.AvgNumNeighboursByType.Averages] = None,
+    ):
+        super().__init__(atom_types, type_field, state)
 
 
 reax.metrics.get_registry().register_many(

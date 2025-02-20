@@ -1,17 +1,23 @@
+import functools
+import random
+from typing import Final
+
+import jax
 import jax.numpy as jnp
+import jaxtyping as jt
 import jraph
 import numpy as np
 import optax
 import pytest
 import reax
 
-from tensorial.gcnn import metrics
+from tensorial import gcnn
 
 
 @pytest.mark.parametrize("mask_field", [None, "auto"])
 def test_graph_metric(mask_field):
-    N_GRAPHS = 10
-    N_NODES = 4
+    N_GRAPHS: Final[int] = 10
+    N_NODES: Final[int] = 4
 
     targets = np.random.random((N_GRAPHS, N_NODES))
     preds = np.random.random((N_GRAPHS, N_NODES))
@@ -29,7 +35,7 @@ def test_graph_metric(mask_field):
             )
         )
     graphs = jraph.batch(graphs)
-    graph_metrics = metrics.graph_metric(
+    graph_metrics = gcnn.metrics.graph_metric(
         reax.metrics.MeanSquaredError,
         predictions="nodes.pred",
         targets="nodes.target",
@@ -42,8 +48,8 @@ def test_graph_metric(mask_field):
 
 @pytest.mark.parametrize("mask_field", ["nodes.mask", "auto"])
 def test_graph_metric_with_mask(mask_field):
-    N_GRAPHS = 10
-    N_NODES = 4
+    N_GRAPHS: Final[int] = 10
+    N_NODES: Final[int] = 4
 
     targets = np.random.random((N_GRAPHS, N_NODES, 3))
     preds = np.random.random((N_GRAPHS, N_NODES, 3))
@@ -65,7 +71,7 @@ def test_graph_metric_with_mask(mask_field):
     graphs = jraph.batch(graphs)
 
     # Manual mask
-    graph_metrics = metrics.graph_metric(
+    graph_metrics = gcnn.metrics.graph_metric(
         reax.metrics.MeanSquaredError,
         predictions="nodes.pred",
         targets="nodes.target",
@@ -75,3 +81,44 @@ def test_graph_metric_with_mask(mask_field):
     reference = optax.losses.squared_error(preds[masks], targets[masks]).mean()
     computed = graph_metrics.compute()
     assert np.isclose(computed, reference)
+
+
+@pytest.mark.parametrize("batch_size", [1, 3, 100])
+def test_indexed_metrics(rng_key, batch_size: int):
+    NUM_GRAPHS: Final[int] = 13
+    NUM_NODES: Final[int] = 100
+    TYPE_FIELD: Final[str] = "type_id"
+    NUM_TYPES: Final[int] = 3
+
+    random_graphs = gcnn.random.spatial_graph(
+        rng_key,
+        cutoff=0.2,
+        num_graphs=NUM_GRAPHS,
+        num_nodes=NUM_NODES,
+        nodes={
+            TYPE_FIELD: lambda rng_key, num: jax.random.randint(
+                rng_key, shape=(num,), minval=0, maxval=NUM_TYPES
+            ),
+            gcnn.keys.MASK: (
+                lambda rng_key, num: jax.random.randint(
+                    rng_key, shape=(num,), minval=0, maxval=2
+                ).astype(jnp.bool)
+            ),
+        },
+    )
+
+    node_types = list(range(NUM_TYPES))
+    # Shuffle to make sure this metric works with type list that isn't ordered
+    random.shuffle(node_types)
+    avg_num_neighbours = gcnn.metrics.AvgNumNeighboursByType(node_types, type_field=TYPE_FIELD)
+
+    loader = gcnn.data.GraphLoader(random_graphs, batch_size=batch_size)
+    res: dict[int, jt.Float[jax.Array, "n_types"]] = reax.evaluate_stats(avg_num_neighbours, loader)
+
+    all_graphs = jraph.batch(random_graphs)
+    counts = jnp.bincount(all_graphs.senders, length=all_graphs.n_node.sum().item())
+
+    for i in range(NUM_TYPES):
+        # Get all valid nodes of the right type
+        mask = all_graphs.nodes[gcnn.keys.MASK] & (all_graphs.nodes[TYPE_FIELD] == i)
+        assert jnp.isclose(counts[mask].mean(), res[i])
