@@ -12,7 +12,7 @@ import numpy as np
 from pytray import tree
 import reax
 
-from tensorial import base, typing
+from tensorial import base, nn_utils, typing
 
 from . import _common, _graphs, _modules, _typing, keys, metrics, utils
 
@@ -168,9 +168,9 @@ class SpeciesTransform(equinox.Module):
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
-        vwhere = jax.vmap(lambda num: jnp.argwhere(num == self.atomic_numbers, size=1)[0])
         nodes = graph.nodes
-        nodes[self.out_field] = vwhere(nodes[self.field])[:, 0]
+        nodes[self.out_field] = nn_utils.vwhere(nodes[self.field], self.atomic_numbers)
+
         return graph._replace(nodes=nodes)
 
 
@@ -215,8 +215,7 @@ def estimate_species_contribution(
     type_values = tree.get_by_path(graph_dict, type_field)
     if type_map is not None:
         # Transform the atomic numbers into from whatever they are to 0, 1, 2....
-        vwhere = jax.vmap(lambda num: jnp.argwhere(num == type_map, size=1)[0])
-        type_values = vwhere(type_values)[:, 0]
+        nn_utils.vwhere(type_values, type_map)
 
     num_classes = type_values.max().item() + 1  # Assume the types go 0,1,2...N
     one_hots = jax.nn.one_hot(type_values, num_classes)
@@ -404,8 +403,7 @@ class EnergyContributionLstsq(reax.Metric):
             num_classes = types.max().item() + 1  # Assume the types go 0,1,2...N
         else:
             # Transform the atomic numbers from whatever they are to 0, 1, 2....
-            vwhere = jax.vmap(lambda num: jnp.argwhere(num == self._type_map, size=1)[0])
-            types = vwhere(types)[:, 0]
+            types = nn_utils.vwhere(types, self._type_map)
             num_classes = len(self._type_map)
 
         one_hots = jax.nn.one_hot(types, num_classes)

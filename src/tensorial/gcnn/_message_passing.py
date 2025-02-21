@@ -15,7 +15,7 @@ class MessagePassingConvolution(linen.Module):
     """Equivariant message passing convolution operation."""
 
     irreps_out: typing.IntoIrreps
-    avg_num_neighbours: float = 1.0
+    avg_num_neighbours: Union[float, dict[int, float]] = 1.0
 
     # Radial
     radial_num_layers: int = 1
@@ -25,6 +25,9 @@ class MessagePassingConvolution(linen.Module):
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
         self._radial_act = nn_utils.get_jaxnn_activation(self.radial_activation)
+        if isinstance(self.avg_num_neighbours, linen.FrozenDict):
+            self._types = jnp.array(list(self.avg_num_neighbours.keys()))
+            self._avg_neighbours = jnp.array(list(self.avg_num_neighbours.values()))
 
     @linen.compact
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -37,6 +40,7 @@ class MessagePassingConvolution(linen.Module):
         receivers: typing.IndexArray["n_edges"],
         *,
         edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
+        node_types: Optional[jt.Int[jt.Array, "n_nodes"]] = None,
     ) -> typing.IrrepsArrayShape["n_nodes node_irreps_out"]:
         irreps_out = e3j.Irreps(self.irreps_out)  # Recast, because flax converts to tuple
 
@@ -79,5 +83,10 @@ class MessagePassingConvolution(linen.Module):
 
         zeros = e3j.zeros(messages.irreps, node_feats.shape[:1], messages.dtype)
         node_feats = zeros.at[receivers].add(messages)
+
+        if isinstance(self.avg_num_neighbours, linen.FrozenDict):
+            type_idxs = nn_utils.vwhere(node_types, self._types)
+            avg_neighbours = self._avg_neighbours[type_idxs]
+            return node_feats / jnp.sqrt(avg_neighbours).reshape(-1, 1)
 
         return node_feats / jnp.sqrt(self.avg_num_neighbours)

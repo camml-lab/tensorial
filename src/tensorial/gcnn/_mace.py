@@ -206,7 +206,7 @@ class EquivariantProductBasisBlock(linen.Module):
 
 class InteractionBlock(linen.Module):
     irreps_out: typing.IntoIrreps
-    avg_num_neighbours: float = 1.0
+    avg_num_neighbours: Union[float, dict[int, float]] = 1.0
     radial_activation: Union[str, nn_utils.ActivationFunction] = "swish"
 
     def setup(self):
@@ -382,7 +382,7 @@ class Mace(linen.Module):
 
     correlation_order: int = 3  # Correlation order at each layer (~ node_features^correlation)
     num_interactions: int = 2  # Number of interactions (layers)
-    avg_num_neighbours: float = 1.0
+    avg_num_neighbours: Union[float, dict[int, float]] = 1.0
     soft_normalisation: Optional[bool] = None
     # Number of features per node, default gcd of hidden_irreps multiplicities
     num_features: Optional[int] = None

@@ -1,4 +1,5 @@
 import math
+from typing import Final
 
 import ase.cell
 import ase.neighborlist
@@ -9,6 +10,17 @@ import pytest
 
 from tensorial import geometry
 from tensorial.geometry import jax_neighbours
+
+
+def random_cell_angles(cell_angles: tuple[float, float]) -> np.array:
+    """Create valid random unit cell angles"""
+    assert len(cell_angles) == 2
+    assert min(cell_angles) < 120.0
+
+    ang = np.random.uniform(*cell_angles, size=3)
+    while ang.sum() >= 360.0:
+        ang = np.random.uniform(*cell_angles, size=3)
+    return ang
 
 
 @pytest.mark.parametrize("self_interaction", [True, False])
@@ -44,9 +56,9 @@ def test_jax_open_boundary(self_interaction):
 
 
 @pytest.mark.parametrize("cell_angles", [(90.0, 90.0), (60.0, 135.0)])
-def test_get_cell_list(cell_angles):
+def test_get_cell_list(cell_angles: tuple[float, float]) -> None:
     cutoff = 1.5
-    ase_cell = ase.cell.Cell.new([1, 1.0, 1.0, *np.random.uniform(*cell_angles, size=3)])
+    ase_cell = ase.cell.Cell.new([1, 1.0, 1.0, *random_cell_angles(cell_angles)])
     cell = ase_cell.array
 
     cell_list = jax_neighbours.get_cell_list(cell, cutoff=cutoff)
@@ -83,16 +95,17 @@ def test_get_cell_list(cell_angles):
 
 
 @pytest.mark.parametrize("cell_angles", [(90.0, 90.0), (60.0, 135.0)])
-def test_ase_neighbour_list(cell_angles):
-    n_points = 20
-    cutoff = 1.5
-    cutoff_sq = cutoff**2
-    ase_cell = ase.cell.Cell.new([1, 1.0, 1.0, *np.random.uniform(*cell_angles, size=3)])
-    pts_frac = np.random.rand(n_points, 3)
+def test_ase_neighbour_list(cell_angles: tuple[float, float]):
+    N_POINTS: Final[int] = 20
+    CUTOFF: Final[float] = 1.5
+    CUTOFF_SQ: Final[float] = CUTOFF**2
+
+    ase_cell = ase.cell.Cell.new([1.0, 1.0, 1.0, *random_cell_angles(cell_angles)])
+    pts_frac = np.random.rand(N_POINTS, 3)
     cell = ase_cell.array
     positions = pts_frac @ cell
 
-    cell_list = jax_neighbours.get_cell_list(cell, cutoff=cutoff)
+    cell_list = jax_neighbours.get_cell_list(cell, cutoff=CUTOFF)
     position_copies = []
     # for grid_point in cell_list[1]:
     #     position_copies.append(positions + grid_point)
@@ -105,7 +118,7 @@ def test_ase_neighbour_list(cell_angles):
     neighbours = []
     for position in positions:
         diffs = position_copies - position
-        neighbours.append(position_copies[np.sum(diffs**2, axis=1) < cutoff_sq])
+        neighbours.append(position_copies[np.sum(diffs**2, axis=1) < CUTOFF_SQ])
     neighbours = np.vstack(neighbours)
 
     ase_edges = geometry.Edges(
@@ -114,7 +127,7 @@ def test_ase_neighbour_list(cell_angles):
             pbc=[True, True, True],
             cell=cell,
             positions=positions,
-            cutoff=cutoff,
+            cutoff=CUTOFF,
             self_interaction=True,
         )
     )
@@ -124,9 +137,9 @@ def test_ase_neighbour_list(cell_angles):
 @pytest.mark.parametrize("self_interaction", [True, False])
 @pytest.mark.parametrize("cutoff,cell_angles", [(1.5, (90.0, 90.0)), (1.5, (60.0, 125.0))])
 @pytest.mark.parametrize("pbc", [(True, True, True), (True, False, True), (True, False, False)])
-def test_jax_periodic_boundary(self_interaction, cutoff, cell_angles, pbc):
+def test_jax_periodic_boundary(self_interaction, cutoff, cell_angles: tuple[float, float], pbc):
     n_points = 12
-    cell_ = ase.cell.Cell.new([1, 1.0, 1.0, *np.random.uniform(*cell_angles, size=3)])
+    cell_ = ase.cell.Cell.new([1, 1.0, 1.0, *random_cell_angles(cell_angles)])
     pts_frac = np.random.rand(n_points, 3)
     cell = cell_.array
     positions = pts_frac @ cell
@@ -199,9 +212,9 @@ def test_np_open_boundary(self_interaction):
 @pytest.mark.parametrize("self_interaction", [True, False])
 @pytest.mark.parametrize("cutoff,cell_angles", [(1.5, (90.0, 90.0)), (1.5, (60.0, 125.0))])
 @pytest.mark.parametrize("pbc", [(True, True, True), (True, False, True), (True, False, False)])
-def test_np_periodic_boundary(self_interaction, cutoff, cell_angles, pbc):
+def test_np_periodic_boundary(self_interaction, cutoff, cell_angles: tuple[float, float], pbc):
     n_points = 12
-    cell_ = ase.cell.Cell.new([1, 1.0, 1.0, *np.random.uniform(*cell_angles, size=3)])
+    cell_ = ase.cell.Cell.new([1, 1.0, 1.0, *random_cell_angles(cell_angles)])
     pts_frac = np.random.rand(n_points, 3)
     cell = cell_.array
     positions = pts_frac @ cell

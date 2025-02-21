@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 import jax
 import jax.nn
+import jax.numpy as jnp
 import jaxtyping as jt
 
 ActivationFunction = Callable[[jax.Array], jax.Array]
@@ -40,3 +41,8 @@ def prepare_mask(
     :return: the prepared mask, typically this is just padded with extra dimensions (or reduced)
     """
     return mask.reshape(-1, *(1,) * len(array.shape[1:]))
+
+
+def vwhere(values: jax.Array, types: jax.Array) -> jax.Array:
+    vectorized = jax.vmap(lambda num: jnp.argwhere(num == types, size=1)[0])
+    return vectorized(values)[:, 0]

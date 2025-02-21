@@ -42,7 +42,7 @@ class InteractionBlock(linen.Module):
     radial_num_neurons: int = 8
     radial_activation: ActivationLike = "swish"
 
-    avg_num_neighbours: float = 1.0
+    avg_num_neighbours: Union[float, dict[int, float]] = 1.0
     skip_connection: bool = True
     activations: Union[str, Mapping[str, ActivationLike]] = DEFAULT_ACTIVATIONS
 
@@ -137,7 +137,7 @@ class NequipLayer(linen.Module):
     radial_num_neurons: int = 8
     radial_activation: ActivationLike = "swish"
 
-    avg_num_neighbours: float = 1.0
+    avg_num_neighbours: Union[float, dict[int, float]] = 1.0
     activations: Union[str, Mapping[str, ActivationLike]] = DEFAULT_ACTIVATIONS
     node_features_field = keys.FEATURES
     skip_connection: bool = True

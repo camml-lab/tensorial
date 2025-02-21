@@ -9,6 +9,8 @@ import jraph
 from pytray import tree
 import reax
 
+from tensorial import nn_utils
+
 from . import _tree, _typing, keys
 
 OutT = TypeVar("OutT")
@@ -214,8 +216,7 @@ class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
 
         types = tree.get_by_path(graph_dict, ("nodes", self._type_field))
         # Transform the type numbers from whatever they are to 0, 1, 2....
-        vwhere = jax.vmap(lambda num: jnp.argwhere(num == self._node_types, size=1)[0])
-        types = vwhere(types)[:, 0]
+        types = nn_utils.vwhere(types, self._node_types)
 
         counts = jnp.bincount(graphs.senders, length=jnp.sum(graphs.n_node).item())
         mask = reax.metrics.utils.prepare_mask(counts, graphs.nodes.get(keys.MASK))
