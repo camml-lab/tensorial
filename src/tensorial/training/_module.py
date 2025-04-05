@@ -52,7 +52,7 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         params = self._model.init(self.rng_key(), example_inputs)
         self.set_parameters(params)
 
-    def setup(self, stage: reax.Stage, batch, /):
+    def configure_model(self, stage: reax.Stage, batch, /):
         if self.parameters() is None:
             # Calculate any statistics that the model will need in order to be configured
             if self._cfg.get("from_data"):
@@ -63,7 +63,7 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
                 else:
                     raise RuntimeError(f"Module could not find dataloader from stage {stage}")
 
-                calculate_stats(self._cfg.from_data, dataloader)
+                calculate_stats(self._cfg.from_data, self._trainer, dataloader)
 
             train_cfg = self._cfg.training
 
@@ -107,14 +107,14 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         )
         have_metrics = metrics is not None
         self.log(
-            "train.loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=not have_metrics
+            "train/loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=not have_metrics
         )
 
         if metrics:
             metrics = cast(dict[str, reax.Metric], metrics)
             for name, metric in metrics.items():
                 self.log(
-                    f"train.{name}",
+                    f"train/{name}",
                     metric,
                     on_step=False,
                     on_epoch=True,
@@ -137,14 +137,14 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         )
         have_metrics = metrics is not None
         self.log(
-            "val.loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=not have_metrics
+            "val/loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=not have_metrics
         )
 
         if have_metrics:
             metrics = cast(reax.metrics.MetricCollection, metrics)
             for name, metric in metrics.items():
                 self.log(
-                    f"val.{name}",
+                    f"val/{name}",
                     metric,
                     on_step=False,
                     on_epoch=True,
@@ -197,7 +197,10 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
 
 
 def calculate_stats(
-    from_data: omegaconf.DictConfig, training_data: reax.DataLoader[jraph.GraphsTuple]
+    from_data: omegaconf.DictConfig,
+    trainer: reax.Trainer,
+    dataloaders: reax.DataLoader = None,
+    datamodule: reax.DataModule = None,
 ):
     """This does an inplace update of the from_data config"""
     with_dependencies = []
@@ -220,7 +223,9 @@ def calculate_stats(
         to_calculate[label] = stat
 
     # Calculate the statistics
-    calculated = reax.evaluate_stats(to_calculate, training_data)
+    calculated: dict = trainer.eval_stats(
+        to_calculate, dataloaders=dataloaders, datamodule=datamodule
+    ).logged_metrics
 
     # Convert to types that can be used by omegaconf and update the configuration with the values
     calculated = {label: reax.utils.arrays.to_base(stat) for label, stat in calculated.items()}
@@ -239,7 +244,9 @@ def calculate_stats(
 
     if to_calculate:
         # Calculate the dependent statistics
-        calculated = reax.evaluate_stats(to_calculate, training_data)
+        calculated = trainer.eval_stats(
+            to_calculate, dataloaders=dataloaders, datamodule=datamodule
+        ).logged_metrics
 
         # Convert to types that can be used by omegaconf and update the configuration with the
         # values

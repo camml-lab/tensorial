@@ -2,7 +2,7 @@
 
 from tensorial.metrics import metric
 
-from . import base, config, data, geometry, metrics, tensorboards, tensors, training, typing
+from . import base, config, data, geometry, metrics, tensorboards, tensors, training, typing, utils
 from .base import *
 from .tensors import *
 from .training import *
@@ -24,5 +24,6 @@ __all__ = (
         "data",
         "typing",
         "TrainingModule",
+        "utils",
     )
 )

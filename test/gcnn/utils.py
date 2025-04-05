@@ -6,7 +6,7 @@ import jraph
 import numpy as np
 
 from tensorial import gcnn
-import tensorial.modules
+import tensorial.nn
 
 
 def random_spatial_graph(num_nodes: int = None, cutoff=0.2) -> jraph.GraphsTuple:
@@ -21,8 +21,8 @@ def graph_model(
     node_feature_irreps: e3j.Irreps,
     *modules,
     type_numbers: Sequence[int] = (0,),
-) -> tensorial.modules.Sequential:
-    return tensorial.modules.Sequential(
+) -> tensorial.nn.Sequential:
+    return tensorial.nn.Sequential(
         [
             gcnn.NodewiseEncoding(attrs={gcnn.keys.SPECIES: tensorial.OneHot(len(type_numbers))}),
             gcnn.EdgeVectors(),

@@ -27,7 +27,7 @@ def graph_metric(
     normalise_by: Optional[_typing.TreePathLike] = None,
 ) -> "GraphMetric":
     predictions_from = _tree.path_from_str(predictions)
-    targets_from = _tree.path_to_str(targets) if targets is not None else predictions_from
+    targets_from = _tree.path_to_str(targets) if targets is not None else None
     mask_from = _tree.path_to_str(mask) if mask is not None else None
     norm_by = _tree.path_to_str(normalise_by) if normalise_by is not None else None
 
@@ -89,7 +89,6 @@ class GraphMetric(reax.Metric):
             targets = predictions
 
         pred = _tree.get(predictions, self.pred_key)
-        targ = _tree.get(targets, self.target_key)
 
         mask = None
         if self.mask_key is not None:
@@ -106,13 +105,19 @@ class GraphMetric(reax.Metric):
 
         if self.normalise_by is not None:
             pred = mdiv(pred, _tree.get(predictions, self.normalise_by), where=mask)
-            targ = mdiv(targ, _tree.get(targets, self.normalise_by), where=mask)
 
-        args = [pred, targ]
-        if mask is not None:
-            args.append(mask)
+        args = [pred]
+        # If there is a target field, add that to the arguments list
+        if self.target_key:
+            targ = _tree.get(targets, self.target_key)
+            if self.normalise_by is not None:
+                targ = mdiv(targ, _tree.get(targets, self.normalise_by), where=mask)
 
-        return type(self)(self.parent.create(*args))
+            args.append(targ)
+
+        kwargs = {} if mask is None else {"mask": mask}
+
+        return type(self)(self.parent.create(*args, **kwargs))
 
     def merge(self, other: "GraphMetric") -> "GraphMetric":
         if other.is_empty:

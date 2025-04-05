@@ -1,7 +1,6 @@
 import numbers
 from typing import Optional
 
-import beartype
 import jax.typing
 import jaxtyping as jt
 import numpy as np
@@ -183,7 +182,7 @@ class PeriodicBoundary(distances.NeighbourFinder):
         )
 
 
-@jt.jaxtyped(typechecker=beartype.beartype)
+# too slow: @jt.jaxtyped(typechecker=beartype.beartype)
 def neighbour_finder(
     cutoff: numbers.Number,
     cell: Optional[typing.CellType] = None,

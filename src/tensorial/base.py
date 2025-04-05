@@ -8,6 +8,8 @@ from flax import linen
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
+import numpy as np
+from reax.utils import arrays
 
 from . import typing
 
@@ -29,7 +31,8 @@ __all__ = (
 Array = jax.typing.ArrayLike
 
 
-def atleast_1d(arr, np_=jnp) -> jax.Array:
+def atleast_1d(arr, np_=jnp) -> Union[jax.Array, np.ndarray]:
+    np_ = np_ if np_ is not None else arrays.infer_backend(arr)
     arr = np_.asarray(arr)
     return arr if np_.ndim(arr) >= 1 else np_.reshape(arr, -1)
 

@@ -113,7 +113,11 @@ def test_indexed_metrics(rng_key, batch_size: int):
     avg_num_neighbours = gcnn.metrics.AvgNumNeighboursByType(node_types, type_field=TYPE_FIELD)
 
     loader = gcnn.data.GraphLoader(random_graphs, batch_size=batch_size)
-    res: dict[int, jt.Float[jax.Array, "n_types"]] = reax.evaluate_stats(avg_num_neighbours, loader)
+
+    trainer = reax.Trainer()
+    res: dict[int, jt.Float[jax.Array, "n_types"]] = trainer.eval_stats(
+        avg_num_neighbours, loader
+    ).logged_metrics[gcnn.metrics.AvgNumNeighboursByType.__name__]
 
     all_graphs = jraph.batch(random_graphs)
     counts = jnp.bincount(all_graphs.senders, length=all_graphs.n_node.sum().item())

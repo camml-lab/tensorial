@@ -2,9 +2,11 @@ import collections
 from collections.abc import Iterable, Iterator
 import enum
 import functools
+import itertools
 from typing import Any, Optional, Sequence, Union
 
-import jax.numpy as jnp
+import beartype
+import jaxtyping as jt
 import jraph
 import numpy as np
 from pytray import tree
@@ -13,6 +15,7 @@ import tensorial
 from tensorial import data
 
 from . import keys, utils
+from .. import utils as tensorial_utils
 
 
 class GraphBatch(tuple):
@@ -24,7 +27,7 @@ GraphDataset = tensorial.data.Dataset[GraphBatch]
 GraphPadding = collections.namedtuple("GraphPadding", ["n_nodes", "n_edges", "n_graphs"])
 
 
-def max_padding(*padding: GraphPadding) -> GraphPadding:
+def max_padding(*padding: GraphPadding) -> "GraphPadding":
     """Get a padding that contains the maximum number of nodes, edges and graphs over all the
     provided paddings"""
     n_node = 0
@@ -121,32 +124,39 @@ def add_padding_mask(
 class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
     """Data loader for graphs"""
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        *graphs: Optional[Sequence[jraph.GraphsTuple]],
+        *datasets: Optional[Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]]],
         batch_size: int = 1,
         shuffle: bool = False,
         pad=False,
-        padding: GraphPadding = None,
+        padding: Optional[GraphPadding] = None,
     ):
-        # If the graphs were supplied as GraphTuples then unbatch them to have a base sequence of
-        # individual graphs per input
-        self._graphs = tuple(
-            jraph.unbatch(graph) if isinstance(graph, jraph.GraphsTuple) else graph
-            for graph in graphs
-        )
-        self._sampler: data.Sampler[list[int]] = data.samplers.create_sequence_sampler(
-            self._graphs[0], batch_size=batch_size, shuffle=shuffle
-        )
+        # Params
         self._batch_size = batch_size
         self._shuffle = shuffle
+
+        # State
+        # If the graphs were supplied as GraphTuples then unbatch them to have a base sequence of
+        # individual graphs per input
+        unbatched = tuple(
+            jraph.unbatch_np(graphs) if isinstance(graphs, jraph.GraphsTuple) else graphs
+            for graphs in datasets
+        )
+
+        # Find one that is not None that we can use to generate the sequence sampler
+        example = next(filter(lambda g: g is not None, unbatched))
+        self._sampler: data.Sampler[list[int]] = data.samplers.create_sequence_sampler(
+            example, batch_size=batch_size, shuffle=shuffle
+        )
 
         create_batcher = functools.partial(
             GraphBatcher, batch_size=batch_size, shuffle=shuffle, pad=pad, padding=padding
         )
         self._batchers: tuple[Optional[GraphBatcher], ...] = tuple(
             create_batcher(graph_batch) if graph_batch is not None else None
-            for graph_batch in graphs
+            for graph_batch in unbatched
         )
 
     @property
@@ -169,6 +179,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
     Take an iterable of graphs tuples and break it up into batches
     """
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         graphs: Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]],
@@ -177,10 +188,10 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         shuffle=False,
         pad=False,
         add_mask=True,
-        padding: GraphPadding = None,
+        padding: Optional[GraphPadding] = None,
     ):
         if isinstance(graphs, jraph.GraphsTuple):
-            graphs = jraph.unbatch(graphs)
+            graphs = jraph.unbatch_np(graphs)
         else:
             for graph in graphs:
                 if len(graph.n_node) != 1:
@@ -217,12 +228,13 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
                 sorted([graph.n_edge[0] for graph in graphs], reverse=True)[:batch_size]
             )
         else:
-            # Here we just want the most nodes and edges in any of the batches
-            idx_sampler = data.samplers.create_batch_sampler(
-                graphs, batch_size=batch_size, shuffle=False
-            )
-            pad_nodes = max(_fetch_batch(graphs, idxs).n_node.sum() for idxs in idx_sampler) + 1
-            pad_edges = max(_fetch_batch(graphs, idxs).n_edge.sum() for idxs in idx_sampler)
+            pad_nodes = 0
+            pad_edges = 0
+
+            for batch in _chunks(graphs, batch_size):
+                pad_nodes = max(pad_nodes, sum(graph.n_node.item() for graph in batch))
+                pad_edges = max(pad_edges, sum(graph.n_edge.item() for graph in batch))
+            pad_nodes += 1
 
         return GraphPadding(pad_nodes, pad_edges, n_graphs=batch_size + 1)
 
@@ -249,25 +261,35 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
             yield self.fetch(idxs)
 
 
-def _fetch_batch(graphs: Sequence[jraph.GraphsTuple], idxs: Sequence[int]) -> jraph.GraphsTuple:
+def _fetch_batch(
+    graphs: Sequence[jraph.GraphsTuple], idxs: Sequence[int], np_=np
+) -> jraph.GraphsTuple:
     """Given a set of indices, fetch the corresponding batch from the given graphs."""
     batch = []
     for idx in idxs:
         batch.append(graphs[idx])
+
+    if np_ is np:
+        return jraph.batch_np(batch)
+
+    # Assume JNP
     return jraph.batch(batch)
 
 
 def get_by_path(graph: jraph.GraphsTuple, path: tuple, pad_value=None) -> Any:
     res = tree.get_by_path(graph._asdict(), path)
+    np_ = tensorial_utils.infer_backend(res)
+
     if pad_value is not None:
-        mask = jnp.ones(res.shape[0], dtype=bool)
+        mask = np_.ones(res.shape[0], dtype=bool)
         if path[0] == "globals":
             mask = jraph.get_graph_padding_mask(graph)
         elif path[0] == "edges":
             mask = jraph.get_edge_padding_mask(graph)
         elif path[0] == "nodes":
             mask = jraph.get_node_padding_mask(graph)
-        res = jnp.where(mask, res, pad_value)
+        res = np_.where(mask, res, pad_value)
+
     return res
 
 
@@ -283,3 +305,10 @@ def get_graph_stats(*graph: jraph.GraphsTuple) -> dict:
         max_edges=edges.max(),
         avg_edges=edges.mean(),
     )
+
+
+def _chunks(iterable: Iterable, batch_size: int):
+    "Collect data into non-overlapping fixed-length chunks or blocks."
+    it = iter(iterable)
+    while chunk := list(itertools.islice(it, batch_size)):
+        yield chunk

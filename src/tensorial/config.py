@@ -12,7 +12,7 @@ import reax
 
 from . import data
 from . import metrics as metrics_
-from . import modules
+from . import nn
 
 __all__ = ("create_module", "load_module_state")
 
@@ -34,7 +34,7 @@ def create_module(module_config: Config) -> linen.Module:
                 # module that wraps a function i.e. f(g(x)), typically because it needs access to
                 # g(x) (for example to calculate gradients). So, we build what we've found so far,
                 # and pass it to the module
-                mod = mod(modules.Sequential(mods))
+                mod = mod(nn.Sequential(mods))
                 if not isinstance(mod, linen.Module):
                     raise ValueError(
                         f"Calling partial module {type(mod).__name__}() did not resolve to a "
@@ -48,7 +48,7 @@ def create_module(module_config: Config) -> linen.Module:
             # Special case to avoid needlessly wrapping a single module
             return mods[0]
 
-        return modules.Sequential(mods)
+        return nn.Sequential(mods)
 
     return hydra.utils.instantiate(module_config, _convert_="object")
 

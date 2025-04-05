@@ -11,10 +11,10 @@ import jraph
 import numpy as np
 from pytray import tree
 import reax
-
-from tensorial import base, nn_utils, typing
+from typing_extensions import override
 
 from . import _common, _graphs, _modules, _typing, keys, metrics, utils
+from .. import base, nn_utils, typing
 
 ENERGY_PER_ATOM = "energy/atom"
 TOTAL_ENERGY = "energy"
@@ -32,7 +32,7 @@ ASE_ATOM_KEYS = {"numbers", "forces", "stresses", "charges", "magmoms", "energie
 PyTree = Any
 
 
-@jt.jaxtyped(typechecker=beartype.beartype)
+# too slow: @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_ase(
     ase_atoms: "ase.atoms.Atoms",
     r_max: numbers.Number,
@@ -115,17 +115,18 @@ def graph_from_ase(
     cell = cell or ase_atoms.get_cell()
     pbc = pbc or ase_atoms.pbc
 
-    return _graphs.graph_from_points(
+    atom_graph = _graphs.graph_from_points(
         pos=ase_atoms.positions,
         fractional_positions=False,
         r_max=r_max,
-        cell=cell.__array__(),
+        cell=cell.__array__() if pbc.any() else None,
         pbc=pbc,
         nodes=atoms,
         edges=edges,
         graph_globals=graph_globals,
         **kwargs,
     )
+    return atom_graph
 
 
 def get_attrs(store_in: MutableMapping, get_from: Mapping, key: Hashable, key_map: Mapping) -> bool:
@@ -158,9 +159,7 @@ class SpeciesTransform(equinox.Module):
         field: str = ATOMIC_NUMBERS,
         out_field: str = keys.SPECIES,
     ):
-        self.atomic_numbers = jnp.asarray(
-            atomic_numbers
-        )  # pylint: disable=attribute-defined-outside-init
+        self.atomic_numbers = jnp.asarray(atomic_numbers)
         self.field = field
         self.out_field = out_field
 
@@ -368,12 +367,14 @@ class EnergyContributionLstsq(reax.Metric):
             metric=self._metric.merge(other._metric),  # pylint: disable=protected-access
         )
 
+    @override
     def create(  # pylint: disable=arguments-differ
         self, graphs: jraph.GraphsTuple, *_
     ) -> "EnergyContributionLstsq":
         val = self._fun(graphs)  # pylint: disable=not-callable
         return type(self)(type_map=self._type_map, metric=TypeContributionLstsq(*val))
 
+    @override
     def update(  # pylint: disable=arguments-differ
         self, graphs: jraph.GraphsTuple, *_
     ) -> "EnergyContributionLstsq":
@@ -383,6 +384,7 @@ class EnergyContributionLstsq(reax.Metric):
         val = self._fun(graphs)  # pylint: disable=not-callable
         return EnergyContributionLstsq(type_map=self._type_map, metric=self._metric.update(*val))
 
+    @override
     def compute(self):
         if self._metric is None:
             raise RuntimeError("Nothing to compute, metric is empty!")

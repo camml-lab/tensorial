@@ -2,7 +2,6 @@ import logging
 import numbers
 from typing import Optional, Union
 
-import beartype
 import e3nn_jax as e3j
 import jax
 import jax.numpy as jnp
@@ -12,7 +11,7 @@ import numpy as np
 import reax.metrics
 
 import tensorial
-from tensorial import geometry, typing
+from tensorial import base, geometry, typing
 
 from . import keys
 
@@ -21,7 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = ("graph_from_points", "with_edge_vectors")
 
 
-@jt.jaxtyped(typechecker=beartype.beartype)
+# @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_points(
     pos: jt.Float[jax.typing.ArrayLike, "n_nodes 3"],
     r_max: numbers.Number,
@@ -103,7 +102,9 @@ def graph_from_points(
     graph_globals[keys.CELL] = cell
     # We have to pad out the globals to make things like batching work
     graph_globals = {
-        key: np_.expand_dims(value, 0) for key, value in graph_globals.items() if value is not None
+        key: np_.expand_dims(base.atleast_1d(value), 0)
+        for key, value in graph_globals.items()
+        if value is not None
     }
 
     edges = edges or {}

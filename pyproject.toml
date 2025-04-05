@@ -70,6 +70,9 @@ dev = [
 [tool.flit.module]
 name = 'tensorial'
 
+[project.entry-points."reax.plugins.batch_sizers"]
+native = "tensorial._provides:get_batch_sizers"
+
 [tool.flit.sdist]
 exclude = [
     '.github/',

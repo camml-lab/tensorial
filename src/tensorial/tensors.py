@@ -76,7 +76,7 @@ class SphericalHarmonic(base.Attr):
 class OneHot(base.Attr):
     """One-hot encoding as a direct sum of even scalars"""
 
-    def __init__(self, num_classes):
+    def __init__(self, num_classes: int):
         super().__init__(num_classes * e3j.Irrep(0, 1))
 
     @property

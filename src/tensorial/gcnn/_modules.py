@@ -47,8 +47,8 @@ class Rescale(linen.Module):
         if self.shift != 0.0:
             for path in self._shift_fields:
                 if path[0] == "globals":
-                    _LOGGER.warning(
-                        "Setting global shift %s to %d, this field will no longer be size "
+                    _LOGGER.info(
+                        "Setting shift `%s` to `%f`, this field will no longer be size "
                         "extensive with the number of nodes/edges",
                         utils.path_to_str(path),
                         self.shift,
