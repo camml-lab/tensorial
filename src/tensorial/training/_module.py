@@ -1,40 +1,54 @@
-import functools
-from typing import Any, Callable, Optional, Union, cast
+from typing import Any, Callable, Final, Optional, Union, cast
 
+import beartype
 import equinox as eqx
 from flax import linen
-import hydra
 import jax
 import jaxtyping as jt
 import jraph
-import omegaconf
+import optax
 import reax
 import reax.utils
 from typing_extensions import override
 
-from tensorial import config as config_
+__all__ = ("ReaxModule",)
 
-__all__ = ("TrainingModule",)
-
-MetricsDict = dict[str, reax.Metric]
+MetricsDict = dict[str, Union[reax.Metric, str]]
 LossFn = Callable[[jraph.GraphsTuple, jraph.GraphsTuple], jax.Array]
+Optimizer = Union[optax.GradientTransformation, Callable[[], optax.GradientTransformation]]
 
 
-class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
-    """Tensorial REAX module"""
+class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
+    """Tensorial REAX module."""
 
     # pylint: disable=method-hidden
 
+    _model: Optional[linen.Module] = None
     _loss_fn: LossFn
     _metrics: Optional[reax.metrics.MetricCollection] = None
-    _model: Optional[linen.Module] = None
+    _optimizer: Optimizer
 
-    def __init__(self, config: omegaconf.DictConfig, jit=True):
+    @jt.jaxtyped(typechecker=beartype.beartype)
+    def __init__(
+        self,
+        model: linen.Module,
+        loss_fn: LossFn,
+        optimizer: Optimizer,
+        scheduler: Optional[optax.Schedule] = None,
+        metrics: Optional[MetricsDict] = None,
+        jit=True,
+    ):
         super().__init__()
-        self._cfg = config
+        self._model = model
+        self._loss_fn = loss_fn
+        self._optimizer = optimizer
+        self._scheduler = scheduler
+        self._metrics: Final[Optional[reax.metrics.MetricCollection]] = (
+            metrics if metrics is None else reax.metrics.build_collection(metrics)
+        )
         self._debug = False
         if jit:
-            self.step = eqx.filter_jit(donate="all")(self.step)
+            self.step = eqx.filter_jit(donate="all-except-first")(self.step)
             self.calculate_metrics = eqx.filter_jit(donate="all")(self.calculate_metrics)
             self._forward = eqx.filter_jit(donate="all")(self._forward)
 
@@ -46,62 +60,38 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
     def debug(self, value: bool) -> None:
         self._debug = value
 
-    def create_and_init_model(self, example_inputs):
-        """Create the model and initialise parameters"""
-        self._model = config_.create_module(self._cfg.model)
-        params = self._model.init(self.rng_key(), example_inputs)
-        self.set_parameters(params)
-
+    @override
     def configure_model(self, stage: reax.Stage, batch, /):
         if self.parameters() is None:
-            # Calculate any statistics that the model will need in order to be configured
-            if self._cfg.get("from_data"):
-                if isinstance(stage, reax.stages.Fit):
-                    dataloader = stage.train_dataloader
-                elif isinstance(stage, reax.stages.EpochStage):
-                    dataloader = stage.dataloader
-                else:
-                    raise RuntimeError(f"Module could not find dataloader from stage {stage}")
-
-                calculate_stats(self._cfg.from_data, self._trainer, dataloader)
-
-            train_cfg = self._cfg.training
-
-            # Create the loss function to be used to train
-            self._loss_fn = hydra.utils.instantiate(train_cfg.loss_fn, _convert_="object")
-
-            # Create the metrics to be used during fitting
-            if train_cfg.get("metrics"):
-                self._metrics = reax.metrics.MetricCollection(
-                    config_.create_metrics(train_cfg.metrics)
-                )
-
             inputs = batch
             if isinstance(batch, tuple):
                 inputs = batch[0]
 
-            self.create_and_init_model(inputs)
+            params = self._model.init(self.rng_key(), inputs)
+            self.set_parameters(params)
 
-            logger = self.trainer.logger
-            if logger is not None:
-                logger.log_hyperparams(omegaconf.OmegaConf.to_container(self._cfg, resolve=True))
-        elif self._model is None:
-            # Create the model
-            self._model = config_.create_module(self._cfg.model)
-
+    @override
     def configure_optimizers(self):
-        assert self.parameters() is not None  # nosec B101
-        optimiser = hydra.utils.instantiate(self._cfg.training.optimiser, _convert_="object")
-        state = optimiser.init(self.parameters())
-        return optimiser, state
+        if self.parameters() is None:
+            raise reax.exceptions.MisconfigurationException("Model parameters have not been set.")
 
+        if not isinstance(self._optimizer, optax.GradientTransformation):
+            if self._scheduler is None:
+                # Instantiate the optimizer
+                self._optimizer = self._optimizer()
+
+            else:
+                # Assume the scheduler can be used as a learning rate function
+                self._optimizer = self._optimizer(learning_rate=self._scheduler)
+
+        state = self._optimizer.init(self.parameters())
+        return self._optimizer, state
+
+    @override
     def training_step(
         self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int, /
     ) -> tuple[jax.Array, jax.Array]:
-        inputs, outputs = batch
-        if outputs is None:
-            outputs = inputs
-
+        inputs, outputs = self._prep_batch(batch)
         (loss, metrics), grads = jax.value_and_grad(self.step, argnums=0, has_aux=True)(
             self.parameters(), inputs, outputs, self._model.apply, self._loss_fn, self._metrics
         )
@@ -128,10 +118,7 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
     def validation_step(
         self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int, /
     ):
-        inputs, outputs = batch
-        if outputs is None:
-            outputs = inputs
-
+        inputs, outputs = self._prep_batch(batch)
         loss, metrics = self.step(
             self.parameters(), inputs, outputs, self._model.apply, self._loss_fn, self._metrics
         )
@@ -174,7 +161,7 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         loss_fn: Callable,
         metrics: Optional[reax.metrics.MetricCollection] = None,
     ) -> tuple[jax.Array, Optional[reax.metrics.MetricCollection]]:
-        """Calculate loss and, optionally metrics"""
+        """Calculate loss and, optionally metrics."""
         predictions = model(params, inputs)
         if metrics:
             metrics = metrics.create(predictions, inputs)
@@ -195,85 +182,13 @@ class TrainingModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
     ) -> dict[str, reax.Metric]:
         return {key: metric.create(predictions, targets) for key, metric in metrics.items()}
 
-
-def calculate_stats(
-    from_data: omegaconf.DictConfig,
-    trainer: reax.Trainer,
-    dataloaders: reax.DataLoader = None,
-    datamodule: reax.DataModule = None,
-):
-    """This does an inplace update of the from_data config"""
-    with_dependencies = []
-
-    # Find those that we will come back to for a second path
-    for entry in find_iterpol(from_data):
-        with_dependencies.append(entry[0][0])
-    with_dependencies = set(with_dependencies)
-
-    to_calculate = {}
-    for label, value in from_data.items():
-        if label in with_dependencies:
-            continue
-
-        if omegaconf.OmegaConf.is_dict(value):
-            stat = hydra.utils.instantiate(value, _convert_="object")
+    def _prep_batch(self, batch) -> tuple[jraph.GraphsTuple, Optional[jraph.GraphsTuple]]:
+        if isinstance(batch, jraph.GraphsTuple):
+            inputs = outputs = batch
         else:
-            stat = reax.metrics.get(value)
+            if len(batch) == 1:
+                inputs = outputs = batch[0]
+            else:
+                inputs, outputs = batch
 
-        to_calculate[label] = stat
-
-    # Calculate the statistics
-    calculated: dict = trainer.eval_stats(
-        to_calculate, dataloaders=dataloaders, datamodule=datamodule
-    ).logged_metrics
-
-    # Convert to types that can be used by omegaconf and update the configuration with the values
-    calculated = {label: reax.utils.arrays.to_base(stat) for label, stat in calculated.items()}
-
-    from_data.update(calculated)
-
-    to_calculate = {}
-    for label in with_dependencies:
-        value = from_data[label]
-        if omegaconf.OmegaConf.is_dict(value):
-            stat = hydra.utils.instantiate(value, _convert_="object")
-        else:
-            stat = reax.metrics.get(value)
-
-        to_calculate[label] = stat
-
-    if to_calculate:
-        # Calculate the dependent statistics
-        calculated = trainer.eval_stats(
-            to_calculate, dataloaders=dataloaders, datamodule=datamodule
-        ).logged_metrics
-
-        # Convert to types that can be used by omegaconf and update the configuration with the
-        # values
-        calculated = _to_omega(calculated)
-
-        from_data.update(calculated)
-
-
-@functools.singledispatch
-def _to_omega(value):
-    return value
-
-
-@_to_omega.register
-def _(value: dict) -> dict:
-    return {key: _to_omega(value) for key, value in value.items()}
-
-
-@_to_omega.register
-def _(value: jt.Array) -> Union[int, float, list]:
-    return reax.utils.arrays.to_base(value)
-
-
-def find_iterpol(root, path=()):
-    for key, value in root.items():
-        if isinstance(value, str):
-            if omegaconf.OmegaConf.is_interpolation(root, key):
-                yield path, key
-        elif omegaconf.OmegaConf.is_dict(value):
-            yield from find_iterpol(value, (key,))
+        return inputs, outputs
