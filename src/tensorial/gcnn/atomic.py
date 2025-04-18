@@ -33,6 +33,77 @@ PyTree = Any
 
 
 # too slow: @jt.jaxtyped(typechecker=beartype.beartype)
+def graph_from_pymatgen(
+    pymatgen_structure: "pymatgen.SiteCollection",
+    r_max: numbers.Number,
+    *,
+    key_mapping: Optional[dict[str, str]] = None,
+    atom_include_keys: Optional[Iterable] = ("numbers",),
+    edge_include_keys: Optional[Iterable] = tuple(),
+    global_include_keys: Optional[Iterable] = tuple(),
+    cell: Optional[typing.CellType] = None,
+    pbc: Optional[Union[bool, typing.PbcType]] = None,
+    **kwargs,
+) -> jraph.GraphsTuple:
+    """
+    Create a jraph Graph from a pymatgen SiteCollection object or sub-class (e.g. Structure, Molecule)
+
+    Note that the special atom key "numbers" is used to retrieve atomic numbers using SiteCollection.atomic_numbers.
+    All other keys are used to retrieve site properties using SiteCollection.site_properties.
+
+    :param pymatgen_structure: the SiteCollection object
+    :param r_max: the maximum neighbour distance to use when considering two atoms to be neighbours
+    :param key_mapping:
+    :param atom_include_keys:
+    :param global_include_keys:
+    :param cell: an optional unit cell (otherwise will be taken from Structure.lattice.matrix if it exists)
+    :param pbc: an optional periodic boundary conditions array [bool, bool, bool] (otherwise will be
+        taken from Structure.lattice.pbc if it exists)
+    :return: the atomic graph
+    """
+    # pylint: disable=too-many-branches
+    key_mapping = key_mapping or {}
+    _key_mapping = {
+        "forces": FORCES,
+        "energy": TOTAL_ENERGY,
+        "numbers": ATOMIC_NUMBERS,
+    }
+    _key_mapping.update(key_mapping)
+
+    positions = pymatgen_structure.cart_coords
+    if hasattr(pymatgen_structure, "lattice"):
+        cell = cell or pymatgen_structure.lattice.matrix
+        pbc = pbc or pymatgen_structure.lattice.pbc
+
+    atoms = {}
+    if "numbers" in atom_include_keys:
+        atoms[key_mapping.get("numbers", "numbers")] = pymatgen_structure.atomic_numbers
+        atom_include_keys = set(atom_include_keys) - {"numbers"}
+    for key in atom_include_keys:
+        get_attrs(atoms, pymatgen_structure.site_properties, key, key_mapping)
+
+    edges = {}
+    for key in edge_include_keys:
+        get_attrs(edges, pymatgen_structure.properties, key, key_mapping)
+
+    graph_globals = {}
+    for key in global_include_keys:
+        get_attrs(graph_globals, pymatgen_structure.properties, key, key_mapping)
+
+    return _graphs.graph_from_points(
+        pos=positions,
+        fractional_positions=False,
+        r_max=r_max,
+        cell=cell,
+        pbc=pbc,
+        nodes=atoms,
+        edges=edges,
+        graph_globals=graph_globals,
+        **kwargs,
+    )
+
+
+# too slow: @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_ase(
     ase_atoms: "ase.atoms.Atoms",
     r_max: numbers.Number,
