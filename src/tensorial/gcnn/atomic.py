@@ -1,6 +1,6 @@
-from collections.abc import Iterable
+from collections.abc import Hashable, Iterable
 import numbers
-from typing import Any, Hashable, Mapping, MutableMapping, Optional, Sequence, Union
+from typing import Any, Mapping, MutableMapping, Optional, Sequence, Union
 
 import beartype
 import equinox
@@ -45,10 +45,11 @@ def graph_from_pymatgen(
     pbc: Optional[Union[bool, typing.PbcType]] = None,
     **kwargs,
 ) -> jraph.GraphsTuple:
-    """
-    Create a jraph Graph from a pymatgen SiteCollection object or sub-class (e.g. Structure, Molecule)
+    """Create a jraph Graph from a pymatgen SiteCollection object or subclass
+    (e.g. Structure, Molecule)
 
-    Note that the special atom key "numbers" is used to retrieve atomic numbers using SiteCollection.atomic_numbers.
+    Note that the special atom key "numbers" is used to retrieve atomic numbers using
+    SiteCollection.atomic_numbers.
     All other keys are used to retrieve site properties using SiteCollection.site_properties.
 
     :param pymatgen_structure: the SiteCollection object
@@ -56,7 +57,8 @@ def graph_from_pymatgen(
     :param key_mapping:
     :param atom_include_keys:
     :param global_include_keys:
-    :param cell: an optional unit cell (otherwise will be taken from Structure.lattice.matrix if it exists)
+    :param cell: an optional unit cell (otherwise will be taken from Structure.lattice.matrix if
+        it exists)
     :param pbc: an optional periodic boundary conditions array [bool, bool, bool] (otherwise will be
         taken from Structure.lattice.pbc if it exists)
     :return: the atomic graph

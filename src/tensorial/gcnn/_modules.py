@@ -1,5 +1,6 @@
+from collections.abc import Hashable
 import logging
-from typing import Hashable, Optional, Sequence, Union
+from typing import Optional, Sequence, Union
 
 import e3nn_jax as e3j
 from flax import linen

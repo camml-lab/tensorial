@@ -162,7 +162,7 @@ class OrthoBasis(RadialBasis):
         return ret
 
     def inner_product(self, val_a, val_b):
-        return jnp.trapz(val_a * val_b * self.area_samples, self.radial_samples)
+        return jnp.trapezoid(val_a * val_b * self.area_samples, self.radial_samples)
 
     def norm(self, val):
         return jnp.sqrt(self.inner_product(val, val))

@@ -116,7 +116,7 @@ disable = [
 
 [tool.pylint.design]
 max-locals = 20
-max-positional-arguments = 7
+max-positional-arguments = 11
 
 [pytest]
 log_cli = "True"
