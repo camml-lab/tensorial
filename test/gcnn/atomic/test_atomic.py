@@ -15,17 +15,37 @@ from tensorial.gcnn import atomic
 
 
 @pytest.fixture
-def ase_cubic_si() -> ase.Atoms:
+def ase_cubic_si() -> "ase.Atoms":
     return ase.build.bulk("Si", "sc", a=1.0)
 
 
 @pytest.fixture
-def h2coh() -> ase.Atoms:
+def h2coh() -> "ase.Atoms":
     return ase.build.molecule("H2COH")
 
 
 def test_graph_from_ase(ase_cubic_si):  # pylint: disable=redefined-outer-name
     si_graph = atomic.graph_from_ase(ase_cubic_si, r_max=1.1)
+
+    # Graph
+    assert si_graph.n_node == jnp.array([1])
+    assert si_graph.n_edge == jnp.array([6])
+    assert si_graph.senders.shape == (6,)
+    assert si_graph.receivers.shape == (6,)
+
+    # Globals
+    assert jnp.all(si_graph.globals[atomic.PBC] == jnp.array([[True, True, True]]))
+
+    # Nodes
+    assert si_graph.nodes[atomic.ATOMIC_NUMBERS] == jnp.array([14.0])
+
+
+def test_graph_from_pymatgen(ase_cubic_si):  # pylint: disable=redefined-outer-name
+    pymatgen = pytest.importorskip("pymatgen")
+    import pymatgen.io.ase
+
+    si_structure: "pymatgen.Structure" = pymatgen.io.ase.AseAtomsAdaptor.get_structure(ase_cubic_si)
+    si_graph = atomic.graph_from_pymatgen(si_structure, r_max=1.1)
 
     # Graph
     assert si_graph.n_node == jnp.array([1])
@@ -66,10 +86,10 @@ def test_per_species_rescale():
     molecule = ase.build.molecule("SiH4")
     types = np.unique(molecule.get_atomic_numbers())
     energies = np.random.rand(len(molecule))
-    molecule.arrays[atomic.ENERGY_PER_ATOM] = energies
+    molecule.arrays[atomic.keys.ENERGY_PER_ATOM] = energies
 
     molecule_graph = atomic.graph_from_ase(
-        molecule, r_max=2.0, atom_include_keys=("numbers", atomic.ENERGY_PER_ATOM)
+        molecule, r_max=2.0, atom_include_keys=("numbers", atomic.keys.ENERGY_PER_ATOM)
     )
     # Update the graph with the type indexes
     species_transform = atomic.SpeciesTransform(types)
@@ -77,14 +97,14 @@ def test_per_species_rescale():
 
     rescale = atomic.per_species_rescale(
         len(types),
-        field=f"nodes.{atomic.ENERGY_PER_ATOM}",
+        field=f"nodes.{atomic.keys.ENERGY_PER_ATOM}",
     )
     params = rescale.init(jax.random.key(0), molecule_graph)
     rescaled = rescale.apply(params, molecule_graph)
 
     # Check before and after
-    assert jnp.all(molecule_graph.nodes[atomic.ENERGY_PER_ATOM] == energies)
-    assert jnp.all(rescaled.nodes[atomic.ENERGY_PER_ATOM] != energies)
+    assert jnp.all(molecule_graph.nodes[atomic.keys.ENERGY_PER_ATOM] == energies)
+    assert jnp.all(rescaled.nodes[atomic.keys.ENERGY_PER_ATOM] != energies)
 
 
 def test_metrics(molecule_dataset: Sequence[jraph.GraphsTuple]):
