@@ -19,7 +19,7 @@ class Sequential(linen.Module):
 
     def setup(self) -> None:
         # pylint: disable=attribute-defined-outside-init
-        self._layers: Sequence[linen.Module] = _layers(self.layers)
+        self._layers: list[linen.Module] = _layers(self.layers)
 
     def __post_init__(self):
         if not isinstance(self.layers, Sequence):
@@ -40,9 +40,7 @@ class Sequential(linen.Module):
         return outputs
 
 
-def _layers(
-    layers: Sequence[Union[linen.Module, functools.partial]],
-) -> Union[linen.Module, list[linen.Module]]:
+def _layers(layers: Sequence[Union[linen.Module, functools.partial]]) -> list[linen.Module]:
     """Create the model from the configuration object"""
     new_layers = []
     for layer in layers:
@@ -51,7 +49,16 @@ def _layers(
             # module that wraps a function i.e. f(g(x)), typically because it needs access to
             # g(x) (for example to calculate gradients). So, we build what we've found so far,
             # and pass it to the module
-            layer = layer(Sequential(new_layers))
+            if len(new_layers) == 1:
+                # Special case to avoid needlessly wrapping a single module
+                layer = layer(new_layers[0])
+            elif len(new_layers) > 1:
+                layer = layer(Sequential(new_layers))
+            else:
+                raise ValueError(
+                    f"Got a partial module, but have no previous modules to pass to it: {layer}"
+                )
+
             if not isinstance(layer, linen.Module):
                 raise ValueError(
                     f"Calling partial module {type(layer).__name__}() did not resolve to a "
@@ -60,9 +67,5 @@ def _layers(
             new_layers = [layer]
         else:
             new_layers.append(layer)
-
-    if len(new_layers) == 1:
-        # Special case to avoid needlessly wrapping a single module
-        return new_layers[0]
 
     return new_layers
