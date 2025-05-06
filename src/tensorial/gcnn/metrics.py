@@ -107,7 +107,7 @@ class GraphMetric(reax.Metric):
             pred = mdiv(pred, _tree.get(predictions, self.normalise_by), where=mask)
 
         args = [pred]
-        # If there is a target field, add that to the arguments list
+        # If there is a target field, add that to the argument list
         if self.target_key:
             targ = _tree.get(targets, self.target_key)
             if self.normalise_by is not None:

@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Optional, Union
 
 import beartype
@@ -16,18 +16,35 @@ from .. import keys as graph_keys
 from .. import metrics
 from ... import nn_utils, typing
 
-__all__ = "AllAtomicNumbers", "NumSpecies", "ForceStd", "AvgNumNeighbours"
+__all__ = (
+    "AllAtomicNumbers",
+    "NumSpecies",
+    "ForceStd",
+    "AvgNumNeighbours",
+    "AvgNumNeighboursByAtomType",
+    "TypeContributionLstsq",
+    "EnergyContributionLstsq",
+)
+
+
+def get(mapping: Mapping, key: str):
+    try:
+        return mapping[key]
+    except KeyError:
+        raise reax.exceptions.DataNotFound(f"Missing key: {key}")
+
 
 AllAtomicNumbers = reax.metrics.Unique.from_fun(
-    lambda graph, *_: (graph.nodes[keys.ATOMIC_NUMBERS], graph.nodes.get(graph_keys.MASK))
+    lambda graph, *_: (get(graph.nodes, keys.ATOMIC_NUMBERS), graph.nodes.get(graph_keys.MASK))
 )
 
 NumSpecies = reax.metrics.NumUnique.from_fun(
-    lambda graph, *_: (graph.nodes[keys.ATOMIC_NUMBERS], graph.nodes.get(graph_keys.MASK))
+    lambda graph, *_: (get(graph.nodes, keys.ATOMIC_NUMBERS), graph.nodes.get(graph_keys.MASK))
 )
 
+
 ForceStd = reax.metrics.Std.from_fun(
-    lambda graph, *_: (graph.nodes[keys.FORCES], graph.nodes.get(graph_keys.MASK))
+    lambda graph, *_: (get(graph.nodes, keys.FORCES), graph.nodes.get(graph_keys.MASK))
 )
 
 AvgNumNeighbours = reax.metrics.Average.from_fun(
@@ -119,6 +136,8 @@ class EnergyContributionLstsq(reax.Metric):
     _metric: Optional[TypeContributionLstsq] = None
 
     def __init__(self, type_map: Sequence, metric: TypeContributionLstsq = None):
+        if type_map is None:
+            raise ValueError("Must supply a value type_map")
         self._type_map = jnp.asarray(type_map)
         self._metric = metric
 
@@ -172,7 +191,11 @@ class EnergyContributionLstsq(reax.Metric):
         graph_dict = graphs._asdict()
         num_nodes = graphs.n_node
 
-        types = tree.get_by_path(graph_dict, ("nodes", keys.ATOMIC_NUMBERS))
+        try:
+            types = tree.get_by_path(graph_dict, ("nodes", keys.ATOMIC_NUMBERS))
+        except KeyError:
+            raise reax.exceptions.DataNotFound(f"Missing key: {('nodes', keys.TOTAL_ENERGY)}")
+
         if self._type_map is None:
             num_classes = types.max().item() + 1  # Assume the types go 0,1,2...N
         else:
@@ -188,7 +211,11 @@ class EnergyContributionLstsq(reax.Metric):
         type_counts = _common.reduce(graphs, ("nodes",) + one_hot_field, reduction="sum")
 
         # Predicting values
-        values = tree.get_by_path(graph_dict, ("globals", keys.TOTAL_ENERGY))
+        try:
+            values = tree.get_by_path(graph_dict, ("globals", keys.TOTAL_ENERGY))
+        except KeyError:
+            raise reax.exceptions.DataNotFound(f"Missing key: {('globals', keys.TOTAL_ENERGY)}")
+
         if graph_keys.MASK in graph_dict["globals"]:
             mask = graph_dict["globals"][graph_keys.MASK]
         else:
