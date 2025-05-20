@@ -2,13 +2,13 @@
 
 from tensorial.metrics import metric
 
-from . import base, config, data, geometry, metrics, tensorboards, tensors, training, typing, utils
+from . import base, config, data, geometry, metrics, tensors, training, typing, utils
 from .base import *
 from .tensors import *
 from .training import *
 from .training import ReaxModule
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = (
     base.__all__
@@ -20,7 +20,6 @@ __all__ = (
         "metrics",
         "training",
         "metric",
-        "tensorboards",
         "data",
         "typing",
         "ReaxModule",

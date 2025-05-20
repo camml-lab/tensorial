@@ -31,7 +31,7 @@ def get(mapping: Mapping, key: str):
     try:
         return mapping[key]
     except KeyError:
-        raise reax.exceptions.DataNotFound(f"Missing key: {key}")
+        raise reax.exceptions.DataNotFound(f"Missing key: {key}") from None
 
 
 AllAtomicNumbers = reax.metrics.Unique.from_fun(
@@ -194,7 +194,9 @@ class EnergyContributionLstsq(reax.Metric):
         try:
             types = tree.get_by_path(graph_dict, ("nodes", keys.ATOMIC_NUMBERS))
         except KeyError:
-            raise reax.exceptions.DataNotFound(f"Missing key: {('nodes', keys.TOTAL_ENERGY)}")
+            raise reax.exceptions.DataNotFound(
+                f"Missing key: {('nodes', keys.TOTAL_ENERGY)}"
+            ) from None
 
         if self._type_map is None:
             num_classes = types.max().item() + 1  # Assume the types go 0,1,2...N
@@ -214,7 +216,9 @@ class EnergyContributionLstsq(reax.Metric):
         try:
             values = tree.get_by_path(graph_dict, ("globals", keys.TOTAL_ENERGY))
         except KeyError:
-            raise reax.exceptions.DataNotFound(f"Missing key: {('globals', keys.TOTAL_ENERGY)}")
+            raise reax.exceptions.DataNotFound(
+                f"Missing key: {('globals', keys.TOTAL_ENERGY)}"
+            ) from None
 
         if graph_keys.MASK in graph_dict["globals"]:
             mask = graph_dict["globals"][graph_keys.MASK]
