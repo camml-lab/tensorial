@@ -1,118 +1,175 @@
 import functools
-from typing import Any, Dict, Mapping, Union
+from typing import Any, Mapping, Optional, Union
 
-from flax import linen
-from flax.training import orbax_utils
-import flax.training.train_state
 import hydra
-import jax
+import jaxtyping as jt
 import omegaconf
-import orbax.checkpoint
 import reax
+import reax.utils
+from typing_extensions import override
 
-from . import data
-from . import metrics as metrics_
-from . import nn
-
-__all__ = ("create_module", "load_module_state")
-
-Config = Union[omegaconf.DictConfig, omegaconf.ListConfig]
-
-MODULE_STATE = "state"
-MODULE_CONFIG = "config"
-TRAIN_STATE = "train_state"
+__all__ = ("instantiate",)
 
 
-def create_module(module_config: Config) -> linen.Module:
-    """Create the model from the configuration object"""
-    if isinstance(module_config, omegaconf.ListConfig):
-        mods = []
-        for entry in module_config:
-            mod = create_module(entry)
-            if isinstance(mod, functools.partial):
-                # We've reached a module that is partly constructed.  This indicates that it's a
-                # module that wraps a function i.e. f(g(x)), typically because it needs access to
-                # g(x) (for example to calculate gradients). So, we build what we've found so far,
-                # and pass it to the module
-                mod = mod(nn.Sequential(mods))
-                if not isinstance(mod, linen.Module):
-                    raise ValueError(
-                        f"Calling partial module {type(mod).__name__}() did not resolve to a "
-                        f"linen.Module instance"
-                    )
-                mods = [mod]
+def instantiate(cfg: omegaconf.OmegaConf, **kwargs) -> Any:
+    """Given an omegaconf configuration, instantiate the corresponding object"""
+    return hydra.utils.instantiate(cfg, _convert_="object", **kwargs)
+
+
+class FromData(reax.stages.Stage):
+    """A trainer stage that will populate an OmegaConf dictionary with data statistics calculated
+    from metrics.
+    """
+
+    def __init__(
+        self,
+        cfg: omegaconf.DictConfig,
+        strategy: reax.Strategy,
+        rng: reax.Generator,
+        dataloader: Optional[reax.DataLoader] = None,
+        datamodule: Optional[reax.DataModule] = None,
+        dataloader_name: Optional[str] = "train",
+        ignore_missing: bool = True,
+    ):
+        """
+        Populate a hydra configurations dictionary using calculated stats
+
+        :param cfg: the configuration dictionary
+        :param strategy: the trainer strategy
+        :param rng: the random number generator
+        :param dataloader: the dataloader to use
+        :param datamodule: if no dataloader is specified, a data module can be used instead
+        :param dataloader_name: the datamodule dataloader name
+        :param ignore_missing: if `True`, any data that is needed to calculate a metric but is
+            missing will be ignored, and that metric will not be calculated
+        """
+        super().__init__(
+            "from_data",
+            module=None,
+            strategy=strategy,
+            rng=rng,
+            datamanager=reax.data.create_manager(
+                datamodule=datamodule, **{f"{dataloader_name}_loader": dataloader}
+            ),
+        )
+        # Params
+        self._dataset_name = dataloader_name
+        self._ignore_missing = ignore_missing
+
+        # State
+        self._cfg = cfg
+        self._dataloader = dataloader
+        self._calculated = {}
+        self._to_calculate: dict = self._update_stats(self._cfg)
+
+    @property
+    def dataloader(self) -> Optional[reax.DataLoader]:
+        return self._datamanager.get_dataloader(self._dataset_name)
+
+    @property
+    def dataloaders(self) -> Optional[reax.DataLoader]:
+        """Dataloader function."""
+        return self.dataloader
+
+    @override
+    def log(
+        self,
+        name: str,
+        value,
+        batch_size: Optional[int] = None,
+        prog_bar: bool = False,
+        logger: bool = False,
+        on_step=False,
+        on_epoch=True,
+    ) -> None:
+        self._child.log(
+            name,
+            value,
+            batch_size=batch_size,
+            prog_bar=prog_bar,
+            logger=logger,
+            on_step=on_step,
+            on_epoch=on_epoch,
+        )
+
+    @override
+    def _step(self) -> None:
+        eval_stats = reax.stages.EvaluateStats(
+            self._to_calculate,
+            self._datamanager,
+            self._strategy,
+            self._rng,
+            dataset_name=self._dataset_name,
+            ignore_missing=True,
+        )
+        calculated: dict = self._run_child(eval_stats).logged_metrics
+        # Convert to types that can be used by omegaconf and update the configuration with the
+        # values
+        calculated = {label: reax.utils.arrays.to_base(stat) for label, stat in calculated.items()}
+
+        if self._ignore_missing:
+            # Set any that we couldn't calculate to `None`
+            for missing in self._to_calculate.keys() - calculated.keys():
+                calculated[missing] = None
+
+        # Update for the next step
+        self._cfg.update(calculated)
+        self._calculated.update(calculated)
+
+        # Find the next set to get calculated
+        self._to_calculate = self._update_stats(self._cfg)
+
+        if not self._to_calculate:
+            # we're done
+            self._cfg.update(self._calculated)
+            self._stopper.set()
+
+    def _update_stats(self, from_data: Mapping) -> dict:
+        with_dependencies = []
+
+        # Find those that we will come back to for a second path
+        for entry in find_iterpol(from_data):
+            with_dependencies.append(entry[0][0])
+        with_dependencies = set(with_dependencies)
+
+        to_calculate = {}
+        for label, value in from_data.items():
+            if label in self._calculated:
+                continue
+
+            if label in with_dependencies:
+                continue
+
+            if omegaconf.OmegaConf.is_dict(value):
+                stat = hydra.utils.instantiate(value, _convert_="object")
             else:
-                mods.append(mod)
+                stat = reax.metrics.get(value)
 
-        if len(mods) == 1:
-            # Special case to avoid needlessly wrapping a single module
-            return mods[0]
+            to_calculate[label] = stat
 
-        return nn.Sequential(mods)
-
-    return hydra.utils.instantiate(module_config, _convert_="object")
+        return to_calculate
 
 
-def create_train_checkpoint(train_state: flax.training.train_state.TrainState):
-    return {
-        TRAIN_STATE: train_state,
-    }
+@functools.singledispatch
+def _to_omega(value):
+    return value
 
 
-def create_module_checkpoint(module_config: Config, module_state) -> Dict:
-    return {
-        MODULE_CONFIG: omegaconf.OmegaConf.to_container(module_config, resolve=True),
-        MODULE_STATE: module_state,
-    }
+@_to_omega.register
+def _(value: dict) -> dict:
+    return {key: _to_omega(value) for key, value in value.items()}
 
 
-def save_module(path, module_config: Config, module_state):
-    save_state = create_module_checkpoint(module_config, module_state)
-    checkpointer = orbax.checkpoint.PyTreeCheckpointer()
-    checkpointer.save(
-        path,
-        save_state,
-        save_args=orbax_utils.save_args_from_target(save_state),
-    )
+@_to_omega.register
+def _(value: jt.Array) -> Union[int, float, list]:
+    return reax.utils.arrays.to_base(value)
 
 
-def load_module_state(path) -> tuple[Config, Any]:
-    checkpointer = orbax.checkpoint.PyTreeCheckpointer()
-    state = checkpointer.restore(path)
-    return omegaconf.OmegaConf.create(state[MODULE_CONFIG]), state[MODULE_STATE]
-
-
-def calculate_stats(from_data: omegaconf.DictConfig, training_data: data.DataLoader):
-    """
-    TODO: Update the name of this
-    Update configuration with statistics gathered from the data
-
-    :param from_data: the configuration dictionary to update (this will be done in place, i.e.
-        overwrite the current value sof the dictionary)
-    :param training_data: the training dataset to gather statistics from
-    """
-    coll_dict = {label: reax.metrics.get_registry()[name] for name, label in from_data.items()}
-    collection = reax.metrics.MetricCollection(coll_dict)
-    results = metrics_.Evaluator(collection).evaluate(training_data)
-
-    # Update the configuration with the values we calculated
-    for name, label in from_data.items():
-        value = results[label]
-        from_data[name] = value.tolist() if isinstance(value, jax.Array) else value
-
-
-def create_metrics(metrics: Mapping[str, Any]) -> dict[str, reax.Metric]:
-    """Create all the metrics from the configuration"""
-    found: dict[str, reax.Metric] = {}
-    for label, value in metrics.items():
-        if isinstance(value, omegaconf.DictConfig):
-            metric = hydra.utils.instantiate(value)
-        else:
-            try:
-                metric = reax.metrics.get(value)
-            except KeyError:
-                raise ValueError(f"Unknown metric: {label} {value}") from None
-
-        found[label] = metric
-
-    return found
+def find_iterpol(root, path=()):
+    for key, value in root.items():
+        if isinstance(value, str):
+            if omegaconf.OmegaConf.is_interpolation(root, key):
+                if not isinstance(root[key], (int, float, list)):
+                    yield path, key
+        elif omegaconf.OmegaConf.is_dict(value):
+            yield from find_iterpol(value, (key,))
