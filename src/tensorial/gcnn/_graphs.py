@@ -67,9 +67,9 @@ def graph_from_points(
 
     if pbc is None:
         # there are no PBC if cell and pbc are not provided
-        pbc = False
         if cell is not None:
             raise ValueError("A cell was provided without PBCs")
+        pbc = False
 
     if isinstance(pbc, bool):
         pbc = (pbc,) * 3
@@ -99,7 +99,8 @@ def graph_from_points(
     graph_globals = graph_globals or {}
     if pbc is not None:
         graph_globals[keys.PBC] = np_.array(pbc, dtype=bool)
-    graph_globals[keys.CELL] = cell
+    if cell is not None:
+        graph_globals[keys.CELL] = cell
     # We have to pad out the globals to make things like batching work
     graph_globals = {
         key: np_.expand_dims(base.atleast_1d(value), 0)
@@ -114,7 +115,8 @@ def graph_from_points(
         key: np_.expand_dims(value, -1) if value.ndim == 1 else value
         for key, value in edges.items()
     }
-    edges[keys.EDGE_CELL_SHIFTS] = cell_shifts
+    if cell is not None:
+        edges[keys.EDGE_CELL_SHIFTS] = cell_shifts
 
     return jraph.GraphsTuple(
         nodes=nodes,
@@ -156,7 +158,7 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
         edge_vecs = e3j.IrrepsArray("1o", edge_vecs)
     edges[keys.EDGE_VECTORS] = edge_vecs
 
-    # To allow grad to work, we need to mask off the padded edge vectors that are zero, see:
+    # To allow grad to work, we need to mask off the padded edge-vectors that are zero, see:
     # * https://github.com/google/jax/issues/6484,
     # * https://stackoverflow.com/q/74864427/1257417
     if with_lengths:
