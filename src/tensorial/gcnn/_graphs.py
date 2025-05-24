@@ -10,10 +10,8 @@ import jraph
 import numpy as np
 import reax.metrics
 
-import tensorial
-from tensorial import base, geometry, typing
-
 from . import keys
+from .. import base, geometry, typing
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -162,7 +160,7 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
     # * https://github.com/google/jax/issues/6484,
     # * https://stackoverflow.com/q/74864427/1257417
     if with_lengths:
-        lengths = jnp.expand_dims(jnp.linalg.norm(tensorial.as_array(edge_vecs), axis=-1), -1)
+        lengths = jnp.expand_dims(jnp.linalg.norm(base.as_array(edge_vecs), axis=-1), -1)
         if edge_mask is not None:
             lengths = jnp.where(edge_mask, lengths, 0.0)
         if isinstance(edge_vecs, e3j.IrrepsArray):

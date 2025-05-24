@@ -1,5 +1,4 @@
 import collections.abc
-import concurrent.futures
 import io
 import logging
 import os
@@ -14,7 +13,7 @@ import jraph
 import numpy as np
 import tqdm
 
-from .. import base
+from .. import base, gcnn
 
 __all__ = ("Qm9",)
 
@@ -148,13 +147,13 @@ def read_qm9(file_handle) -> MoleculeDict:
     }
 
     # Now add the properties
-    for i, (label, property) in enumerate(zip(QM9_XYZ_LABELS, properties)):
+    for i, (label, prop) in enumerate(zip(QM9_XYZ_LABELS, properties)):
         if i == 1:
-            property = int(property)
+            prop = int(prop)
         elif i > 1:
-            property = float(property)
+            prop = float(prop)
 
-        entries[label] = property
+        entries[label] = prop
 
     return entries
 
@@ -167,8 +166,6 @@ def to_graph(
     graph_attrs: list[Union[str, tuple[str, str]]] = None,
     np_=np,
 ) -> jraph.GraphsTuple:
-    from .. import gcnn  # noqa
-
     n_nodes = len(entry["species"])
 
     # Convert species labels to numbers

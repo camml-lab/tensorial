@@ -382,6 +382,7 @@ class Mace(linen.Module):
 
     correlation_order: int = 3  # Correlation order at each layer (~ node_features^correlation)
     num_interactions: int = 2  # Number of interactions (layers)
+    y0_values: Optional[list[float]] = None
     avg_num_neighbours: Union[float, dict[int, float]] = 1.0
     soft_normalisation: Optional[bool] = None
     # Number of features per node, default gcd of hidden_irreps multiplicities
@@ -404,6 +405,17 @@ class Mace(linen.Module):
         # pylint: disable=attribute-defined-outside-init
         hidden_irreps = e3j.Irreps(self.hidden_irreps)
         irreps_out = e3j.Irreps(self.irreps_out)
+        if self.y0_values:
+            if len(self.y0_values) != self.num_types:
+                raise ValueError(f"len(y0) != num_types: {len(self.y0_values)} != {self.num_types}")
+
+            y0 = self.y0_values
+            if isinstance(self.y0_values, e3j.IrrepsArray):
+                y0 = self.y0_values.array
+            elif isinstance(self.y0_values, (list, tuple)):
+                y0 = jnp.array(self.y0_values)
+
+            self._y0 = e3j.IrrepsArray(irreps_out, jnp.atleast_2d(y0).T)
 
         if self.num_features is None:
             num_features = functools.reduce(math.gcd, (mul for mul, _ in hidden_irreps))
@@ -432,7 +444,7 @@ class Mace(linen.Module):
                 # Interaction
                 num_features=num_features,
                 interaction_irreps=self._interaction_irreps,
-                #   radial
+                # Radial
                 radial_activation=self.radial_activation,
                 # Normalisation
                 epsilon=self.epsilon,
@@ -442,7 +454,7 @@ class Mace(linen.Module):
                 correlation_order=self.correlation_order,
                 symmetric_tensor_product_basis=self.symmetric_tensor_product_basis,
                 off_diagonal=self.off_diagonal,
-                # Radial
+                # Residual
                 soft_normalisation=self.soft_normalisation,
                 skip_connection=is_not_first or self.skip_connection_first_layer,
             )
@@ -474,6 +486,11 @@ class Mace(linen.Module):
 
         # Interactions
         outputs: list[typing.IrrepsArrayShape["n_nodes output_irreps"]] = []
+        # Deal with the y0 values of the expansion
+        if self.y0_values:
+            outputs.append(self._y0[node_species])
+
+        # Now expand up to the maximum correlation order
         for layer, readout in zip(self._layers, self._readouts):
             node_feats = layer(
                 node_feats,
@@ -489,8 +506,8 @@ class Mace(linen.Module):
 
             outputs += [node_outputs]
 
-        updates = utils.UpdateDict(graph._asdict())
-        updates["nodes"][keys.FEATURES] = node_feats
-        updates["nodes"][self.out_field] = e3j.sum(e3j.stack(outputs, axis=1), axis=1)
+        updates = utils.UpdateGraphDicts(graph)
+        updates.nodes[keys.FEATURES] = node_feats
+        updates.nodes[self.out_field] = e3j.sum(e3j.stack(outputs, axis=1), axis=1)
 
-        return graph._replace(**updates._asdict())
+        return updates.get()

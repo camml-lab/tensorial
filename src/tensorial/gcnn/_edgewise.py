@@ -1,13 +1,15 @@
 import functools
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import e3nn_jax as e3j
 from flax import linen
 import jraph
 
-import tensorial
-
 from . import _base, _graphs, keys
+from .. import base
+
+if TYPE_CHECKING:
+    import tensorial
 
 __all__ = (
     "EdgewiseLinear",
@@ -42,7 +44,7 @@ class EdgewiseLinear(linen.Module):
 
 
 class EdgewiseEncoding(linen.Module):
-    attrs: tensorial.IrrepsTree
+    attrs: "tensorial.IrrepsTree"
     out_field: str = keys.ATTRIBUTES
 
     @_base.shape_check
@@ -50,7 +52,7 @@ class EdgewiseEncoding(linen.Module):
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         # Create the encoding
-        encoded = tensorial.create_tensor(self.attrs, graph.edges)
+        encoded = base.create_tensor(self.attrs, graph.edges)
         # Store in output field
         edges = graph.edges
         edges[self.out_field] = encoded
@@ -63,7 +65,7 @@ class EdgewiseDecoding(linen.Module):
     with key coming from the attrs.
     """
 
-    attrs: tensorial.IrrepsTree
+    attrs: "tensorial.IrrepsTree"
     in_field: str = keys.ATTRIBUTES
 
     @_base.shape_check
@@ -73,10 +75,10 @@ class EdgewiseDecoding(linen.Module):
         idx = 0
         edges_dict = graph.edges
         irreps_tensor = edges_dict[self.in_field]
-        for key, value in tensorial.tensorial_attrs(self.attrs).items():
-            irreps = tensorial.irreps(value)
+        for key, value in base.tensorial_attrs(self.attrs).items():
+            irreps = base.irreps(value)
             tensor_slice = irreps_tensor[..., idx : idx + irreps.dim]
-            edges_dict[key] = tensorial.from_tensor(value, tensor_slice)
+            edges_dict[key] = base.from_tensor(value, tensor_slice)
             idx += irreps.dim
 
         # All done, return the new graph
@@ -102,7 +104,7 @@ class RadialBasisEdgeEncoding(linen.Module):
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         edge_dict = _graphs.with_edge_vectors(graph).edges
         edge_dict[self.out_field] = self.radial_embedding(
-            tensorial.as_array(edge_dict[keys.EDGE_LENGTHS])[:, 0]
+            base.as_array(edge_dict[keys.EDGE_LENGTHS])[:, 0]
         )
         return graph._replace(edges=edge_dict)
 

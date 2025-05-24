@@ -9,9 +9,8 @@ import jaxtyping as jt
 import jraph
 from pytray import tree
 
-import tensorial
-
 from . import _base, _tree, _typing
+from .. import base
 
 __all__ = ("Grad",)
 
@@ -87,7 +86,7 @@ def grad_shim(
     # Pass the graph through the original function
     out_graph = fn(graph)
     # Extract the quantity that we want to differentiate
-    return jnp.sum(tensorial.as_array(tree.get_by_path(out_graph._asdict(), of))), out_graph
+    return jnp.sum(base.as_array(tree.get_by_path(out_graph._asdict(), of))), out_graph
 
 
 def _create_grad_shim(
@@ -104,7 +103,7 @@ def _create_grad_shim(
         *vals, out_graph = new_fn(graph, *args)
 
         # Extract the quantity that we want to differentiate
-        vals = tuple(map(lambda x: tensorial.as_array(x).sum(), vals))
+        vals = tuple(map(lambda x: base.as_array(x).sum(), vals))
         if len(vals) == 1:
             vals = vals[0]
 

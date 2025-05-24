@@ -1,14 +1,16 @@
 import logging
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import e3nn_jax as e3j
 from flax import linen
 import jraph
 from pytray import tree
 
-import tensorial
-
 from . import _base, _common, keys, utils
+from .. import base
+
+if TYPE_CHECKING:
+    import tensorial
 
 __all__ = "NodewiseLinear", "NodewiseReduce", "NodewiseEncoding", "NodewiseDecoding"
 
@@ -102,13 +104,13 @@ class NodewiseEncoding(linen.Module):
     as a direct sum of irreps in the out_field.
     """
 
-    attrs: tensorial.IrrepsTree
+    attrs: "tensorial.IrrepsTree"
     out_field: str = keys.ATTRIBUTES
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         # Create the encoding
-        encoded = tensorial.create_tensor(self.attrs, graph.nodes)
+        encoded = base.create_tensor(self.attrs, graph.nodes)
         # Store in output field
         nodes = graph.nodes
         nodes[self.out_field] = encoded
@@ -121,7 +123,7 @@ class NodewiseDecoding(linen.Module):
     with key coming from the attrs.
     """
 
-    attrs: tensorial.IrrepsTree
+    attrs: "tensorial.IrrepsTree"
     in_field: str = keys.ATTRIBUTES
 
     @_base.shape_check
@@ -131,10 +133,10 @@ class NodewiseDecoding(linen.Module):
         idx = 0
         nodes_dict = graph.nodes
         irreps_tensor = nodes_dict[self.in_field]
-        for key, value in tensorial.tensorial_attrs(self.attrs).items():
-            irreps = tensorial.irreps(value)
+        for key, value in base.tensorial_attrs(self.attrs).items():
+            irreps = base.irreps(value)
             tensor_slice = irreps_tensor[..., idx : idx + irreps.dim]
-            nodes_dict[key] = tensorial.from_tensor(value, tensor_slice)
+            nodes_dict[key] = base.from_tensor(value, tensor_slice)
             idx += irreps.dim
 
         # All done, return the new graph

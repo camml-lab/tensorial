@@ -11,10 +11,8 @@ import jraph
 import numpy as np
 from pytray import tree
 
-import tensorial
-from tensorial import data
-
 from . import keys, utils
+from .. import data
 from .. import utils as tensorial_utils
 
 
@@ -23,7 +21,7 @@ class GraphBatch(tuple):
     targets: Optional[Any]
 
 
-GraphDataset = tensorial.data.Dataset[GraphBatch]
+GraphDataset = data.Dataset[GraphBatch]
 GraphPadding = collections.namedtuple("GraphPadding", ["n_nodes", "n_edges", "n_graphs"])
 
 

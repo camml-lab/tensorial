@@ -12,9 +12,8 @@ import optax.losses
 from pytray import tree
 import reax
 
-import tensorial
-
 from . import keys, utils
+from .. import base
 
 __all__ = "PureLossFn", "GraphLoss", "WeightedLoss", "Loss"
 
@@ -81,10 +80,8 @@ class Loss(GraphLoss):
     def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> jax.Array:
         predictions_dict = predictions._asdict()
 
-        _predictions = tensorial.as_array(
-            tree.get_by_path(predictions_dict, self._prediction_field)
-        )
-        _targets = tensorial.as_array(tree.get_by_path(targets._asdict(), self._target_field))
+        _predictions = base.as_array(tree.get_by_path(predictions_dict, self._prediction_field))
+        _targets = base.as_array(tree.get_by_path(targets._asdict(), self._target_field))
 
         loss = self._loss_fn(_predictions, _targets)
 
@@ -94,7 +91,7 @@ class Loss(GraphLoss):
 
         # Now, check for the presence of a user-defined mask
         if self._mask_field:
-            user_mask = tensorial.as_array(tree.get_by_path(targets._asdict(), self._mask_field))
+            user_mask = base.as_array(tree.get_by_path(targets._asdict(), self._mask_field))
             user_mask = reax.metrics.utils.prepare_mask(loss, user_mask)
             if mask is None:
                 mask = user_mask
