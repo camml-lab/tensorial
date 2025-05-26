@@ -6,6 +6,7 @@ import itertools
 from typing import Any, Optional, Sequence, Union
 
 import beartype
+import jax
 import jaxtyping as jt
 import jraph
 import numpy as np
@@ -85,6 +86,7 @@ def add_padding_mask(
     mask_field=keys.MASK,
     what=GraphAttributes.ALL,
     overwrite=False,
+    np_=None,
 ) -> jraph.GraphsTuple:
     """
     Add a mask array to the ``mask_field`` of ``graph`` for either nodes, edges and/or globals which
@@ -94,17 +96,31 @@ def add_padding_mask(
     If ``overwrite`` is ``True`` then any mask already found in the mask field will be overwritten
     by the padding mask. Otherwise, it will be ANDed.
     """
+    if np_ is None:
+        np_ = tensorial_utils.infer_backend(jax.tree.leaves(graph))
+
     mask_path = utils.path_from_str(mask_field)
     updates = utils.UpdateDict(graph._asdict())
 
     # Create the masks that we have been asked to add
     masks = {}
     if what & GraphAttributes.NODES:
-        masks["nodes"] = jraph.get_node_padding_mask(graph)
+        mask = jraph.get_node_padding_mask(graph)
+        if not isinstance(mask, np_.ndarray):
+            mask = np_.array(mask)
+        masks["nodes"] = mask
+
     if what & GraphAttributes.EDGES:
-        masks["edges"] = jraph.get_edge_padding_mask(graph)
+        mask = jraph.get_edge_padding_mask(graph)
+        if not isinstance(mask, np_.ndarray):
+            mask = np_.array(mask)
+        masks["edges"] = mask
+
     if what & GraphAttributes.GLOBALS:
-        masks["globals"] = jraph.get_graph_padding_mask(graph)
+        mask = jraph.get_graph_padding_mask(graph)
+        if not isinstance(mask, np_.ndarray):
+            mask = np_.array(mask)
+        masks["globals"] = mask
 
     for key, mask in masks.items():
         path = (key,) + mask_path
@@ -117,6 +133,19 @@ def add_padding_mask(
         tree.set_by_path(updates, path, mask)
 
     return jraph.GraphsTuple(**updates._asdict())
+
+
+def pad_with_graphs(
+    graph: jraph.GraphsTuple,
+    n_node: int,
+    n_edge: int,
+    n_graph: int = 2,
+    mask_field=keys.MASK,
+    overwrite_mask=False,
+) -> jraph.GraphsTuple:
+    padded = jraph.pad_with_graphs(graph, n_node, n_edge, n_graph)
+    padded = add_padding_mask(padded, mask_field=mask_field, overwrite=overwrite_mask)
+    return padded
 
 
 class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):

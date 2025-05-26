@@ -5,13 +5,12 @@ from typing import Optional, Union
 import beartype
 import e3nn_jax as e3j
 from flax import linen
-import jax
 import jaxtyping as jt
 import jraph
 
-from tensorial import nn_utils, typing
-
 from . import _base, _message_passing, keys
+from .. import nn_utils, typing
+from .. import utils as tensorial_utils
 
 __all__ = ("NequipLayer",)
 
@@ -73,12 +72,13 @@ class InteractionBlock(linen.Module):
         self,
         node_features: typing.IrrepsArrayShape["n_nodes irreps"],
         edge_features: typing.IrrepsArrayShape["n_edges edge_irreps"],
-        radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding_dim"],
+        radial_embedding: jt.Float[typing.ArrayType, "n_edges radial_embedding_dim"],
         senders: typing.IndexArray["n_edges"],
         receivers: typing.IndexArray["n_edges"],
-        node_species: Optional[jt.Int[jax.Array, "n_nodes"]] = None,
+        node_species: Optional[jt.Int[typing.ArrayType, "n_nodes"]] = None,
         *,
-        edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
+        node_mask: Optional[jt.Bool[typing.ArrayType, "n_nodes"]] = None,
+        edge_mask: Optional[jt.Bool[typing.ArrayType, "n_edges"]] = None,
     ) -> e3j.IrrepsArray:
         """
         A NequIP interaction made up of the following steps:
@@ -92,8 +92,19 @@ class InteractionBlock(linen.Module):
         """
         # The irreps to use for the output node features
         output_irreps = e3j.Irreps(self.irreps_out).regroup()
+        if node_mask is not None:
+            node_mask = nn_utils.prepare_mask(node_mask, node_features)
+
+        if node_mask is not None:
+            node_features = e3j.where(
+                node_mask, node_features, tensorial_utils.zeros_like(node_features)
+            )
 
         node_feats = e3j.flax.Linear(node_features.irreps, name="linear_up")(node_features)
+        if node_mask is not None:
+            node_features = e3j.where(
+                node_mask, node_features, tensorial_utils.zeros_like(node_features)
+            )
 
         node_feats = self._message_passing(
             node_feats, edge_features, radial_embedding, senders, receivers, edge_mask=edge_mask

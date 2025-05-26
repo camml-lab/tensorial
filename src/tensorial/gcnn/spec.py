@@ -1,11 +1,14 @@
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 import e3nn_jax as e3j
 import jax
 import jax.numpy as jnp
 import jraph
 
-import tensorial
+from .. import base, tensors
+
+if TYPE_CHECKING:
+    import tensorial
 
 
 class GraphSpec:
@@ -13,39 +16,39 @@ class GraphSpec:
 
     def __init__(
         self,
-        nodes: tensorial.IrrepsObj = None,
-        edges: tensorial.Tensorial = None,
-        globals: tensorial.Tensorial = None,
+        nodes: "tensorial.IrrepsObj" = None,
+        edges: "tensorial.Tensorial" = None,
+        globals: "tensorial.Tensorial" = None,
     ):  # pylint: disable=redefined-builtin
         self._nodes = nodes
         self._edges = edges
         self._globals = globals
 
     @property
-    def nodes(self) -> tensorial.Tensorial:
+    def nodes(self) -> "tensorial.Tensorial":
         return self._nodes
 
     @property
-    def edges(self) -> tensorial.Tensorial:
+    def edges(self) -> "tensorial.Tensorial":
         return self._edges
 
     @property
-    def globals(self) -> tensorial.Tensorial:
+    def globals(self) -> "tensorial.Tensorial":
         return self._globals
 
     def from_jraph(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         replacements = {}
         if self.nodes is not None:
-            replacements["nodes"] = tensorial.create(self.nodes, graph.nodes)
+            replacements["nodes"] = base.create(self.nodes, graph.nodes)
         if self.edges is not None:
-            replacements["edges"] = tensorial.create(self.edges, graph.edges)
+            replacements["edges"] = base.create(self.edges, graph.edges)
         if self.globals is not None:
-            replacements["globals"] = tensorial.create(self.globals, graph.globals)
+            replacements["globals"] = base.create(self.globals, graph.globals)
 
         return graph._replace(**replacements)
 
 
-class SpeciesOneHot(tensorial.tensors.OneHot):
+class SpeciesOneHot(tensors.OneHot):
     """One-hot encoding of species as a direct sum of scalars"""
 
     def __init__(self, species: Sequence):

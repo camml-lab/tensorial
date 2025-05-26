@@ -20,7 +20,7 @@ __all__ = ("graph_from_points", "with_edge_vectors")
 
 # @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_points(
-    pos: jt.Float[jax.typing.ArrayLike, "n_nodes 3"],
+    pos: jt.Float[typing.ArrayType, "n_nodes 3"],
     r_max: numbers.Number,
     *,
     fractional_positions: bool = False,

@@ -3,7 +3,6 @@ from typing import Optional, Union
 import beartype
 import e3nn_jax as e3j
 from flax import linen
-import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 import reax.metrics
@@ -35,11 +34,11 @@ class MessagePassingConvolution(linen.Module):
         self,
         node_feats: typing.IrrepsArrayShape["n_nodes node_irreps"],
         edge_features: typing.IrrepsArrayShape["n_edges edge_irreps"],
-        radial_embedding: jt.Float[jax.Array, "n_edges radial_embedding_dim"],
+        radial_embedding: jt.Float[typing.ArrayType, "n_edges radial_embedding_dim"],
         senders: typing.IndexArray["n_edges"],
         receivers: typing.IndexArray["n_edges"],
         *,
-        edge_mask: Optional[jt.Bool[jax.Array, "n_edges"]] = None,
+        edge_mask: Optional[jt.Bool[typing.ArrayType, "n_edges"]] = None,
         node_types: Optional[jt.Int[jt.Array, "n_nodes"]] = None,
     ) -> typing.IrrepsArrayShape["n_nodes node_irreps_out"]:
         irreps_out = e3j.Irreps(self.irreps_out)  # Recast, because flax converts to tuple

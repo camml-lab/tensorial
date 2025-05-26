@@ -100,3 +100,23 @@ def test_add_padding_mask(cube_graph: jraph.GraphsTuple):
     # Test overwrite
     padded = data.add_padding_mask(padded, overwrite=True)
     assert np.all(padded.nodes[keys.MASK] == np.array([*[True] * cube_graph.n_node.item(), False]))
+
+
+def test_nequip_interaction_block_with_padding(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
+    extra_nodes = 1
+    extra_edges = 0
+    extra_graphs = 1
+    padded = gcnn.data.pad_with_graphs(
+        cube_graph_gcnn,
+        cube_graph_gcnn.n_node[0] + extra_nodes,
+        cube_graph_gcnn.n_edge[0] + extra_edges,
+        len(cube_graph_gcnn.n_node) + extra_graphs,
+    )
+
+    # Check the mask has been added to all graph attributes
+    for key in ("nodes", "edges", "globals"):
+        assert "mask" in padded._asdict()[key]
+
+    assert padded.n_node.tolist() == [cube_graph_gcnn.n_node[0], extra_nodes]
+    assert padded.n_edge.tolist() == [cube_graph_gcnn.n_edge[0], extra_edges]
+    assert len(padded.n_node) == len(cube_graph_gcnn.n_node) + extra_graphs
