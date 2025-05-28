@@ -157,7 +157,7 @@ class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
         *datasets: Optional[Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]]],
         batch_size: int = 1,
         shuffle: bool = False,
-        pad=False,
+        pad: Optional[bool] = None,
         padding: Optional[GraphPadding] = None,
     ):
         # Params
@@ -177,6 +177,9 @@ class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
         self._sampler: data.Sampler[list[int]] = data.samplers.create_sequence_sampler(
             example, batch_size=batch_size, shuffle=shuffle
         )
+
+        if pad is None:
+            pad = padding is not None
 
         create_batcher = functools.partial(
             GraphBatcher, batch_size=batch_size, shuffle=shuffle, pad=pad, padding=padding

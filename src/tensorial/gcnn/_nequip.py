@@ -194,7 +194,8 @@ class NequipLayer(linen.Module):
             graph.senders,
             graph.receivers,
             graph.nodes.get(keys.SPECIES),
-            edge_mask=graph.edges.get(keys.MASK, None),
+            node_mask=graph.nodes.get(keys.MASK),
+            edge_mask=graph.edges.get(keys.MASK),
         )
 
         # If enabled, perform ResNet operation by adding back the old node features

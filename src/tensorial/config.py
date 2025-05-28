@@ -60,7 +60,7 @@ class FromData(reax.stages.Stage):
         self._cfg = cfg
         self._dataloader = dataloader
         self._calculated = {}
-        self._to_calculate: dict = self._update_stats(self._cfg)
+        self._to_calculate: dict[str, Any] = self._update_stats(self._cfg)
 
     @property
     def dataloader(self) -> Optional[reax.DataLoader]:
@@ -70,6 +70,11 @@ class FromData(reax.stages.Stage):
     def dataloaders(self) -> Optional[reax.DataLoader]:
         """Dataloader function."""
         return self.dataloader
+
+    @property
+    def calculated(self) -> dict[str, Any]:
+        """The dictionary holding the calculated statistics"""
+        return self._calculated
 
     @override
     def log(

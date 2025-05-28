@@ -12,7 +12,45 @@ from tensorial import gcnn
 import tensorial.tensors
 
 
-def test_nodewise_linear(rng_key):
+def test_nodewise_linear(cube_graph, rng_key):
+    in_field: Final[str] = "in"
+    out_field: Final[str] = "out"
+    in_irreps = e3j.Irreps("2x0e+2x1o")
+    out_irreps = e3j.Irreps("1o")
+    n_nodes = cube_graph.n_node[0]
+
+    # Create some random node attributes
+    node_attrs = e3j.IrrepsArray(in_irreps, random.uniform(rng_key, (n_nodes, in_irreps.dim)))
+    cube_graph.nodes[in_field] = node_attrs
+
+    linear = gcnn.NodewiseLinear(irreps_out=out_irreps, field=in_field, out_field=out_field)
+    params = linear.init(rng_key, cube_graph)
+    out_graph = linear.apply(params, cube_graph)
+
+    assert out_field in out_graph.nodes
+    assert isinstance(out_graph.nodes[out_field], e3j.IrrepsArray)
+    assert out_graph.nodes[out_field].irreps == out_irreps
+    assert out_graph.nodes[out_field].shape[0] == n_nodes
+
+    EXTRA_NODES = 1
+    EXTRA_EDGES = 0
+    EXTRA_GRAPHS = 1
+    padded = gcnn.data.pad_with_graphs(
+        cube_graph,
+        n_node=cube_graph.n_node[0] + EXTRA_NODES,
+        n_edge=cube_graph.n_edge[0] + EXTRA_EDGES,
+        n_graph=1 + EXTRA_GRAPHS,
+    )
+    # Add some random data to the padded nodes in case the nodewise linear does something with them
+    padded.nodes[in_field].array[n_nodes:] = random.uniform(rng_key, (1, in_irreps.dim))
+    out_padded = linear.apply(params, padded)
+    # Now unbatch back to extract the original graph
+    out = jraph.unbatch(out_padded)[0]
+
+    assert jnp.allclose(out_graph.nodes[out_field].array, out.nodes[out_field].array)
+
+
+def test_nodewise_linear_with_mask(rng_key):
     in_field: Final[str] = "in"
     out_field: Final[str] = "out"
     in_irreps = e3j.Irreps("2x0e+2x1o")
