@@ -1,9 +1,9 @@
 import collections
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 import enum
 import functools
 import itertools
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Optional, Union
 
 import beartype
 import jax

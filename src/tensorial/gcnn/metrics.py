@@ -1,5 +1,6 @@
+from collections.abc import Sequence
 import math
-from typing import ClassVar, Literal, Optional, Sequence, TypeVar, Union
+from typing import ClassVar, Literal, Optional, TypeVar, Union
 
 import beartype
 import jax.numpy as jnp

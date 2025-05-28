@@ -1,4 +1,5 @@
-from typing import Any, Callable, Final, Optional, Union, cast
+from collections.abc import Callable
+from typing import Any, Final, Optional, Union, cast
 
 import beartype
 import equinox as eqx

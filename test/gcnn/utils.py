@@ -1,5 +1,5 @@
+from collections.abc import Sequence
 import random
-from typing import Sequence
 
 import e3nn_jax as e3j
 import jraph
