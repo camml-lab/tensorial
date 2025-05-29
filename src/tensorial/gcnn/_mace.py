@@ -121,18 +121,18 @@ class SymmetricContraction(linen.Module):
                     basis_fn.astype(inp.dtype)
                 )
 
-                weights: jt.Float[jt.Array, "multiplicity num_features"] = (
-                    self.param(  # pylint: disable=unsubscriptable-object
-                        f"w{order}_{ir_out}",
-                        linen.initializers.normal(
-                            stddev=(mul**-0.5) ** (1.0 - self._gradient_normalisation)
-                        ),
-                        (self.num_types, mul, inputs.shape[0]),
-                        self.param_dtype,
-                    )[input_type]
+                weights: jt.Float[jt.Array, "multiplicity num_features"] = self.param(
+                    f"w{order}_{ir_out}",
+                    linen.initializers.normal(
+                        stddev=(mul**-0.5) ** (1.0 - self._gradient_normalisation)
+                    ),
+                    (self.num_types, mul, inputs.shape[0]),
+                    self.param_dtype,
                 )
+                # Index by type
+                weights = weights[input_type]  # pylint: disable=unsubscriptable-object
 
-                # normalise the weights
+                # normalize the weights
                 weights = weights * (mul**-0.5) ** self._gradient_normalisation
 
                 if ir_out not in outputs:

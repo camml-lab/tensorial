@@ -98,6 +98,7 @@ def graph_from_ase(
     global_include_keys: Optional[Iterable] = tuple(),
     cell: Optional[typing.CellType] = None,
     pbc: Optional[Union[bool, typing.PbcType]] = None,
+    use_calculator: bool = False,
     **kwargs,
 ) -> jraph.GraphsTuple:
     """
@@ -111,6 +112,8 @@ def graph_from_ase(
     :param cell: an optional unit cell (otherwise will be taken from ase.cell)
     :param pbc: an optional periodic boundary conditions array [bool, bool, bool] (otherwise will be
         taken from ase.pbc)
+    :param use_calculator: if `True`, will try to use an attached calculator get additional
+        properties
     :return: the atomic graph
     """
     # pylint: disable=too-many-branches
@@ -139,7 +142,7 @@ def graph_from_ase(
     for key in edge_include_keys:
         get_attrs(edges, ase_atoms.arrays, key, key_mapping)
 
-    if ase_atoms.calc is not None:
+    if use_calculator and ase_atoms.calc is not None:
         if not isinstance(
             ase_atoms.calc,
             (singlepoint.SinglePointCalculator, singlepoint.SinglePointDFTCalculator),
