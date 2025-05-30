@@ -98,7 +98,7 @@ def graph_from_ase(
     global_include_keys: Optional[Iterable] = tuple(),
     cell: Optional[typing.CellType] = None,
     pbc: Optional[Union[bool, typing.PbcType]] = None,
-    use_calculator: bool = False,
+    use_calculator: bool = True,
     **kwargs,
 ) -> jraph.GraphsTuple:
     """
