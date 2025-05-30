@@ -140,11 +140,12 @@ def pad_with_graphs(
     n_node: int,
     n_edge: int,
     n_graph: int = 2,
-    mask_field=keys.MASK,
+    mask_field: Optional[str] = keys.MASK,
     overwrite_mask=False,
 ) -> jraph.GraphsTuple:
     padded = jraph.pad_with_graphs(graph, n_node, n_edge, n_graph)
-    padded = add_padding_mask(padded, mask_field=mask_field, overwrite=overwrite_mask)
+    if mask_field:
+        padded = add_padding_mask(padded, mask_field=mask_field, overwrite=overwrite_mask)
     return padded
 
 

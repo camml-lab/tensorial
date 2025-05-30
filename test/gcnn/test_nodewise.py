@@ -84,10 +84,11 @@ def test_nodewise_encoding(rng_key):
     in_field: Final[str] = "in"
     out_field: Final[str] = "out"
     n_nodes = 5
+    num_types: Final[int] = 2
 
     # Let's use a one-hot for testing
-    one_hot = tensorial.tensors.OneHot(2)
-    node_attrs = random.uniform(rng_key, (n_nodes,))
+    one_hot = tensorial.tensors.OneHot(num_types)
+    node_attrs = random.randint(rng_key, (n_nodes,), minval=0, maxval=num_types)
 
     graph = jraph.GraphsTuple(
         nodes={in_field: node_attrs},
@@ -113,12 +114,13 @@ def test_nodewise_encoding_multiple(rng_key):
     scalar_key = "scalar"
     out_field: Final[str] = "out"
     n_nodes = 5
+    num_types: Final[int] = 2
 
     keys = jax.random.split(rng_key, num=2)
 
     # Let's use a one-hot for testing
-    one_hot = tensorial.tensors.OneHot(2)
-    one_hots = random.uniform(keys[0], (n_nodes,))
+    one_hot = tensorial.tensors.OneHot(num_types)
+    one_hots = random.randint(keys[0], (n_nodes,), minval=0, maxval=num_types)
     scalars = random.uniform(keys[1], (n_nodes, 1))
     scalar_irreps = e3j.Irreps("0e")
 
@@ -147,10 +149,11 @@ def test_nodewise_encoding_compilation(rng_key):
     in_field: Final[str] = "in"
     out_field: Final[str] = "out"
     n_nodes = 5
+    num_types: Final[int] = 2
 
     # Let's use a one-hot for testing
-    one_hot = tensorial.tensors.OneHot(2)
-    node_attrs = random.uniform(rng_key, (n_nodes,))
+    one_hot = tensorial.tensors.OneHot(num_types)
+    node_attrs = random.randint(rng_key, (n_nodes,), minval=0, maxval=num_types)
 
     graph = jraph.GraphsTuple(
         nodes={in_field: node_attrs},
