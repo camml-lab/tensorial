@@ -8,7 +8,7 @@ from .tensors import *
 from .training import *
 from .training import ReaxModule
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = (
     base.__all__
