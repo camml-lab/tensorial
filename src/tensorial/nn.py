@@ -28,6 +28,7 @@ class Sequential(linen.Module):
             raise ValueError(f"Empty Sequential module {self.name}.")
         super().__post_init__()
 
+    @linen.compact
     def __call__(self, *args, **kwargs):
         outputs = self._layers[0](*args, **kwargs)
         for layer in self._layers[1:]:
@@ -42,30 +43,38 @@ class Sequential(linen.Module):
 
 def _layers(layers: Sequence[Union[linen.Module, functools.partial]]) -> list[linen.Module]:
     """Create the model from the configuration object"""
-    new_layers = []
-    for layer in layers:
+    new_layers: list[linen.Module] = []
+    layers = list(layers)
+    for i, layer in enumerate(layers):
         if isinstance(layer, functools.partial):
             # We've reached a module that is partly constructed.  This indicates that it's a
             # module that wraps a function i.e. f(g(x)), typically because it needs access to
             # g(x) (for example to calculate gradients). So, we build what we've found so far,
             # and pass it to the module
-            if len(new_layers) == 1:
-                # Special case to avoid needlessly wrapping a single module
-                layer = layer(new_layers[0])
-            elif len(new_layers) > 1:
-                layer = layer(Sequential(new_layers))
-            else:
+            # Wrap the rest of the layers in this sequence:
+            to_wrap = layers[i + 1 :]
+            if not to_wrap:
                 raise ValueError(
-                    f"Got a partial module, but have no previous modules to pass to it: {layer}"
+                    f"Got a partial module, but have no subsequent modules to pass to it: {layer}"
                 )
+            wrapped = _layers(to_wrap)
+            if len(wrapped) == 1:
+                # Avoid wrapping a single layer, no point and makes debugging a little harder
+                wrapped = wrapped[0]
+            else:
+                wrapped = Sequential(to_wrap)
 
+            # Instantiate our partial
+            layer = layer(wrapped)
             if not isinstance(layer, linen.Module):
                 raise ValueError(
                     f"Calling partial module {type(layer).__name__}() did not resolve to a "
                     f"linen.Module instance"
                 )
-            new_layers = [layer]
-        else:
+
             new_layers.append(layer)
+            break  # The rest have already been deal with above
+
+        new_layers.append(layer)
 
     return new_layers
