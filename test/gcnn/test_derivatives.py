@@ -1,3 +1,5 @@
+import functools
+
 import jax
 import jax.numpy as jnp
 import jraph
@@ -44,30 +46,38 @@ def test_grad_module(rng_key):
         graph_ = gcnn.with_edge_vectors(graph_)
         return graph_
 
-    pos = jnp.array(
-        [
-            [
-                0.0,
-                0.0,
-                0.0,
-            ],
-            [
-                1.0,
-                1.0,
-                1.0,
-            ],
-        ]
-    )
-    graph = gcnn.graph_from_points(pos, r_max=2.0)
-    graph2 = gcnn.graph_from_points(pos, r_max=2.0)
-    graph = jraph.batch([graph, graph2])
+    pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
+    g1 = gcnn.graph_from_points(pos, r_max=2.0)
+    g2 = gcnn.graph_from_points(pos, r_max=2.0)
+    graph = jraph.batch([g1, g2])
 
     grad = gcnn.Grad(
         get_energy,
         of=f"edges.{keys.EDGE_LENGTHS}",
-        wrt="nodes.positions",
+        wrt=f"nodes.{keys.POSITIONS}",
     )
 
     params = grad.init(rng_key, graph)
     res = grad.apply(params, graph)
-    assert jnp.allclose(jnp.abs(res.edges[f"d{keys.EDGE_LENGTHS}/dpositions"]), 2.0 / jnp.sqrt(3.0))
+    assert jnp.allclose(
+        jnp.abs(res.nodes[f"d{keys.EDGE_LENGTHS}/d{keys.POSITIONS}"]), 2.0 / jnp.sqrt(3.0)
+    )
+
+
+def test_grad_vectors(rng_key):
+    def get_energy(g):
+        edge_vecs = tensorial.as_array(g.edges[keys.EDGE_VECTORS])
+        gbals = g.globals
+        gbals["energy"] = sum(jnp.linalg.norm(edge_vecs, axis=1) ** 2)
+        return g._replace(globals=gbals)
+
+    pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
+    graph = gcnn.graph_from_points(pos, r_max=2.0)
+    graph = gcnn.with_edge_vectors(graph, as_irreps_array=False)
+
+    # This time, let's test the grad() partial
+    grad = gcnn.grad(of="globals.energy", wrt=f"edges.{keys.EDGE_VECTORS}")(get_energy)
+
+    params = grad.init(rng_key, graph)
+    res = grad.apply(params, graph)
+    assert jnp.allclose(jnp.abs(res.edges[f"denergy/d{keys.EDGE_VECTORS}"]), 2.0)

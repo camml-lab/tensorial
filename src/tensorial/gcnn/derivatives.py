@@ -1,5 +1,6 @@
-from collections.abc import Callable
-from typing import Any, Sequence, Union
+from collections.abc import Callable, Sequence
+import functools
+from typing import Any, Union
 
 import beartype
 from flax import linen
@@ -12,7 +13,7 @@ from pytray import tree
 from . import _base, _tree, _typing
 from .. import base
 
-__all__ = ("Grad",)
+__all__ = ("Grad", "grad")
 
 TreePath = tuple[Any, ...]
 
@@ -39,7 +40,7 @@ class Grad(linen.Module):
         if self.out_field is None:
             derivs = []
             for wrt in self._wrt:
-                derivs.append(self._of[:-1] + (f"d{'.'.join(self._of[1:])}/d{wrt[-1]}",))
+                derivs.append(wrt[:-1] + (f"d{'.'.join(self._of[1:])}/d{wrt[-1]}",))
             self._out_field = tuple(derivs)
         else:
             self._out_field = [_tree.path_from_str(self.out_field)]
@@ -110,3 +111,12 @@ def _create_grad_shim(
         return vals, out_graph
 
     return shim
+
+
+def grad(*args, **kwargs) -> functools.partial[Grad]:
+    """
+    Build a partially initialised Grad function whose only
+    :param kwargs: accepts any arguments that `Grad` does
+    :return: the partially initialized Grad function
+    """
+    return functools.partial(Grad, *args, **kwargs)

@@ -115,9 +115,13 @@ class EdgeVectors(linen.Module):
     (if present)
     """
 
+    as_irreps_arrays: bool = False
+
     @linen.compact
     @_base.shape_check
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
-        return _graphs.with_edge_vectors(graph, with_lengths=True)
+        return _graphs.with_edge_vectors(
+            graph, with_lengths=True, as_irreps_array=self.as_irreps_arrays
+        )

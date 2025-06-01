@@ -127,7 +127,11 @@ def graph_from_points(
     )
 
 
-def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jraph.GraphsTuple:
+def with_edge_vectors(
+    graph: jraph.GraphsTuple,
+    with_lengths: bool = True,
+    as_irreps_array: Optional[bool] = True,
+) -> jraph.GraphsTuple:
     """Compute edge displacements for edge vectors in a graph.
 
     This will add edge attributes corresponding that cache the vectors and displacements, meaning
@@ -152,7 +156,7 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
         edge_mask = reax.metrics.utils.prepare_mask(edge_vecs, edge_mask)
         edge_vecs = jnp.where(edge_mask, edge_vecs, 1.0)
 
-    if not isinstance(edge_vecs, e3j.IrrepsArray):
+    if not isinstance(edge_vecs, e3j.IrrepsArray) and as_irreps_array:
         edge_vecs = e3j.IrrepsArray("1o", edge_vecs)
     edges[keys.EDGE_VECTORS] = edge_vecs
 
@@ -163,7 +167,7 @@ def with_edge_vectors(graph: jraph.GraphsTuple, with_lengths: bool = True) -> jr
         lengths = jnp.expand_dims(jnp.linalg.norm(base.as_array(edge_vecs), axis=-1), -1)
         if edge_mask is not None:
             lengths = jnp.where(edge_mask, lengths, 0.0)
-        if isinstance(edge_vecs, e3j.IrrepsArray):
+        if as_irreps_array:
             lengths = e3j.as_irreps_array(lengths)
 
         edges[keys.EDGE_LENGTHS] = lengths
