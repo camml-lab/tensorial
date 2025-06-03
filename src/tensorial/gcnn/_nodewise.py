@@ -76,7 +76,7 @@ class NodewiseReduce(linen.Module):
             self.field if self.field is not None else tuple()
         )
         self._out_field = ("globals",) + utils.path_from_str(
-            self.out_field or f"{self.reduce}_self.{self.field}"
+            self.out_field or f"{self.reduce}_{self.field}"
         )
 
         if self.reduce == "normalized_sum":
@@ -109,7 +109,7 @@ class NodewiseEncoding(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
-        # Create the encoding
+        # Create the embedding
         encoded = base.create_tensor(self.attrs, graph.nodes)
         # Store in output field
         nodes = graph.nodes

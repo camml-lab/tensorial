@@ -3,7 +3,7 @@ from typing import Union
 
 import jraph
 
-__all__ = "TreePath", "TreePathLike"
+__all__ = "TreePath", "TreePathLike", "GraphFunction"
 
 TreePath = tuple[str, ...]
 TreePathLike = Union[str, TreePath]

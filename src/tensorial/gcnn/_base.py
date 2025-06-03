@@ -1,21 +1,24 @@
 from collections.abc import Callable
 import functools
 import logging
-from typing import Any, Sequence, Union
+from typing import TYPE_CHECKING, Any, Sequence, Union
 
 import jax
 from jax import tree_util
 import jraph
 
-from . import _tree, _typing
-from ._typing import GraphFunction
+from . import _tree
+from .typing import GraphFunction
+
+if TYPE_CHECKING:
+    from tensorial import gcnn
 
 __all__ = ("GraphFunction", "shape_check", "transform_fn")
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def shape_check(func: _typing.GraphFunction) -> _typing.GraphFunction:
+def shape_check(func: "gcnn.typing.GraphFunction") -> "gcnn.typing.GraphFunction":
     """
     Decorator that will print to the logger any differences in either the keys present in
     the graph before and after the call, or any differences in their shapes.
@@ -58,9 +61,9 @@ def shape_check(func: _typing.GraphFunction) -> _typing.GraphFunction:
 
 
 def transform_fn(
-    fn: _typing.GraphFunction,
-    *ins: _typing.TreePathLike,
-    outs: Sequence[_typing.TreePathLike] = tuple(),
+    fn: "gcnn.typing.GraphFunction",
+    *ins: "gcnn.typing.TreePathLike",
+    outs: "Sequence[gcnn.typing.TreePathLike]" = tuple(),
     return_graphs: bool = False,
 ) -> Union[Callable[[jraph.GraphsTuple], Any], Callable[[jraph.GraphsTuple, ...], Any]]:
     """
@@ -91,15 +94,16 @@ def transform_fn(
         graph = jax.tree_util.tree_map_with_path(repl, graph)
 
         # Pass the graph through the original function
-        out_graph = fn(graph)
-        if not outs:
-            return out_graph
+        res = fn(graph)
+        if outs:
+            # Extract the quantity that we want as outputs
+            out_graphs: jraph.GraphsTuple = res
+            out_vals = _tree.get(res, *outs)
+            if return_graphs:
+                return out_vals, out_graphs
 
-        # Extract the quantity that we want as outputs
-        vals = _tree.get(out_graph, *outs)
+            return out_vals
 
-        if return_graphs:
-            return vals, out_graph
-        return vals
+        return res
 
     return _fn

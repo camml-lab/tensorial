@@ -1,6 +1,6 @@
 import abc
 from collections.abc import Callable, Sequence
-from typing import Literal, Optional, Union
+from typing import TYPE_CHECKING, Literal, Optional, Union
 
 import beartype
 import equinox
@@ -14,6 +14,9 @@ import reax
 
 from . import keys, utils
 from .. import base
+
+if TYPE_CHECKING:
+    from tensorial import gcnn
 
 __all__ = "PureLossFn", "GraphLoss", "WeightedLoss", "Loss"
 
@@ -51,9 +54,9 @@ class Loss(GraphLoss):
     """
 
     _loss_fn: PureLossFn
-    _prediction_field: utils.TreePath
-    _target_field: utils.TreePath
-    _mask_field: Optional[utils.TreePath]
+    _prediction_field: "gcnn.typing.TreePath"
+    _target_field: "gcnn.typing.TreePath"
+    _mask_field: "Optional[gcnn.typing.TreePath]"
     _reduction: Optional[Literal["sum", "mean"]]
 
     @jt.jaxtyped(typechecker=beartype.beartype)

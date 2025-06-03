@@ -5,9 +5,8 @@ from typing import Optional
 import jraph
 
 from ._tree import path_from_str, path_to_str
-from ._typing import TreePath, TreePathLike
 
-__all__ = "UpdateDict", "TreePath", "TreePathLike", "path_from_str", "path_to_str"
+__all__ = "UpdateDict", "path_from_str", "path_to_str"
 
 _LOGGER = logging.getLogger(__name__)
 

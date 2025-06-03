@@ -77,7 +77,5 @@ def test_grad_vectors(rng_key):
 
     # This time, let's test the grad() partial
     grad = gcnn.grad(of="globals.energy", wrt=f"edges.{keys.EDGE_VECTORS}")(get_energy)
-
-    params = grad.init(rng_key, graph)
-    res = grad.apply(params, graph)
+    res = grad(graph)
     assert jnp.allclose(jnp.abs(res.edges[f"denergy/d{keys.EDGE_VECTORS}"]), 2.0)

@@ -75,8 +75,8 @@ class IrrepsObj:
     """An object that contains tensorial attributes."""
 
 
-IrrepsTree = Union[IrrepsObj, dict]
 Tensorial = Union[Attr, IrrepsObj, type(IrrepsObj), dict, linen.FrozenDict, e3j.Irreps]
+IrrepsTree = Union[IrrepsObj, dict]
 ValueType = Union[Any, list["ValueType"], dict[str, "ValueType"]]
 
 

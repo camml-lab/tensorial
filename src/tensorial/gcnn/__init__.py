@@ -13,6 +13,7 @@ from . import (
     losses,
     metrics,
     random,
+    typing,
     utils,
 )
 from ._base import *
@@ -25,6 +26,7 @@ from ._nodewise import *
 from .derivatives import *
 from .losses import *
 from .metrics import *
+from .typing import *
 
 __all__ = (
     _base.__all__
@@ -37,5 +39,15 @@ __all__ = (
     + derivatives.__all__
     + losses.__all__
     + metrics.__all__
-    + ("atomic", "data", "derivatives", "keys", "losses", "utils", "random")
+    + typing.__all__
+    + (
+        "atomic",
+        "data",
+        "derivatives",
+        "keys",
+        "losses",
+        "utils",
+        "random",
+        "typing",
+    )
 )

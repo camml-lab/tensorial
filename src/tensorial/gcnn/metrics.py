@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 import math
-from typing import ClassVar, Literal, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, ClassVar, Literal, Optional, TypeVar, Union
 
 import beartype
 import jax.numpy as jnp
@@ -12,7 +12,10 @@ import reax
 
 from tensorial import nn_utils
 
-from . import _tree, _typing, keys
+from . import _tree, keys
+
+if TYPE_CHECKING:
+    from tensorial import gcnn
 
 OutT = TypeVar("OutT")
 
@@ -22,10 +25,10 @@ __all__ = ("GraphMetric", "graph_metric")
 @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_metric(
     metric: Union[str, reax.Metric, type[reax.Metric]],
-    predictions: _typing.TreePathLike,
-    targets: Optional[_typing.TreePathLike] = None,
-    mask: Optional[Union[_typing.TreePathLike, Literal["auto"]]] = "auto",
-    normalise_by: Optional[_typing.TreePathLike] = None,
+    predictions: "gcnn.typing.TreePathLike",
+    targets: "Optional[gcnn.TreePathLike]" = None,
+    mask: "Optional[Union[gcnn.TreePathLike, Literal['auto']]]" = "auto",
+    normalise_by: "Optional[gcnn.TreePathLike]" = None,
 ) -> "GraphMetric":
     predictions_from = _tree.path_from_str(predictions)
     targets_from = _tree.path_to_str(targets) if targets is not None else None
@@ -60,10 +63,10 @@ def mdiv(
 
 class GraphMetric(reax.Metric):
     parent: ClassVar[reax.Metric]
-    pred_key: ClassVar[_typing.TreePathLike]
-    target_key: ClassVar[Optional[_typing.TreePathLike]] = None
-    mask_key: ClassVar[Optional[_typing.TreePathLike]] = "auto"
-    normalise_by: ClassVar[Optional[_typing.TreePathLike]] = None
+    pred_key: "ClassVar[gcnn.typing.TreePathLike]"
+    target_key: "ClassVar[Optional[gcnn.typing.TreePathLike]]" = None
+    mask_key: "ClassVar[Optional[gcnn.typing.TreePathLike]]" = "auto"
+    normalise_by: "ClassVar[Optional[gcnn.typing.TreePathLike]]" = None
 
     _state: Optional[reax.Metric[OutT]]
 

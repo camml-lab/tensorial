@@ -163,7 +163,6 @@ class NequipLayer(linen.Module):
         if self.interaction_block is None:
             self._interaction_block = InteractionBlock(
                 self.irreps_out,
-                # Radial
                 radial_num_layers=self.radial_num_layers,
                 radial_num_neurons=self.radial_num_neurons,
                 radial_activation=self.radial_activation,

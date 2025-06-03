@@ -78,7 +78,7 @@ def generated_padded_graphs(
             if add_mask:
                 batch_out = add_padding_mask(batch_out)
 
-        yield GraphBatch(batch_in, batch_out)
+        yield GraphBatch((batch_in, batch_out))
 
 
 def add_padding_mask(
