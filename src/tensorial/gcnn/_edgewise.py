@@ -14,7 +14,9 @@ if TYPE_CHECKING:
 __all__ = (
     "EdgewiseLinear",
     "EdgewiseDecoding",
+    "EdgewiseEmbedding",
     "EdgewiseEncoding",
+    "RadialBasisEdgeEmbedding",
     "RadialBasisEdgeEncoding",
     "EdgeVectors",
 )
@@ -43,7 +45,7 @@ class EdgewiseLinear(linen.Module):
         return graph._replace(edges=edges)
 
 
-class EdgewiseEncoding(linen.Module):
+class EdgewiseEmbedding(linen.Module):
     attrs: "tensorial.IrrepsTree"
     out_field: str = keys.ATTRIBUTES
 
@@ -85,7 +87,7 @@ class EdgewiseDecoding(linen.Module):
         return graph._replace(edges=edges_dict)
 
 
-class RadialBasisEdgeEncoding(linen.Module):
+class RadialBasisEdgeEmbedding(linen.Module):
     field: str = keys.EDGE_LENGTHS
     out_field: str = keys.RADIAL_EMBEDDINGS
     num_basis: int = 8
@@ -125,3 +127,8 @@ class EdgeVectors(linen.Module):
         return _graphs.with_edge_vectors(
             graph, with_lengths=True, as_irreps_array=self.as_irreps_arrays
         )
+
+
+# For legacy reasons
+EdgewiseEncoding = EdgewiseEmbedding
+RadialBasisEdgeEncoding = RadialBasisEdgeEmbedding

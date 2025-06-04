@@ -100,7 +100,7 @@ def test_nodewise_encoding(rng_key):
         n_edge=jnp.array([0]),
     )
 
-    encoding = gcnn.NodewiseEncoding({in_field: one_hot}, out_field=out_field)
+    encoding = gcnn.NodewiseEmbedding({in_field: one_hot}, out_field=out_field)
     out_graph = encoding(graph)
     assert out_field in out_graph.nodes
     assert isinstance(out_graph.nodes[out_field], e3j.IrrepsArray)
@@ -134,7 +134,7 @@ def test_nodewise_encoding_multiple(rng_key):
         n_edge=jnp.array([0]),
     )
 
-    encoding = gcnn.NodewiseEncoding(
+    encoding = gcnn.NodewiseEmbedding(
         {ont_hot_key: one_hot, scalar_key: scalar_irreps}, out_field=out_field
     )
     _ = encoding.init(rng_key, graph)
@@ -165,7 +165,7 @@ def test_nodewise_encoding_compilation(rng_key):
         n_edge=jnp.array([0]),
     )
 
-    encoding = gcnn.NodewiseEncoding({in_field: one_hot}, out_field=out_field)
+    encoding = gcnn.NodewiseEmbedding({in_field: one_hot}, out_field=out_field)
     params = encoding.init(rng_key, graph)
 
     jitted = jax.jit(encoding.apply)

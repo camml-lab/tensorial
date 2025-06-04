@@ -24,14 +24,14 @@ def graph_model(
 ) -> tensorial.nn.Sequential:
     return tensorial.nn.Sequential(
         [
-            gcnn.NodewiseEncoding(attrs={gcnn.keys.SPECIES: tensorial.OneHot(len(type_numbers))}),
+            gcnn.NodewiseEmbedding(attrs={gcnn.keys.SPECIES: tensorial.OneHot(len(type_numbers))}),
             gcnn.EdgeVectors(),
-            gcnn.EdgewiseEncoding(
+            gcnn.EdgewiseEmbedding(
                 attrs=dict(
                     edge_vectors=tensorial.SphericalHarmonic(irreps="0e + 1o + 2e", normalise=True)
                 )
             ),
-            gcnn.RadialBasisEdgeEncoding(r_max=r_max),
+            gcnn.RadialBasisEdgeEmbedding(r_max=r_max),
             gcnn.NodewiseLinear(node_feature_irreps, field=gcnn.keys.ATTRIBUTES),
             *modules,
         ]

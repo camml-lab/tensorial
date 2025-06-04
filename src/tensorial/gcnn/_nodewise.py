@@ -12,7 +12,13 @@ from .. import base
 if TYPE_CHECKING:
     import tensorial
 
-__all__ = "NodewiseLinear", "NodewiseReduce", "NodewiseEncoding", "NodewiseDecoding"
+__all__ = (
+    "NodewiseLinear",
+    "NodewiseReduce",
+    "NodewiseEmbedding",
+    "NodewiseEncoding",
+    "NodewiseDecoding",
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,7 +104,7 @@ class NodewiseReduce(linen.Module):
         return jraph.GraphsTuple(**updates._asdict())
 
 
-class NodewiseEncoding(linen.Module):
+class NodewiseEmbedding(linen.Module):
     """
     Take the attributes in the nodes dictionary given by attrs, encode them, and store the results
     as a direct sum of irreps in the out_field.
@@ -141,3 +147,7 @@ class NodewiseDecoding(linen.Module):
 
         # All done, return the new graph
         return graph._replace(nodes=nodes_dict)
+
+
+# For legacy reasons
+NodewiseEncoding = NodewiseEmbedding

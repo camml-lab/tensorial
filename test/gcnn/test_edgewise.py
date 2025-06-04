@@ -61,7 +61,7 @@ def test_edgewise_encoding(rng_key):
         n_edge=jnp.array([n_edges]),
     )
 
-    encoding = gcnn.EdgewiseEncoding({in_field: one_hot}, out_field=out_field)
+    encoding = gcnn.EdgewiseEmbedding({in_field: one_hot}, out_field=out_field)
     out_graph = encoding(graph)
     assert out_field in out_graph.edges
     assert isinstance(out_graph.edges[out_field], e3j.IrrepsArray)
