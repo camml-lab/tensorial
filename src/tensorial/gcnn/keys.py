@@ -23,3 +23,8 @@ SPECIES: Final[str] = "species"
 # Used when padding graphs to indicate nodes, edges or graphs that are just there for padding
 # (value is False)
 MASK: Final[str] = "mask"
+
+
+def predicted(key: str, delimiter: str = "_") -> str:
+    """Helper to create a 'predicted' key."""
+    return delimiter.join(["predicted", key])
