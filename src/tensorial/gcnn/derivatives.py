@@ -52,7 +52,7 @@ def _create_grad_shim(
     fn: "gcnn.typing.GraphFunction",
     of: Sequence["gcnn.typing.TreePathLike"],
     *wrt: "gcnn.typing.TreePathLike",
-    sum_axis: bool = None,
+    sum_axis: Optional[Union[bool, int]] = None,
 ) -> Callable[[jraph.GraphsTuple, ...], tuple[..., jraph.GraphsTuple]]:
     """
     Create a function that takes the values of the quantities we want to take the derivatives with
@@ -73,8 +73,8 @@ def _create_grad_shim(
         # Extract the quantity that we want to differentiate
         def _convert(value):
             value = base.as_array(value)
-            # if sum_outputs:
-            value = value.sum(axis=sum_axis)
+            if sum_axis is not False:
+                value = value.sum(axis=sum_axis)
             return value
 
         vals = tuple(map(_convert, vals))
@@ -118,14 +118,19 @@ def _graph_autodiff(
     grad_fn = diff_fn(shim, argnums=tuple(range(1, len(wrt) + 1)), has_aux=True)
 
     # Evaluate
-    def calc_grad(graph: jraph.GraphsTuple) -> GradOut:
-        wrt_values = _tree.get(graph, *wrt)
-        if len(wrt) == 1:
-            wrt_values = (wrt_values,)
+    def calc_grad(graph: jraph.GraphsTuple, *wrt_values) -> GradOut:
+        if len(wrt_values) != len(wrt):
+            raise ValueError(
+                f"Failed to supply valued to evaluate derivatives at, expected: "
+                f"{','.join(map(_tree.path_to_str, wrt))}"
+            )
 
         grads, graph_out = grad_fn(graph, *wrt_values)
         if out_field is None:
             # In this case, the user just wants the raw value and does not expect a graph back
+            if len(wrt_values) == 1:
+                return grads[0]
+
             return grads
 
         # Add the gradient quantity to the output graph
@@ -143,7 +148,7 @@ def grad(
     wrt: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
     out_field: Optional[Union[str, Sequence[str]]] = "auto",
     sign: float = 1.0,
-) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple], GradOut]]:
+) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
     """
     Build a partially initialised Grad function whose only
     :param kwargs: accepts any arguments that `Grad` does
@@ -159,7 +164,7 @@ def jacrev(
     wrt: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
     out_field: Optional[Union[str, Sequence[str]]] = "auto",
     sign: float = 1.0,
-) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple], GradOut]]:
+) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
     """
     Build a partially initialised Grad function whose only
     :param kwargs: accepts any arguments that `Grad` does
@@ -181,7 +186,7 @@ def jacfwd(
     wrt: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
     out_field: Optional[Union[str, Sequence[str]]] = "auto",
     sign: float = 1.0,
-) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple], GradOut]]:
+) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
     """
     Build a partially initialised Grad function whose only
     :param kwargs: accepts any arguments that `Grad` does
@@ -214,7 +219,12 @@ class Grad(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> GradOut:
-        return self._grad_fn(graph)
+        if isinstance(self.wrt, str):
+            wrt = [_tree.get(graph, self.wrt)]
+        else:
+            wrt = _tree.get(graph, *self._wrt)
+
+        return self._grad_fn(graph, *wrt)
 
 
 class Jacobian(linen.Module):
@@ -230,7 +240,12 @@ class Jacobian(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> GradOut:
-        return self._grad_fn(graph)
+        if isinstance(self.wrt, str):
+            wrt = [_tree.get(graph, self.wrt)]
+        else:
+            wrt = _tree.get(graph, *self._wrt)
+
+        return self._grad_fn(graph, *wrt)
 
 
 class Jacfwd(linen.Module):
@@ -246,4 +261,9 @@ class Jacfwd(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> GradOut:
-        return self._grad_fn(graph)
+        if isinstance(self.wrt, str):
+            wrt = [_tree.get(graph, self.wrt)]
+        else:
+            wrt = _tree.get(graph, *self._wrt)
+
+        return self._grad_fn(graph, *wrt)

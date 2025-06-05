@@ -83,19 +83,19 @@ class UpdateGraphDicts:
         self._globals: Optional[UpdateDict] = None
 
     @property
-    def nodes(self) -> dict:
+    def nodes(self) -> UpdateDict:
         if self._nodes is None:
             self._nodes = UpdateDict(self._original.nodes)
         return self._nodes
 
     @property
-    def edges(self) -> dict:
+    def edges(self) -> UpdateDict:
         if self._edges is None:
             self._edges = UpdateDict(self._original.edges)
         return self._edges
 
     @property
-    def globals(self) -> dict:
+    def globals(self) -> UpdateDict:
         if self._globals is None:
             self._globals = UpdateDict(self._original.globals)
         return self._globals
@@ -129,3 +129,14 @@ class UpdateGraphDicts:
             return self._original
 
         return self._original._replace(**replacements)
+
+    def _asdict(self) -> dict:
+        return {
+            "nodes": self.nodes,
+            "edges": self.edges,
+            "globals": self.globals,
+            "n_node": self.n_node,
+            "n_edge": self.n_edge,
+            "senders": self.senders,
+            "receivers": self.receivers,
+        }
