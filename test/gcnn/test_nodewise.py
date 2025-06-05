@@ -5,6 +5,7 @@ import jax
 from jax import random
 import jax.numpy as jnp
 import jraph
+import numpy as np
 import pytest
 
 import tensorial
@@ -101,6 +102,34 @@ def test_nodewise_encoding(rng_key):
     )
 
     encoding = gcnn.NodewiseEmbedding({in_field: one_hot}, out_field=out_field)
+    out_graph = encoding(graph)
+    assert out_field in out_graph.nodes
+    assert isinstance(out_graph.nodes[out_field], e3j.IrrepsArray)
+    assert out_graph.nodes[out_field].irreps == one_hot.irreps
+    assert out_graph.nodes[out_field].shape[0] == n_nodes
+
+
+def test_nodewise_encoding_from_global(rng_key):
+    in_field: Final[str] = "in"
+    out_field: Final[str] = "out"
+    n_nodes = 5
+    num_types: Final[int] = 2
+
+    # Let's use a one-hot for testing
+    one_hot = tensorial.tensors.OneHot(num_types)
+    global_attr = random.randint(rng_key, (1,), minval=0, maxval=num_types)
+
+    graph = jraph.GraphsTuple(
+        nodes={gcnn.keys.POSITIONS: np.random.rand(n_nodes, 3)},
+        senders=None,
+        receivers=None,
+        edges=None,
+        globals={in_field: global_attr},
+        n_node=jnp.array([n_nodes]),
+        n_edge=jnp.array([0]),
+    )
+
+    encoding = gcnn.NodewiseEmbedding({f"globals.{in_field}": one_hot}, out_field=out_field)
     out_graph = encoding(graph)
     assert out_field in out_graph.nodes
     assert isinstance(out_graph.nodes[out_field], e3j.IrrepsArray)

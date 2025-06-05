@@ -14,6 +14,7 @@ __all__ = (
 
 ENERGY_PER_ATOM: Final[str] = "energy/atom"
 TOTAL_ENERGY: Final[str] = "energy"
+ENERGY: Final[str] = "energy"
 FORCES: Final[str] = "forces"
 STRESS: Final[str] = "stress"
 VIRIAL: Final[str] = "virial"

@@ -3,10 +3,11 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import e3nn_jax as e3j
 from flax import linen
+import jax.numpy as jnp
 import jraph
 from pytray import tree
 
-from . import _base, _common, keys, utils
+from . import _base, _common, _tree, keys, utils
 from .. import base
 
 if TYPE_CHECKING:
@@ -106,17 +107,45 @@ class NodewiseReduce(linen.Module):
 
 class NodewiseEmbedding(linen.Module):
     """
-    Take the attributes in the nodes dictionary given by attrs, encode them, and store the results
+    Take the attributes in the nodes dictionary given by attrs, embed them, and store the results
     as a direct sum of irreps in the out_field.
     """
 
     attrs: "tensorial.IrrepsTree"
     out_field: str = keys.ATTRIBUTES
+    node_shape_from: Optional[str] = keys.POSITIONS
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
+        if isinstance(self.attrs, (dict, linen.FrozenDict)):
+            values = {}
+            for key in self.attrs.keys():
+                path = _tree.path_from_str(key)
+                if len(path) > 1:
+                    if not path[0] in ("nodes", "globals"):
+                        raise ValueError(f"The attribute key must not contain '.', got: {key}")
+                else:
+                    # Assume it is a node attribute
+                    path = ("nodes",) + path
+
+                value = _tree.get(graph, path)
+                if path[0] == "globals":
+                    if self.node_shape_from is None:
+                        # This will not have a static shape, so will cause recompilation
+                        total_repeat_length = jnp.sum(graph.n_node)
+                    else:
+                        total_repeat_length = graph.nodes[self.node_shape_from].shape[0]
+
+                    value = jnp.repeat(
+                        value, graph.n_node, axis=0, total_repeat_length=total_repeat_length
+                    )
+
+                values[key] = value
+        else:
+            values = graph.nodes
+
         # Create the embedding
-        encoded = base.create_tensor(self.attrs, graph.nodes)
+        encoded = base.create_tensor(self.attrs, values)
         # Store in output field
         nodes = graph.nodes
         nodes[self.out_field] = encoded
