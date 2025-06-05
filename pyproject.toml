@@ -25,7 +25,7 @@ dependencies = [
     "ase",
     'beartype',
     "clu",
-    "flax@git+https://github.com/muhrin/flax.git@fix-1925-linen-nonstring-keys",
+    "flax@git+https://github.com/google/flax.git@main",
     "hydra-core",
     'jax<0.7.0',  # Control the JAX version, as previous updates have broken things
     'jaxlib',
