@@ -7,6 +7,7 @@ from . import (
     _nequip,
     _nodewise,
     atomic,
+    calc,
     data,
     derivatives,
     keys,
@@ -42,6 +43,7 @@ __all__ = (
     + typing.__all__
     + (
         "atomic",
+        "calc",
         "data",
         "derivatives",
         "keys",

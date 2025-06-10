@@ -10,13 +10,13 @@ import jaxtyping as jt
 import jraph
 from pytray import tree
 
-from . import _base, _tree
+from . import _base, _tree, utils
 from .. import base
 
 if TYPE_CHECKING:
     from tensorial import gcnn
 
-__all__ = ("grad", "jacobian", "jacrev", "jacfwd", "Grad", "Jacobian", "Jacfwd")
+__all__ = ("grad", "jacobian", "jacrev", "jacfwd", "hessian", "Grad", "Jacobian", "Jacfwd")
 
 TreePath = tuple[Any, ...]
 
@@ -91,26 +91,15 @@ def _graph_autodiff(
     func: "gcnn.typing.GraphFunction",
     of: "gcnn.typing.TreePathLike",
     wrt: Union[str, Sequence["gcnn.typing.TreePathLike"]],
-    out_field: Union[str, Sequence[str]] = "auto",
     sign: float = 1.0,
     sum_axis=None,
+    has_aux: bool = False,
 ) -> Callable[[jraph.GraphsTuple], GradOut]:
     # Gradient of
     of = _tree.to_paths(of)
 
     # Gradient with respect to
     wrt = _tree.to_paths(wrt)
-
-    # Save to
-    if out_field is not None:
-        if out_field == "auto":
-            derivs = []
-            for wrt_entry in wrt:
-                for of_entry in of:
-                    derivs.append(wrt_entry[:-1] + (f"d{'.'.join(of_entry[1:])}/d{wrt_entry[-1]}",))
-            out_field = tuple(derivs)
-        else:
-            out_field = [_tree.path_from_str(out_field)]
 
     # Creat the shim which will be a function that takes the graph as first argument, and
     # the remaining values are the values to take the gradient at
@@ -126,19 +115,13 @@ def _graph_autodiff(
             )
 
         grads, graph_out = grad_fn(graph, *wrt_values)
-        if out_field is None:
-            # In this case, the user just wants the raw value and does not expect a graph back
-            if len(wrt_values) == 1:
-                return grads[0]
+        if len(wrt_values) == 1:
+            grads = grads[0]
 
-            return grads
+        if has_aux:
+            return grads, graph_out
 
-        # Add the gradient quantity to the output graph
-        out_graph_dict = graph_out._asdict()
-        for out_path, value in zip(out_field, grads):
-            tree.set_by_path(out_graph_dict, out_path, sign * value)
-
-        return jraph.GraphsTuple(**out_graph_dict)
+        return grads
 
     return calc_grad
 
@@ -146,24 +129,22 @@ def _graph_autodiff(
 def grad(
     of: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
     wrt: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
-    out_field: Optional[Union[str, Sequence[str]]] = "auto",
     sign: float = 1.0,
+    has_aux: bool = False,
 ) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
     """
     Build a partially initialised Grad function whose only
     :param kwargs: accepts any arguments that `Grad` does
     :return: the partially initialized Grad function
     """
-    return functools.partial(
-        _graph_autodiff, jax.grad, of=of, wrt=wrt, out_field=out_field, sign=sign
-    )
+    return functools.partial(_graph_autodiff, jax.grad, of=of, wrt=wrt, sign=sign, has_aux=has_aux)
 
 
 def jacrev(
     of: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
     wrt: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
-    out_field: Optional[Union[str, Sequence[str]]] = "auto",
     sign: float = 1.0,
+    has_aux: bool = False,
 ) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
     """
     Build a partially initialised Grad function whose only
@@ -171,21 +152,15 @@ def jacrev(
     :return: the partially initialized Grad function
     """
     return functools.partial(
-        _graph_autodiff,
-        jax.jacrev,
-        of=of,
-        wrt=wrt,
-        out_field=out_field,
-        sign=sign,
-        sum_axis=0,
+        _graph_autodiff, jax.jacrev, of=of, wrt=wrt, sign=sign, sum_axis=0, has_aux=has_aux
     )
 
 
 def jacfwd(
     of: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
     wrt: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
-    out_field: Optional[Union[str, Sequence[str]]] = "auto",
     sign: float = 1.0,
+    has_aux: bool = False,
 ) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
     """
     Build a partially initialised Grad function whose only
@@ -193,38 +168,58 @@ def jacfwd(
     :return: the partially initialized Grad function
     """
     return functools.partial(
-        _graph_autodiff,
-        jax.jacfwd,
-        of=of,
-        wrt=wrt,
-        out_field=out_field,
-        sign=sign,
-        sum_axis=0,
+        _graph_autodiff, jax.jacfwd, of=of, wrt=wrt, sign=sign, sum_axis=0, has_aux=has_aux
     )
 
 
 jacobian = jacrev
 
 
+def hessian(
+    of: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
+    wrt: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
+    sign: float = 1.0,
+    has_aux: bool = False,
+) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
+    """
+    Build a partially initialised Grad function whose only
+    :param kwargs: accepts any arguments that `Grad` does
+    :return: the partially initialized Grad function
+    """
+    return functools.partial(
+        _graph_autodiff, jax.hessian, of=of, wrt=wrt, sign=sign, sum_axis=None, has_aux=has_aux
+    )
+
+
 class Grad(linen.Module):
     func: "gcnn.typing.GraphFunction"
-    of: "gcnn.typing.TreePathLike"
-    wrt: Union[str, Sequence["gcnn.typing.TreePathLike"]]
+    of: "gcnn.typing.TreePathLike"  # Gradient of
+    wrt: Union[str, Sequence["gcnn.typing.TreePathLike"]]  # Gradient with respect to
     out_field: Union[str, Sequence[str]] = "auto"
     sign: float = 1.0
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
-        self._grad_fn = grad(self.of, self.wrt, self.out_field, self.sign)(self.func)
+        self._of = _tree.to_paths(self.of)
+        self._wrt = _tree.to_paths(self.wrt)
+        self._out_field = (
+            _create(self._of, self._wrt) if self.out_field == "auto" else self.out_field
+        )
+        self._grad_fn = grad(self._of, self._wrt, sign=self.sign)(self.func)
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> GradOut:
-        if isinstance(self.wrt, str):
-            wrt = [_tree.get(graph, self.wrt)]
-        else:
-            wrt = _tree.get(graph, *self._wrt)
+        wrt = _tree.get(graph, *self._wrt)
+        if len(self._wrt) == 1:
+            wrt = [wrt]
 
-        return self._grad_fn(graph, *wrt)
+        res = self._grad_fn(graph, *wrt)
+        graph_updates = graph._asdict()
+
+        for field, value in zip(self._out_field, res):
+            tree.set_by_path(graph_updates, field, value)
+
+        return jraph.GraphsTuple(**graph_updates)
 
 
 class Jacobian(linen.Module):
@@ -236,16 +231,26 @@ class Jacobian(linen.Module):
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
+        self._of = _tree.to_paths(self.of)
+        self._wrt = _tree.to_paths(self.wrt)
+        self._out_field = (
+            _create(self._of, self._wrt) if self.out_field == "auto" else self.out_field
+        )
         self._grad_fn = jacobian(self.of, self.wrt, self.out_field, self.sign)(self.func)
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> GradOut:
-        if isinstance(self.wrt, str):
-            wrt = [_tree.get(graph, self.wrt)]
-        else:
-            wrt = _tree.get(graph, *self._wrt)
+        wrt = _tree.get(graph, *self._wrt)
+        if len(self._wrt) == 1:
+            wrt = [wrt]
 
-        return self._grad_fn(graph, *wrt)
+        res = self._grad_fn(graph, *wrt)
+        graph_updates = graph._asdict()
+
+        for field, value in zip(self._out_field, res):
+            tree.set_by_path(graph_updates, field, value)
+
+        return jraph.GraphsTuple(**graph_updates)
 
 
 class Jacfwd(linen.Module):
@@ -257,13 +262,32 @@ class Jacfwd(linen.Module):
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
+        self._of = _tree.to_paths(self.of)
+        self._wrt = _tree.to_paths(self.wrt)
+        self._out_field = (
+            _create(self._of, self._wrt) if self.out_field == "auto" else self.out_field
+        )
         self._grad_fn = jacfwd(self.of, self.wrt, self.out_field, self.sign)(self.func)
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> GradOut:
-        if isinstance(self.wrt, str):
-            wrt = [_tree.get(graph, self.wrt)]
-        else:
-            wrt = _tree.get(graph, *self._wrt)
+        wrt = _tree.get(graph, *self._wrt)
+        if len(self._wrt) == 1:
+            wrt = [wrt]
 
-        return self._grad_fn(graph, *wrt)
+        res = self._grad_fn(graph, *wrt)
+        graph_updates = graph._asdict()
+
+        for field, value in zip(self._out_field, res):
+            tree.set_by_path(graph_updates, field, value)
+
+        return jraph.GraphsTuple(**graph_updates)
+
+
+def _create(of: Sequence[tuple], wrt: Sequence[tuple]) -> list[tuple]:
+    derivs = []
+    for wrt_entry in wrt:
+        for of_entry in of:
+            derivs.append(wrt_entry[:-1] + (f"d{'.'.join(of_entry[1:])}/d{wrt_entry[-1]}",))
+
+    return derivs
