@@ -142,7 +142,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
 
     @override
     def predict_step(self, batch: jraph.GraphsTuple, batch_idx: int, /) -> jraph.GraphsTuple:
-        inputs, outputs = self._prep_batch(batch)
+        inputs, _outputs = self._prep_batch(batch)
         return self._forward(self.parameters(), inputs, self._model.apply)
 
     @staticmethod

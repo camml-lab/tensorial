@@ -10,7 +10,7 @@ import jaxtyping as jt
 import jraph
 from pytray import tree
 
-from . import _base, _tree, utils
+from . import _base, _tree
 from .. import base
 
 if TYPE_CHECKING:
@@ -40,8 +40,6 @@ def grad_shim(
 
     graph = jax.tree_util.tree_map_with_path(repl, graph)
 
-    # Create the graph, now containing what the original graph plus the variables we were passed
-    # graph = jraph.GraphsTuple(**graph_dict)
     # Pass the graph through the original function
     out_graph = fn(graph)
     # Extract the quantity that we want to differentiate
@@ -115,6 +113,7 @@ def _graph_autodiff(
             )
 
         grads, graph_out = grad_fn(graph, *wrt_values)
+        grads = [sign * grad for grad in grads]
         if len(wrt_values) == 1:
             grads = grads[0]
 
