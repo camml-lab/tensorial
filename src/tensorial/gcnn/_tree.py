@@ -76,7 +76,7 @@ def get(
 
 def to_paths(
     wrt: Optional[Union[str, Sequence["gcnn.typing.TreePathLike"]]],
-) -> tuple["gcnn.typing.TreePathLike"]:
+) -> "tuple[gcnn.typing.TreePath, ...]":
     if wrt is None:
         return tuple()
     if isinstance(wrt, str):

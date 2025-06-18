@@ -1,4 +1,3 @@
-import functools
 import random
 from typing import Final
 
@@ -53,7 +52,7 @@ def test_graph_metric_with_mask(mask_field):
 
     targets = np.random.random((N_GRAPHS, N_NODES, 3))
     preds = np.random.random((N_GRAPHS, N_NODES, 3))
-    masks = np.random.randint(0, 2, size=(N_GRAPHS, N_NODES), dtype=np.bool)
+    masks = np.random.randint(0, 2, size=(N_GRAPHS, N_NODES), dtype=bool)
     graphs = []
     for target, pred, mask in zip(targets, preds, masks):
         graphs.append(
@@ -102,7 +101,7 @@ def test_indexed_metrics(rng_key, batch_size: int):
             gcnn.keys.MASK: (
                 lambda rng_key, num: jax.random.randint(
                     rng_key, shape=(num,), minval=0, maxval=2
-                ).astype(jnp.bool)
+                ).astype(bool)
             ),
         },
     )

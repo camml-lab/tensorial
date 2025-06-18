@@ -62,8 +62,8 @@ def shape_check(func: "gcnn.typing.GraphFunction") -> "gcnn.typing.GraphFunction
 
 def transform_fn(
     fn: "gcnn.typing.GraphFunction",
-    *ins: "gcnn.typing.TreePathLike",
-    outs: "Sequence[gcnn.typing.TreePathLike]" = tuple(),
+    *ins: "gcnn.TreePathLike",
+    outs: "Sequence[gcnn.TreePathLike]" = tuple(),
     return_graphs: bool = False,
 ) -> Union[Callable[[jraph.GraphsTuple], Any], Callable[[jraph.GraphsTuple, ...], Any]]:
     """

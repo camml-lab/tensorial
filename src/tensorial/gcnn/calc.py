@@ -7,14 +7,14 @@ import numpy as np
 from .. import utils
 
 if TYPE_CHECKING:
-    from tensorial import typing
+    import tensorial.typing as tt
 
 
 __all__ = ("cell_volume",)
 
 
 def cell_volume(
-    cell_vectors: "jt.Float[typing.ArrayType, '3 3']", np_=None
+    cell_vectors: "jt.Float[tt.ArrayType, '3 3']", np_=None
 ) -> Union[np.ndarray, jax.Array]:
     if np_ is None:
         np_ = utils.infer_backend(cell_vectors)
