@@ -1,5 +1,6 @@
 import math
 
+import jax
 import jax.numpy as jnp
 import jraph
 import numpy as np
@@ -21,6 +22,39 @@ def test_generate_batches(rng_key):
         assert sum(graph.n_node) == num_nodes
         assert sum(graph.n_edge) == num_edges
         assert len(graph.n_node) == num_graphs
+
+    # Check that the padding is as we expected
+    for graph in batches[:-1]:
+        # There should be one graph added to the end for padding
+        assert jraph.get_number_of_padding_with_graphs_graphs(graph) == 1
+        graph_mask = jraph.get_graph_padding_mask(graph)
+        assert jnp.all(graph_mask[:-1])
+        assert graph_mask[-1].item() is False
+
+
+def test_generate_batches_explicit(rng_key):
+    dataset_size = 5
+    batch_size = 2
+    inputs = tuple(gcnn.random.spatial_graph(rng_key, 2, cutoff=5) for _ in range(dataset_size))
+    batcher = data.GraphBatcher(
+        inputs, batch_size=batch_size, pad=True, mode=gcnn.data.BatchMode.EXPLICIT
+    )
+    batches = tuple(batcher)
+
+    num_nodes = sum(batches[0].n_node[0])
+    num_edges = sum(batches[0].n_edge[0])
+    shapes = jax.tree.map(jnp.shape, batches[0])
+
+    for graph in batches:
+        assert graph.n_node.shape == (batch_size, 2)
+        assert graph.n_edge.shape == (batch_size, 2)
+        assert jax.tree.map(jnp.shape, graph) == shapes
+
+        actual_num_nodes = jnp.sum(graph.n_node, axis=1)
+        jnp.all(actual_num_nodes == num_nodes)
+
+        actual_num_edges = jnp.sum(graph.n_edge, axis=1)
+        jnp.all(actual_num_edges == num_edges)
 
     # Check that the padding is as we expected
     for graph in batches[:-1]:

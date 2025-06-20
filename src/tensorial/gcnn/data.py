@@ -3,10 +3,12 @@ from collections.abc import Iterable, Iterator, Sequence
 import enum
 import functools
 import itertools
+import logging
 from typing import Any, Optional, Union
 
 import beartype
 import jax
+import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
 import numpy as np
@@ -15,6 +17,8 @@ from pytray import tree
 from . import keys, utils
 from .. import data
 from .. import utils as tensorial_utils
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class GraphBatch(tuple):
@@ -44,6 +48,11 @@ class GraphAttributes(enum.IntFlag):
     EDGES = 0b0010
     GLOBALS = 0b0100
     ALL = NODES | EDGES | GLOBALS
+
+
+class BatchMode(enum.Enum):
+    IMPLICIT = 0
+    EXPLICIT = 1
 
 
 def generated_padded_graphs(
@@ -216,11 +225,24 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         graphs: Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]],
         batch_size: int = 1,
         *,
-        shuffle=False,
-        pad=False,
-        add_mask=True,
+        shuffle: bool = False,
+        pad: bool = False,
+        add_mask: bool = True,
         padding: Optional[GraphPadding] = None,
+        mode: BatchMode = BatchMode.IMPLICIT,
     ):
+        if add_mask and not pad:
+            _LOGGER.warning(
+                "User asked for mask to be added but there is no padding "
+                "(so we don't know what to mask off).  Ignoring"
+            )
+            add_mask = False
+
+        # Params
+        self._batch_size: int = batch_size
+        self._add_mask: bool = add_mask
+        self._mode: BatchMode = mode
+
         if isinstance(graphs, jraph.GraphsTuple):
             graphs = jraph.unbatch_np(graphs)
         else:
@@ -228,22 +250,35 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
                 if len(graph.n_node) != 1:
                     raise ValueError("``graphs`` should be a sequence of individual graphs")
 
-        self._graphs = graphs
-        self._batch_size = batch_size
-        self._add_mask = add_mask
+        if mode is BatchMode.IMPLICIT:
+            if pad and padding is None:
+                # Automatically determine padding
+                padding = self.calculate_padding(graphs, batch_size, with_shuffle=shuffle)
+        else:  # explicit batching
+            # The padding now applies to each graph and not the batches themselves
+            batcher = GraphBatcher(
+                graphs,
+                batch_size=1,
+                pad=True,
+                add_mask=True,
+                padding=padding,
+                mode=BatchMode.IMPLICIT,
+            )
+            graphs = list(batcher)
+            if padding is None:
+                padding = batcher.padding
+
+        self._padding = padding if pad else None
+        self._graphs: list[jraph.GraphsTuple] = graphs
+
+        # State
         self._sampler = data.samplers.create_batch_sampler(
             self._graphs, batch_size=batch_size, shuffle=shuffle
         )
 
-        self._padding = (
-            None
-            if not pad
-            else (
-                padding
-                if padding is not None
-                else self.calculate_padding(graphs, batch_size, with_shuffle=shuffle)
-            )
-        )
+    @property
+    def padding(self) -> GraphPadding:
+        return self._padding
 
     @staticmethod
     def calculate_padding(
@@ -269,17 +304,34 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
 
         return GraphPadding(pad_nodes, pad_edges, n_graphs=batch_size + 1)
 
-    @property
-    def padding(self) -> GraphPadding:
-        return self._padding
-
     def fetch(self, idxs: Sequence[int]) -> jraph.GraphsTuple:
         if len(idxs) > self._batch_size:
             raise ValueError(
                 f"Number of indices must be less than or equal to the batch size "
                 f"({self._batch_size}), got {len(idxs)}"
             )
-        batch = _fetch_batch(self._graphs, idxs)
+
+        if self._mode is BatchMode.IMPLICIT:
+            return self._fetch_batch(self._graphs, idxs)
+
+        return self._fetch_batch_explicit(self._graphs, idxs)
+
+    def __iter__(self) -> Iterator[jraph.GraphsTuple]:
+        for idxs in self._sampler:
+            yield self.fetch(idxs)
+
+    def _fetch_batch(
+        self, graphs: Sequence[jraph.GraphsTuple], idxs: Sequence[int], np_=np
+    ) -> jraph.GraphsTuple:
+        """Given a set of indices, fetch the corresponding batch from the given graphs."""
+        graph_list: list[jraph.GraphsTuple] = [graphs[idx] for idx in idxs]
+
+        if np_ is np:
+            batch = jraph.batch_np(graph_list)
+        else:
+            # Assume JAX
+            batch = jraph.batch(graph_list)
+
         if self._padding is not None:
             batch = jraph.pad_with_graphs(batch, *self._padding)
             if self._add_mask:
@@ -287,24 +339,26 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
 
         return batch
 
-    def __iter__(self) -> Iterator[jraph.GraphsTuple]:
-        for idxs in self._sampler:
-            yield self.fetch(idxs)
+    def _fetch_batch_explicit(
+        self, graphs: Sequence[jraph.GraphsTuple], idxs: Sequence[int], np_=np
+    ) -> jraph.GraphsTuple:
+        """Given a set of indices, fetch the corresponding batch from the given graphs."""
+        graph_list: list[jraph.GraphsTuple] = [graphs[idx] for idx in idxs]
+        if len(graph_list) < self._batch_size:
+            # We need to add some dummy graphs
+            dummy = _dummy_graph_like(graph_list[0])
+            graph_list.extend([dummy] * (self._batch_size - len(graph_list)))
 
+        # Perform the stacking of all arrays
+        graph_list = jax.tree.map(lambda *xs: jnp.stack(xs), graph_list)
 
-def _fetch_batch(
-    graphs: Sequence[jraph.GraphsTuple], idxs: Sequence[int], np_=np
-) -> jraph.GraphsTuple:
-    """Given a set of indices, fetch the corresponding batch from the given graphs."""
-    batch = []
-    for idx in idxs:
-        batch.append(graphs[idx])
+        if np_ is np:
+            batch = jraph.batch_np(graph_list)
+        else:
+            # Assume JAX
+            batch = jraph.batch(graph_list)
 
-    if np_ is np:
-        return jraph.batch_np(batch)
-
-    # Assume JNP
-    return jraph.batch(batch)
+        return batch
 
 
 def get_by_path(graph: jraph.GraphsTuple, path: tuple, pad_value=None) -> Any:
@@ -343,3 +397,20 @@ def _chunks(iterable: Iterable, batch_size: int):
     it = iter(iterable)
     while chunk := list(itertools.islice(it, batch_size)):
         yield chunk
+
+
+def _dummy_graph_like(graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
+    num_graphs = graph.n_node.shape[0]
+    num_nodes = sum(graph.n_node)
+    num_edges = sum(graph.n_edge)
+
+    return jraph.GraphsTuple(
+        # Push all the nodes and edges to the final graph which is typically the padding graph
+        n_node=np.array((num_graphs - 1) * [0] + [num_nodes]),
+        n_edge=np.array((num_graphs - 1) * [0] + [num_edges]),
+        nodes=jax.tree.map(np.zeros_like, graph.nodes),
+        edges=jax.tree.map(np.zeros_like, graph.edges),
+        globals=jax.tree.map(np.zeros_like, graph.globals),
+        senders=jax.tree.map(np.zeros_like, graph.senders),
+        receivers=jax.tree.map(np.zeros_like, graph.receivers),
+    )
