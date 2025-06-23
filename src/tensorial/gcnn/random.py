@@ -6,7 +6,7 @@ import jax.random
 import jaxtyping as jt
 import jraph
 
-from . import _graphs
+from . import _spatial
 
 RandomFn = Callable[[jax.typing.ArrayLike, int], jax.typing.ArrayLike]
 LiteralOrRandom = Union[jax.typing.ArrayLike, RandomFn]
@@ -35,7 +35,7 @@ def spatial_graph(
                 value, rng_key = _create_attributes(value, rng_key, num_nodes)
                 nodes[key] = value
 
-        graphs.append(_graphs.graph_from_points(pos, r_max=cutoff, nodes=nodes))
+        graphs.append(_spatial.graph_from_points(pos, r_max=cutoff, nodes=nodes))
 
     if num_graphs is None:
         return graphs[0]

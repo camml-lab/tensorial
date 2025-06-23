@@ -6,7 +6,7 @@ import jraph
 import numpy as np
 
 from . import keys
-from .. import _graphs as gcnn_graphs
+from .. import _spatial as gcnn_graphs
 from ... import base, typing
 
 __all__ = "graph_from_pymatgen", "graph_from_ase"

@@ -1,6 +1,6 @@
 import logging
 import numbers
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Final, Optional
 
 import e3nn_jax as e3j
 import jax
@@ -11,7 +11,10 @@ import numpy as np
 import reax.metrics
 
 from . import keys
-from .. import base, geometry, typing
+from .. import base, geometry, nn_utils
+
+if TYPE_CHECKING:
+    import tensorial.typing as tt
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,14 +23,14 @@ __all__ = ("graph_from_points", "with_edge_vectors")
 
 # @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_points(
-    pos: jt.Float[typing.ArrayType, "n_nodes 3"],
+    pos: "jt.Float[tt.ArrayType, 'n_nodes 3']",
     r_max: numbers.Number,
     *,
     fractional_positions: bool = False,
     self_interaction: bool = True,
     strict_self_interaction: bool = False,
-    cell: Optional[typing.CellType] = None,
-    pbc: Optional[Union[bool, typing.PbcType]] = None,
+    cell: "Optional[tt.CellType]" = None,
+    pbc: "Optional[bool | tt.PbcType]" = None,
     nodes: Optional[dict[str, jt.Num[jax.typing.ArrayLike, "n_nodes *"]]] = None,
     edges: dict = None,
     graph_globals: dict = None,
@@ -174,3 +177,48 @@ def with_edge_vectors(
 
     graph = graph._replace(edges=edges)
     return graph
+
+
+def _pairwise_sq_distances(pos: "tt.ArrayType", mask: "Optional[tt.ArrayType]") -> "tt.ArrayType":
+    # x_shape: (num_nodes_in_graph, 3)
+    if mask is not None:
+        mask = nn_utils.prepare_mask(mask, pos)
+        pos = jnp.where(mask, pos, jnp.inf)
+
+    diff = pos[:, None, :] - pos[None, :, :]
+    return (diff**2).sum(axis=2)
+
+
+def _update_positions(
+    padded_graph: jraph.GraphsTuple, new_pos: "tt.ArrayType", r_max: float
+) -> jraph.GraphsTuple:
+    nodes_dict = padded_graph.nodes
+    if not nodes_dict[keys.POSITIONS].shape == new_pos.shape:
+        raise ValueError(
+            f"New positions ({new_pos.shape}) and current position arrays "
+            f"({nodes_dict[keys.POSITIONS].shape}) do not have the same shape"
+        )
+
+    nodes_dict["positions"] = new_pos
+
+    dists_mtx = _pairwise_sq_distances(new_pos, nodes_dict[keys.MASK])
+    r_max_sq: Final = r_max**2
+    pairs = jnp.argwhere(
+        (dists_mtx < r_max_sq) & (dists_mtx > 0.0),
+        size=padded_graph.senders.shape[0],
+        fill_value=-1,  # Use -1 to identify the padding values
+    )
+
+    n_edge: Final = padded_graph.edges[keys.MASK].shape[0]
+    new_edge_mask = pairs[:, 0] >= 0  # i.e. not -1
+    new_n_edge = sum(new_edge_mask)
+    new_senders = jnp.where(new_edge_mask, pairs[:, 0], 0.0)
+    new_receivers = jnp.where(new_edge_mask, pairs[:, 1], 0.0)
+
+    return padded_graph._replace(
+        senders=new_senders,
+        receivers=new_receivers,
+        n_edge=jnp.array([new_n_edge, n_edge - new_n_edge]),
+        edges={"mask": new_edge_mask},
+        nodes=nodes_dict,
+    )

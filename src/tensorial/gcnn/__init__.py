@@ -2,10 +2,10 @@ from . import (
     _base,
     _common,
     _edgewise,
-    _graphs,
     _modules,
     _nequip,
     _nodewise,
+    _spatial,
     atomic,
     calc,
     data,
@@ -20,10 +20,10 @@ from . import (
 from ._base import *
 from ._common import *
 from ._edgewise import *
-from ._graphs import *
 from ._modules import *
 from ._nequip import *
 from ._nodewise import *
+from ._spatial import *
 from .derivatives import *
 from .losses import *
 from .metrics import *
@@ -35,7 +35,7 @@ __all__ = (
     + _nequip.__all__
     + _edgewise.__all__
     + _nodewise.__all__
-    + _graphs.__all__
+    + _spatial.__all__
     + _modules.__all__
     + derivatives.__all__
     + losses.__all__

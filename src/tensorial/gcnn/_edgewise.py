@@ -5,7 +5,7 @@ import e3nn_jax as e3j
 from flax import linen
 import jraph
 
-from . import _base, _graphs, keys
+from . import _base, _spatial, keys
 from .. import base
 
 if TYPE_CHECKING:
@@ -104,7 +104,7 @@ class RadialBasisEdgeEmbedding(linen.Module):
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
-        edge_dict = _graphs.with_edge_vectors(graph).edges
+        edge_dict = _spatial.with_edge_vectors(graph).edges
         edge_dict[self.out_field] = self.radial_embedding(
             base.as_array(edge_dict[keys.EDGE_LENGTHS])[:, 0]
         )
@@ -124,7 +124,7 @@ class EdgeVectors(linen.Module):
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
-        return _graphs.with_edge_vectors(
+        return _spatial.with_edge_vectors(
             graph, with_lengths=True, as_irreps_array=self.as_irreps_arrays
         )
 
