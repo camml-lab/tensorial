@@ -4,9 +4,35 @@ import jax
 import jax.numpy as jnp
 import jraph
 import numpy as np
+import pytest
 
 from tensorial import gcnn
 from tensorial.gcnn import data, keys
+
+
+def unbatch_explicit(batched_graph: jraph.GraphsTuple) -> list[jraph.GraphsTuple]:
+    """Unbatch an explicitly batched GraphsTuple into a list of GraphsTuples
+    where nodes, edges, and globals are PyTrees (e.g. dictionaries of arrays)."""
+    batch_size = jax.tree_util.tree_leaves(batched_graph.n_node)[0].shape[0]
+    graphs = []
+
+    for i in range(batch_size):
+        node = jax.tree_util.tree_map(lambda x: x[i], batched_graph.nodes)
+        edge = jax.tree_util.tree_map(lambda x: x[i], batched_graph.edges)
+        glob = jax.tree_util.tree_map(lambda x: x[i], batched_graph.globals)
+
+        g = jraph.GraphsTuple(
+            nodes=node,
+            edges=edge,
+            senders=batched_graph.senders[i],
+            receivers=batched_graph.receivers[i],
+            n_node=batched_graph.n_node[i : i + 1],  # this should remain a [1] shape
+            n_edge=batched_graph.n_edge[i : i + 1],
+            globals=glob,
+        )
+        graphs.append(g)
+
+    return graphs
 
 
 def test_generate_batches(rng_key):
@@ -32,35 +58,48 @@ def test_generate_batches(rng_key):
         assert graph_mask[-1].item() is False
 
 
-def test_generate_batches_explicit(rng_key):
+@pytest.mark.parametrize("drop_last", [True, False])
+def test_generate_batches_explicit(rng_key, drop_last: bool):
     dataset_size = 5
     batch_size = 2
-    inputs = tuple(gcnn.random.spatial_graph(rng_key, 2, cutoff=5) for _ in range(dataset_size))
+
+    # Generate the random graphs
+    inputs = []
+    for _ in range(dataset_size):
+        rng_key, graph_key = jax.random.split(rng_key)
+        inputs.append(gcnn.random.spatial_graph(rng_key, 2, cutoff=5))
+
     batcher = data.GraphBatcher(
-        inputs, batch_size=batch_size, pad=True, mode=gcnn.data.BatchMode.EXPLICIT
+        inputs,
+        batch_size=batch_size,
+        pad=True,
+        mode=gcnn.data.BatchMode.EXPLICIT,
+        drop_last=drop_last,
     )
     batches = tuple(batcher)
+    assert len(batcher) == 5 // 2 if drop_last else 5 // 2 + 1
 
-    num_nodes = sum(batches[0].n_node[0])
-    num_edges = sum(batches[0].n_edge[0])
-    shapes = jax.tree.map(jnp.shape, batches[0])
+    input_idx = 0
+    for batch in batches:
+        unbatched = unbatch_explicit(batch)
 
-    for graph in batches:
-        assert graph.n_node.shape == (batch_size, 2)
-        assert graph.n_edge.shape == (batch_size, 2)
-        assert jax.tree.map(jnp.shape, graph) == shapes
+        for entry in unbatched:
+            if input_idx == len(inputs) - 1:
+                assert drop_last is False
+                break
 
-        actual_num_nodes = jnp.sum(graph.n_node, axis=1)
-        jnp.all(actual_num_nodes == num_nodes)
+            input = inputs[input_idx]
+            padded = gcnn.data.pad_with_graphs(input, *batcher.padding)
+            for a, b in zip(jax.tree.flatten(padded)[0], jax.tree.flatten(entry)[0]):
+                assert jnp.all(a == b)
 
-        actual_num_edges = jnp.sum(graph.n_edge, axis=1)
-        jnp.all(actual_num_edges == num_edges)
+            input_idx += 1
 
     # Check that the padding is as we expected
-    for graph in batches[:-1]:
+    for batch in batches[:-1]:
         # There should be one graph added to the end for padding
-        assert jraph.get_number_of_padding_with_graphs_graphs(graph) == 1
-        graph_mask = jraph.get_graph_padding_mask(graph)
+        assert jraph.get_number_of_padding_with_graphs_graphs(batch) == 1
+        graph_mask = jraph.get_graph_padding_mask(batch)
         assert jnp.all(graph_mask[:-1])
         assert graph_mask[-1].item() is False
 

@@ -4,11 +4,10 @@ import enum
 import functools
 import itertools
 import logging
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import beartype
 import jax
-import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
 import numpy as np
@@ -50,9 +49,9 @@ class GraphAttributes(enum.IntFlag):
     ALL = NODES | EDGES | GLOBALS
 
 
-class BatchMode(enum.Enum):
-    IMPLICIT = 0
-    EXPLICIT = 1
+class BatchMode(str, enum.Enum):
+    IMPLICIT = "implicit"
+    EXPLICIT = "explicit"
 
 
 def generated_padded_graphs(
@@ -164,11 +163,12 @@ class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        *datasets: Optional[Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]]],
+        *datasets: Optional[jraph.GraphsTuple | Sequence[jraph.GraphsTuple]],
         batch_size: int = 1,
         shuffle: bool = False,
         pad: Optional[bool] = None,
         padding: Optional[GraphPadding] = None,
+        batch_mode: BatchMode | str = BatchMode.IMPLICIT,
     ):
         # Params
         self._batch_size = batch_size
@@ -192,7 +192,12 @@ class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
             pad = padding is not None
 
         create_batcher = functools.partial(
-            GraphBatcher, batch_size=batch_size, shuffle=shuffle, pad=pad, padding=padding
+            GraphBatcher,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            pad=pad,
+            padding=padding,
+            mode=batch_mode,
         )
         self._batchers: tuple[Optional[GraphBatcher], ...] = tuple(
             create_batcher(graph_batch) if graph_batch is not None else None
@@ -222,14 +227,15 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        graphs: Union[jraph.GraphsTuple, Sequence[jraph.GraphsTuple]],
+        graphs: jraph.GraphsTuple | Sequence[jraph.GraphsTuple],
         batch_size: int = 1,
         *,
         shuffle: bool = False,
         pad: bool = False,
         add_mask: bool = True,
         padding: Optional[GraphPadding] = None,
-        mode: BatchMode = BatchMode.IMPLICIT,
+        drop_last: bool = False,
+        mode: str | BatchMode = BatchMode.IMPLICIT,
     ):
         if add_mask and not pad:
             _LOGGER.warning(
@@ -241,7 +247,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         # Params
         self._batch_size: int = batch_size
         self._add_mask: bool = add_mask
-        self._mode: BatchMode = mode
+        self._mode: BatchMode = BatchMode(mode)
 
         if isinstance(graphs, jraph.GraphsTuple):
             graphs = jraph.unbatch_np(graphs)
@@ -250,7 +256,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
                 if len(graph.n_node) != 1:
                     raise ValueError("``graphs`` should be a sequence of individual graphs")
 
-        if mode is BatchMode.IMPLICIT:
+        if self._mode is BatchMode.IMPLICIT:
             if pad and padding is None:
                 # Automatically determine padding
                 padding = self.calculate_padding(graphs, batch_size, with_shuffle=shuffle)
@@ -273,12 +279,22 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
 
         # State
         self._sampler = data.samplers.create_batch_sampler(
-            self._graphs, batch_size=batch_size, shuffle=shuffle
+            self._graphs, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last
         )
 
     @property
     def padding(self) -> GraphPadding:
         return self._padding
+
+    def __len__(self) -> int:
+        return len(self._sampler)
+
+    def __iter__(self) -> Iterator[jraph.GraphsTuple]:
+        for idxs in self._sampler:
+            yield self.fetch(idxs)
+
+    def __getitem__(self, item):
+        return self.fetch(self._sampler[item])
 
     @staticmethod
     def calculate_padding(
@@ -316,10 +332,6 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
 
         return self._fetch_batch_explicit(self._graphs, idxs)
 
-    def __iter__(self) -> Iterator[jraph.GraphsTuple]:
-        for idxs in self._sampler:
-            yield self.fetch(idxs)
-
     def _fetch_batch(
         self, graphs: Sequence[jraph.GraphsTuple], idxs: Sequence[int], np_=np
     ) -> jraph.GraphsTuple:
@@ -350,13 +362,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
             graph_list.extend([dummy] * (self._batch_size - len(graph_list)))
 
         # Perform the stacking of all arrays
-        graph_list = jax.tree.map(lambda *xs: jnp.stack(xs), graph_list)
-
-        if np_ is np:
-            batch = jraph.batch_np(graph_list)
-        else:
-            # Assume JAX
-            batch = jraph.batch(graph_list)
+        batch = stack_graphs_tuple(graph_list, np_=np_)
 
         return batch
 
@@ -413,4 +419,32 @@ def _dummy_graph_like(graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         globals=jax.tree.map(np.zeros_like, graph.globals),
         senders=jax.tree.map(np.zeros_like, graph.senders),
         receivers=jax.tree.map(np.zeros_like, graph.receivers),
+    )
+
+
+def stack_graphs_tuple(graph_list: list[jraph.GraphsTuple], np_=None) -> jraph.GraphsTuple:
+    """Stacks a list of GraphsTuples with array or PyTree fields (e.g. dicts) into one batched
+    GraphsTuple."""
+    if np_ is None:
+        np_ = tensorial_utils.infer_backend(graph_list)
+
+    # Use jax map to stack PyTree structures across the batch
+    stacked_nodes = jax.tree.map(lambda *args: np_.stack(args), *(g.nodes for g in graph_list))
+    stacked_edges = jax.tree.map(lambda *args: np_.stack(args), *(g.edges for g in graph_list))
+    stacked_globals = jax.tree.map(lambda *args: np_.stack(args), *(g.globals for g in graph_list))
+
+    # Handle non-PyTree fields directly (these are just arrays or scalars)
+    stacked_senders = np_.stack([g.senders for g in graph_list])
+    stacked_receivers = np_.stack([g.receivers for g in graph_list])
+    stacked_n_node = np_.stack([g.n_node for g in graph_list])
+    stacked_n_edge = np_.stack([g.n_edge for g in graph_list])
+
+    return jraph.GraphsTuple(
+        nodes=stacked_nodes,
+        edges=stacked_edges,
+        globals=stacked_globals,
+        senders=stacked_senders,
+        receivers=stacked_receivers,
+        n_node=stacked_n_node,
+        n_edge=stacked_n_edge,
     )

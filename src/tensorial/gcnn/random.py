@@ -17,7 +17,7 @@ def spatial_graph(
     rng_key: jax.Array,
     num_nodes: int = None,
     num_graphs=None,
-    cutoff=0.2,
+    cutoff=0.4,
     nodes: Optional[dict[str, LiteralOrRandom]] = None,
 ) -> Union[jraph.GraphsTuple, list[jraph.GraphsTuple]]:
     """Create graph(s) with nodes that have random positions"""

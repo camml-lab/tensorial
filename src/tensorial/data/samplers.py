@@ -155,10 +155,11 @@ def create_batch_sampler(
     batch_size: int = 1,
     replacements: bool = False,
     shuffle: bool = False,
+    drop_last: bool = False,
 ) -> BatchSampler[int]:
     if shuffle:
         sampler = RandomSampler(len(dataset), replacements=replacements)
     else:
         sampler = SequentialSampler(len(dataset))
 
-    return BatchSampler(sampler, batch_size, False)
+    return BatchSampler(sampler, batch_size, drop_last)
