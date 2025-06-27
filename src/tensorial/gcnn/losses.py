@@ -121,8 +121,8 @@ class WeightedLoss(GraphLoss):
 
     def __init__(
         self,
-        weights: Sequence[float],
         loss_fns: Sequence[GraphLoss],
+        weights: Optional[Sequence[float]] = None,
     ):
         super().__init__("weighted loss")
         for loss in loss_fns:
@@ -131,15 +131,18 @@ class WeightedLoss(GraphLoss):
                     f"loss_fns must all be subclasses of GraphLoss, got {type(loss).__name__}"
                 )
 
-        if len(weights) != len(loss_fns):
-            raise ValueError(
-                f"the number of weights and loss functions must be equal, got {len(weights)} and "
-                f"{len(loss_fns)}"
-            )
+        if weights is None:
+            weights = (1.0,) * len(loss_fns)
+        else:
+            if len(weights) != len(loss_fns):
+                raise ValueError(
+                    f"the number of weights and loss functions must be equal, got {len(weights)} "
+                    f"and {len(loss_fns)}"
+                )
 
         self._weights = tuple(
             weights
-        )  # We have to use a list here, otherwise jax will treat this as a dynamic type
+        )  # We have to use a tuple here, otherwise jax will treat this as a dynamic type
         self._loss_fns = loss_fns
 
     @property

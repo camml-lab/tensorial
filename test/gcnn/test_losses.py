@@ -81,21 +81,26 @@ def test_masked_loss(jit, mask_field, graph_batch: jraph.GraphsTuple):
 
 
 @pytest.mark.parametrize("jit", [True, False])
-def test_weighted_loss(jit, graph_batch: jraph.GraphsTuple):
+@pytest.mark.parametrize("weights", [None, [1.0, 10.0]])
+def test_weighted_loss(jit, weights, graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
-    weights = [1.0, 10.0]
     loss_fns = [
         losses.Loss("globals.energy_prediction", "globals.energy", loss_fn=optax_loss),
         losses.Loss("nodes.force_predictions", "nodes.forces", loss_fn=optax_loss),
     ]
 
-    loss_fn = losses.WeightedLoss(weights, loss_fns)
-    if jit:
-        loss_fn = jax.jit(loss_fn)
+    loss_fn = losses.WeightedLoss(loss_fns, weights)
+    if weights is None:
+        assert jnp.allclose(loss_fn.weights, 1.0)
 
-    loss = loss_fn(graph_batch)
+    if jit:
+        fn = jax.jit(loss_fn)
+    else:
+        fn = loss_fn
+
+    loss = fn(graph_batch)
     total_loss = jnp.dot(
-        jnp.array(weights),
+        jnp.array(loss_fn.weights),
         jnp.array(list(loss_fn(graph_batch) for loss_fn in loss_fns)),
     )
 
