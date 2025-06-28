@@ -2,6 +2,7 @@ from . import (
     _base,
     _common,
     _edgewise,
+    _experimental,
     _modules,
     _nequip,
     _nodewise,
@@ -42,6 +43,7 @@ __all__ = (
     + metrics.__all__
     + typing.__all__
     + (
+        "_experimental",
         "atomic",
         "calc",
         "data",

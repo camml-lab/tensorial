@@ -14,7 +14,7 @@ import jraph
 import tensorial
 from tensorial import gcnn, nn_utils, typing
 
-from . import _base, _message_passing, keys, utils
+from . import _base, _experimental, _message_passing, keys
 
 A025582 = [0, 1, 3, 7, 12, 20, 30, 44, 65, 80, 96, 122, 147, 181, 203, 251, 289]
 
@@ -506,8 +506,19 @@ class Mace(linen.Module):
 
             outputs += [node_outputs]
 
-        updates = utils.UpdateGraphDicts(graph)
-        updates.nodes[keys.FEATURES] = node_feats
-        updates.nodes[self.out_field] = e3j.sum(e3j.stack(outputs, axis=1), axis=1)
+        return (
+            _experimental.update_graph(graph)
+            .update(
+                "nodes",
+                {
+                    keys.FEATURES: node_feats,
+                    self.out_field: e3j.sum(e3j.stack(outputs, axis=1), axis=1),
+                },
+            )
+            .get()
+        )
+        # updates = utils.UpdateGraphDicts(graph)
+        # updates.nodes[keys.FEATURES] = node_feats
+        # updates.nodes[self.out_field] = e3j.sum(e3j.stack(outputs, axis=1), axis=1)
 
-        return updates.get()
+        # return updates.get()

@@ -5,9 +5,8 @@ import e3nn_jax as e3j
 from flax import linen
 import jax.numpy as jnp
 import jraph
-from pytray import tree
 
-from . import _base, _common, _tree, keys, utils
+from . import _base, _common, _experimental, _tree, keys, utils
 from .. import base
 
 if TYPE_CHECKING:
@@ -67,7 +66,29 @@ class NodewiseLinear(linen.Module):
 
 
 class NodewiseReduce(linen.Module):
-    """Nodewise reduction operation. Saved to a global value"""
+    """
+    Applies a reduction operation over node features and stores the result in the graph globals.
+
+    This module reduces a specified field in the graph's node features across all nodes
+    (within each graph if batched) using a specified reduction operation (`sum`, `mean`,
+    or `normalized_sum`). The result is written to the `globals` field of the `GraphsTuple`.
+
+    Attributes:
+        field (str): Path to the node field to reduce, e.g. "energy" or "features.energy".
+        out_field (Optional[str]): Path to the output global field. If None, defaults to
+            "<reduce>_<field>" under `globals`.
+        reduce (str): Reduction operation to apply. Must be one of "sum", "mean", or
+            "normalized_sum".
+        average_num_atoms (float): Required if `reduce` is "normalized_sum". Used to scale the
+            result by `average_num_atoms ** -0.5`.
+
+    Raises:
+        ValueError: If `reduce` is not one of the allowed options.
+        ValueError: If `reduce == "normalized_sum"` but `average_num_atoms` is not provided.
+
+    Returns:
+        A new `GraphsTuple` with the reduced value written to the specified `globals` field.
+    """
 
     field: str
     out_field: Optional[str] = None
@@ -98,11 +119,7 @@ class NodewiseReduce(linen.Module):
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         reduced = self.constant * _common.reduce(graph, self._field, self._reduce)
-        updates = utils.UpdateDict(graph._asdict())
-        if updates["globals"] is None:
-            updates["globals"] = dict()
-        tree.set_by_path(updates, self._out_field, reduced)
-        return jraph.GraphsTuple(**updates._asdict())
+        return _experimental.update_graph(graph).set(self._out_field, reduced).get()
 
 
 class NodewiseEmbedding(linen.Module):
