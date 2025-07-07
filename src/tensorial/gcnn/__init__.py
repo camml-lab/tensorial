@@ -2,7 +2,6 @@ from . import (
     _base,
     _common,
     _edgewise,
-    _experimental,
     _modules,
     _nequip,
     _nodewise,
@@ -11,6 +10,7 @@ from . import (
     calc,
     data,
     derivatives,
+    experimental,
     keys,
     losses,
     metrics,
@@ -43,7 +43,7 @@ __all__ = (
     + metrics.__all__
     + typing.__all__
     + (
-        "_experimental",
+        "experimental",
         "atomic",
         "calc",
         "data",

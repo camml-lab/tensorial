@@ -1,13 +1,13 @@
-from collections.abc import Callable
 import functools
 import logging
-from typing import TYPE_CHECKING, Any, Sequence, Union
+from typing import TYPE_CHECKING, Protocol, Sequence
 
-import jax
 from jax import tree_util
+import jaxtyping as jt
 import jraph
 
 from . import _tree
+from .experimental import utils as exp_utils
 from .typing import GraphFunction
 
 if TYPE_CHECKING:
@@ -60,49 +60,59 @@ def shape_check(func: "gcnn.typing.GraphFunction") -> "gcnn.typing.GraphFunction
     return shape_checker
 
 
+class TransformedGraphFunction(Protocol):
+    """Transformed graph function that returns a value or a tuple of a value and a graph"""
+
+    def __call__(
+        self, graph: jraph.GraphsTuple, *args: jt.PyTree
+    ) -> jt.PyTree | tuple[jt.PyTree, jraph.GraphsTuple]: ...
+
+
 def transform_fn(
-    fn: "gcnn.typing.GraphFunction",
+    fn: "gcnn.typing.ExGraphFunction",
     *ins: "gcnn.TreePathLike",
     outs: "Sequence[gcnn.TreePathLike]" = tuple(),
     return_graphs: bool = False,
-) -> Union[Callable[[jraph.GraphsTuple], Any], Callable[[jraph.GraphsTuple, ...], Any]]:
+) -> TransformedGraphFunction:
     """
     Given a graph function, this will return a function that takes a graph as the first argument
-    and then position arguments that will be mapped to the fields given by ``ins``.  Output paths
-    can optionally be specified with ``outs`` which, if supplied, will make the function return one
-    or more values from the graph as returned by ``fn``.
+    followed by positional arguments that will be mapped to the fields given by ``ins``.
+    Output paths can optionally be specified with ``outs`` which, if supplied, will make the
+    function return one or more values from the graph as returned by ``fn``.
 
     :param fn: the graph function
     :param ins: the input paths
     :param outs: the output paths
     :param return_graphs: if `True` and ``outs`` is specified, this will return a tuple containing
-        the values at ``outs`` and the output graph return by ``fn``
+        the output graph followed by the values at ``outs``
     :return: a function that wraps ``fn`` with the above properties
     """
     ins = tuple(_tree.path_from_str(path) for path in ins)
     outs = tuple(_tree.path_from_str(path) for path in outs)
 
-    def _fn(graph: jraph.GraphsTuple, *args):
-        def repl(path, val):
-            try:
-                idx = ins.index(tuple(map(_tree.key_to_str, path)))
-                return args[idx]
-            except ValueError:
-                return val
-
-        # Recreate the graph using the passed values
-        graph = jax.tree_util.tree_map_with_path(repl, graph)
+    def _fn(
+        graph: jraph.GraphsTuple, *args: jt.PyTree
+    ) -> jt.PyTree | tuple[jt.PyTree, jraph.GraphsTuple]:
+        # Set the values from graph at the correct paths in the graphs tuple
+        updater = exp_utils.update_graph(graph)
+        for path, arg in zip(ins, args):
+            updater.set(path, arg)
+        graph = updater.get()
 
         # Pass the graph through the original function
-        res = fn(graph)
+        res = fn(graph, *args[len(ins) :])
         if outs:
             # Extract the quantity that we want as outputs
-            out_graphs: jraph.GraphsTuple = res
-            out_vals = _tree.get(res, *outs)
+            out_graph: jraph.GraphsTuple = res
+            out_vals = _tree.get(out_graph, *outs)
             if return_graphs:
-                return out_vals, out_graphs
+                return out_vals, out_graph
 
             return out_vals
+
+        if return_graphs:
+            # Just return the original input graph
+            return res, graph
 
         return res
 

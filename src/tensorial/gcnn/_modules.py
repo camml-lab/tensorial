@@ -10,7 +10,8 @@ import jax.numpy as jnp
 import jraph
 from pytray import tree
 
-from . import _base, _experimental, utils
+from . import _base, utils
+from .experimental import utils as exp_utils
 
 if TYPE_CHECKING:
     from tensorial import gcnn
@@ -212,7 +213,7 @@ class IndexedRescale(linen.Module):
         if output_irreps is not None:
             outs = e3j.IrrepsArray(output_irreps, outs)
 
-        return _experimental.update_graph(graph).set(self._out_field, outs).get()
+        return exp_utils.update_graph(graph).set(self._out_field, outs).get()
 
     @staticmethod
     def _to_array(value, num_types):
@@ -288,4 +289,4 @@ class IndexedLinear(linen.Module):
 
         # Call the branches and update the graph
         outs = linear(indexes, inputs)
-        return _experimental.update_graph(graph).set(out_field, outs).get()
+        return exp_utils.update_graph(graph).set(out_field, outs).get()

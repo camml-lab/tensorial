@@ -6,8 +6,9 @@ from flax import linen
 import jax.numpy as jnp
 import jraph
 
-from . import _base, _common, _experimental, _tree, keys, utils
+from . import _base, _common, _tree, keys, utils
 from .. import base
+from .experimental import utils as exp_utils
 
 if TYPE_CHECKING:
     import tensorial
@@ -119,7 +120,7 @@ class NodewiseReduce(linen.Module):
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         reduced = self.constant * _common.reduce(graph, self._field, self._reduce)
-        return _experimental.update_graph(graph).set(self._out_field, reduced).get()
+        return exp_utils.update_graph(graph).set(self._out_field, reduced).get()
 
 
 class NodewiseEmbedding(linen.Module):

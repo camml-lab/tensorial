@@ -43,6 +43,8 @@ def path_from_str(
     """Split up a path string into a tuple of path components"""
     if isinstance(path_str, tuple):
         return path_str
+    if path_str == "":
+        return tuple()
 
     return tuple(path_str.split(delimiter))
 

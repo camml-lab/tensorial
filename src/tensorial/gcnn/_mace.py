@@ -14,7 +14,7 @@ import jraph
 import tensorial
 from tensorial import gcnn, nn_utils, typing
 
-from . import _base, _experimental, _message_passing, keys
+from . import _base, _message_passing, experimental, keys
 
 A025582 = [0, 1, 3, 7, 12, 20, 30, 44, 65, 80, 96, 122, 147, 181, 203, 251, 289]
 
@@ -507,7 +507,7 @@ class Mace(linen.Module):
             outputs += [node_outputs]
 
         return (
-            _experimental.update_graph(graph)
+            experimental.update_graph(graph)
             .update(
                 "nodes",
                 {

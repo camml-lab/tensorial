@@ -117,8 +117,9 @@ class Loss(GraphLoss):
 
 class WeightedLoss(GraphLoss):
     _weights: tuple[float, ...]
-    _loss_fns: Sequence[GraphLoss]
+    _loss_fns: tuple[GraphLoss, ...]
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         loss_fns: Sequence[GraphLoss],
@@ -143,7 +144,7 @@ class WeightedLoss(GraphLoss):
         self._weights = tuple(
             weights
         )  # We have to use a tuple here, otherwise jax will treat this as a dynamic type
-        self._loss_fns = loss_fns
+        self._loss_fns = tuple(loss_fns)
 
     @property
     def weights(self):
