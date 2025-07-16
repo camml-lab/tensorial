@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 import math
-from typing import TYPE_CHECKING, ClassVar, Literal, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, ClassVar, Literal, Optional, TypeVar
 
 import beartype
 import jax.numpy as jnp
@@ -24,10 +24,10 @@ __all__ = ("GraphMetric", "graph_metric")
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_metric(
-    metric: Union[str, reax.Metric, type[reax.Metric]],
+    metric: str | reax.Metric | type[reax.Metric],
     predictions: "gcnn.typing.TreePathLike",
     targets: "Optional[gcnn.TreePathLike]" = None,
-    mask: "Optional[Union[gcnn.TreePathLike, Literal['auto']]]" = "auto",
+    mask: "Optional[gcnn.TreePathLike | Literal['auto']]" = "auto",
     normalise_by: "Optional[gcnn.TreePathLike]" = None,
 ) -> "GraphMetric":
     predictions_from = _tree.path_from_str(predictions)
@@ -152,7 +152,7 @@ class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        node_types: Union[Sequence[int], jt.Int[jt.Array, "n_types"]],
+        node_types: Sequence[int] | jt.Int[jt.Array, "n_types"],
         type_field: str = "type_id",
         state: Optional[Averages] = None,
     ):

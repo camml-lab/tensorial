@@ -141,6 +141,29 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
                 )
 
     @override
+    def test_step(self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int, /):
+        inputs, outputs = self._prep_batch(batch)
+        loss, metrics = self.step(
+            self.parameters(), inputs, outputs, self._model.apply, self._loss_fn, self._metrics
+        )
+        have_metrics = metrics is not None
+        self.log(
+            "test/loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=not have_metrics
+        )
+
+        if have_metrics:
+            metrics = cast(reax.metrics.MetricCollection, metrics)
+            for name, metric in metrics.items():
+                self.log(
+                    f"test/{name}",
+                    metric,
+                    on_step=False,
+                    on_epoch=True,
+                    logger=True,
+                    prog_bar=True,
+                )
+
+    @override
     def predict_step(self, batch: jraph.GraphsTuple, batch_idx: int, /) -> jraph.GraphsTuple:
         inputs, _outputs = self._prep_batch(batch)
         return self._forward(self.parameters(), inputs, self._model.apply)

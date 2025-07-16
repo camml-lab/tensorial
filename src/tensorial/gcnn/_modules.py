@@ -1,6 +1,6 @@
 from collections.abc import Hashable, Sequence
 import logging
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 import e3nn_jax as e3j
 from flax import linen
@@ -43,10 +43,10 @@ class Rescale(linen.Module):
 
     Attributes:
     -----------
-    shift_fields : Union[str, Sequence[Hashable]]
+    shift_fields : str | Sequence[Hashable]
         Path(s) to the fields to which a constant shift should be applied.
 
-    scale_fields : Union[str, Sequence[Hashable]]
+    scale_fields : str | Sequence[Hashable]
         Path(s) to the fields to which a constant scale should be applied.
 
     shift : jax.Array
@@ -62,8 +62,8 @@ class Rescale(linen.Module):
       be size extensive with respect to the number of nodes or edges.
     """
 
-    shift_fields: Union[str, Sequence[Hashable]] = tuple()
-    scale_fields: Union[str, Sequence[Hashable]] = tuple()
+    shift_fields: str | Sequence[Hashable] = tuple()
+    scale_fields: str | Sequence[Hashable] = tuple()
     shift: jax.Array = 0.0
     scale: jax.Array = 1.0
 
@@ -229,7 +229,7 @@ class IndexedLinear(linen.Module):
     set of learnable weights is maintained for each index value.
 
     Attributes:
-        irreps_out (Union[str, e3j.Irreps]): The output irreducible representations of the linear
+        irreps_out (str | e3j.Irreps): The output irreducible representations of the linear
             transformation.
         num_types (int): Number of distinct index values, corresponding to the number of weight
             sets.
@@ -259,7 +259,7 @@ class IndexedLinear(linen.Module):
         "type".
     """
 
-    irreps_out: Union[str, e3j.Irreps]
+    irreps_out: str | e3j.Irreps
     num_types: int
     index_field: str
     field: str

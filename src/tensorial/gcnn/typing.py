@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from typing import Protocol, Union
 
-import jaxtyping as jt
 import jraph
 
 __all__ = "TreePath", "TreePathLike", "GraphFunction"
@@ -17,4 +16,4 @@ GraphFunction = Callable[[jraph.GraphsTuple], jraph.GraphsTuple]
 class ExGraphFunction(Protocol):
     """Extended graph function that can optionally take a graph and additional arguments"""
 
-    def __call__(self, graph: jraph.GraphsTuple, *args: jt.PyTree) -> jraph.GraphsTuple: ...
+    def __call__(self, graph: jraph.GraphsTuple, *args) -> jraph.GraphsTuple: ...

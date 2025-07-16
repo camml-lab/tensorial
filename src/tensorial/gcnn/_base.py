@@ -13,7 +13,7 @@ from .typing import GraphFunction
 if TYPE_CHECKING:
     from tensorial import gcnn
 
-__all__ = ("GraphFunction", "shape_check", "transform_fn")
+__all__ = "GraphFunction", "shape_check", "adapt", "transform_fn"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class TransformedGraphFunction(Protocol):
     ) -> jt.PyTree | tuple[jt.PyTree, jraph.GraphsTuple]: ...
 
 
-def transform_fn(
+def adapt(
     fn: "gcnn.typing.ExGraphFunction",
     *ins: "gcnn.TreePathLike",
     outs: "Sequence[gcnn.TreePathLike]" = tuple(),
@@ -117,3 +117,6 @@ def transform_fn(
         return res
 
     return _fn
+
+
+transform_fn = adapt  # For backward compatibility
