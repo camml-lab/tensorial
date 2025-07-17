@@ -2,7 +2,7 @@ import abc
 from collections.abc import Sequence
 import dataclasses
 import re
-from typing import TYPE_CHECKING, Final, Optional, Protocol
+from typing import TYPE_CHECKING, Final, Optional, Protocol, Union
 
 from flax import linen
 import jax
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 __all__ = ("diff",)
 
 DERIV_DELIMITER: Final[str] = ","
+ArgumentSpecifier = Union[int, "gcnn.typing.TreePath"]
 
 
 class DerivableGraphFunction(Protocol):
@@ -39,7 +40,7 @@ class GraphEntrySpec:
             annotate tensor dimensions for operations like differentiation.
     """
 
-    key_path: "Optional[gcnn.typing.TreePath]"
+    key_path: Optional[ArgumentSpecifier]
     indices: Optional[str]
 
     @classmethod
@@ -54,7 +55,12 @@ class GraphEntrySpec:
             raise ValueError(f"Could not parse the expression: {spec}")
 
         groups = match.groups()
-        return GraphEntrySpec(_tree.path_from_str(groups[0]), groups[1])
+        try:
+            kee_path = int(groups[0])
+        except ValueError:
+            kee_path = _tree.path_from_str(groups[0])
+
+        return GraphEntrySpec(kee_path, groups[1])
 
     @property
     def safe_indices(self) -> str:
@@ -63,7 +69,12 @@ class GraphEntrySpec:
     def __str__(self) -> str:
         rep = []
         if self.key_path is not None:
-            rep.append(f"{_tree.path_to_str(self.key_path)}")
+            key_path = (
+                str(self.key_path)
+                if isinstance(self.key_path, int)
+                else _tree.path_to_str(self.key_path)
+            )
+            rep.append(key_path)
         if self.indices is not None:
             rep.append(f":{self.indices}")
         return "".join(rep)
@@ -100,7 +111,7 @@ class Derivative(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def wrt_paths(self) -> "tuple[gcnn.typing.TreePath, ...]":
+    def wrt_paths(self) -> "tuple[ArgumentSpecifier, ...]":
         """Derivative output"""
 
     @property
@@ -123,6 +134,14 @@ class Derivative(abc.ABC):
     ) -> DerivableGraphFunction:
         """Get evaluate function from derivative"""
 
+    def adapt(self, func: "gcnn.typing.ExGraphFunction") -> DerivableGraphFunction:
+        return _base.adapt(
+            func,
+            *self.wrt_paths,
+            outs=tuple() if not self.of or not self.of.key_path else [self.of.key_path],
+            return_graphs=True,
+        )
+
 
 def infer_out_indices(of: GraphEntrySpec, wrt: GraphEntrySpec) -> str:
     # All indices resulting from differentiating 'of' with respect to 'wrt'
@@ -142,9 +161,9 @@ class SingleDerivative(Derivative):
     _out: GraphEntrySpec
 
     # will be set in __post_init__
-    pre_reduce: tuple[int, ...] = dataclasses.field(init=False)
-    post_reduce: tuple[int, ...] = dataclasses.field(init=False)
-    post_permute: tuple[int, ...] = dataclasses.field(init=False)
+    _pre_reduce: tuple[int, ...] = dataclasses.field(init=False)
+    _post_reduce: tuple[int, ...] = dataclasses.field(init=False)
+    _post_permute: tuple[int, ...] = dataclasses.field(init=False)
     _actual_out: GraphEntrySpec = dataclasses.field(init=False)
 
     def __post_init__(self):
@@ -169,7 +188,7 @@ class SingleDerivative(Derivative):
                     pre_reduce.append(i)
                 else:
                     unreduced_indices.append(index)
-        object.__setattr__(self, "pre_reduce", tuple(pre_reduce))
+        object.__setattr__(self, "_pre_reduce", tuple(pre_reduce))
 
         num_after_pre_reduce = len(unreduced_indices)
         post_reduce = []
@@ -179,7 +198,7 @@ class SingleDerivative(Derivative):
                     post_reduce.append(i + num_after_pre_reduce)
                 else:
                     unreduced_indices.append(index)
-        object.__setattr__(self, "post_reduce", tuple(post_reduce))
+        object.__setattr__(self, "_post_reduce", tuple(post_reduce))
 
         # Map output indices to their new position in the output tensor
         post_permute = (
@@ -187,7 +206,7 @@ class SingleDerivative(Derivative):
             if self._out.indices is not None
             else []
         )
-        object.__setattr__(self, "post_permute", tuple(post_permute))
+        object.__setattr__(self, "_post_permute", tuple(post_permute))
 
         if self._out.indices is None:
             out_indices = "".join(unreduced_indices)
@@ -223,7 +242,7 @@ class SingleDerivative(Derivative):
         return self._wrt
 
     @property
-    def wrt_paths(self) -> "tuple[gcnn.typing.TreePath, ...]":
+    def wrt_paths(self) -> tuple[ArgumentSpecifier, ...]:
         return (self._wrt.key_path,)
 
     @property
@@ -288,18 +307,18 @@ class SingleDerivative(Derivative):
     ) -> tuple[jt.Array, jraph.GraphsTuple]:
         self._check_shape("of", self.of, value)
 
-        if self.pre_reduce:
-            value = base.as_array(value).sum(axis=self.pre_reduce)
+        if self._pre_reduce:
+            value = base.as_array(value).sum(axis=self._pre_reduce)
 
         return value, graph
 
     def _post_process(
         self, value: jt.Array, graph: jraph.GraphsTuple
     ) -> tuple[jt.Array, jraph.GraphsTuple]:
-        if self.post_reduce:
-            value = base.as_array(value).sum(axis=self.post_reduce)
-        if self.post_permute:
-            value = value.transpose(self.post_permute)
+        if self._post_reduce:
+            value = base.as_array(value).sum(axis=self._post_reduce)
+        if self._post_permute:
+            value = value.transpose(self._post_permute)
         self._check_shape("out", self.out, value)
 
         return value, graph
@@ -359,7 +378,7 @@ class MultiDerivative(Derivative):
         return self.parts[0].of
 
     @property
-    def wrt_paths(self) -> "tuple[gcnn.typing.TreePath, ...]":
+    def wrt_paths(self) -> tuple[ArgumentSpecifier, ...]:
         return tuple(self.paths.keys())
 
     @property
@@ -453,14 +472,7 @@ def diff(
     else:
         deriv = MultiDerivative.create(of, wrt, out)
 
-    transformed = _base.transform_fn(
-        func,
-        *deriv.wrt_paths,
-        outs=tuple() if not deriv.of or not deriv.of.key_path else [deriv.of.key_path],
-        return_graphs=True,
-    )
-
-    return deriv.evaluator(transformed, return_graph, scale=scale)
+    return deriv.evaluator(deriv.adapt(func), return_graph, scale=scale)
 
 
 def ordered_unique_indices(lst):

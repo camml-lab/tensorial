@@ -48,11 +48,11 @@ def train(cfg: omegaconf.DictConfig):
                 cfg[keys.FROM_DATA], trainer.strategy, trainer.rng, datamodule=datamodule
             )
         )
-        _LOGGER.info(
+        print(
             "Calculated from data (these can be used in your config files using "
-            "${from_data.<name>}:\n%s",
-            stage.calculated,
+            "${{from_data.<name>}}:",
         )
+        utils.rich_utils.print_tree(stage.calculated, keys.FROM_DATA)
 
     # Save the configuration file here, this way things like inputs used to setup the model
     # will be baked into the input

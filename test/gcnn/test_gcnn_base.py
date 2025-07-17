@@ -99,3 +99,13 @@ def test_transform_fn_extra_args():
 
     result = gcnn.transform_fn(fn, outs=["nodes"])(graph, 3)
     assert result == 12
+
+
+def test_adapt_with_kwargs(cube_graph):
+    def fn(graph):
+        pos = graph.nodes["positions"]
+        return graph.globals["scale"] * (jnp.linalg.norm(pos) ** 2).sum()
+
+    new_fn = gcnn.transform_fn(fn, "nodes.positions", scale="globals.scale")
+    res = new_fn(cube_graph, cube_graph.nodes["positions"], scale=4.0)
+    assert jnp.isclose(res, 96.0)

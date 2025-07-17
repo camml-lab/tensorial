@@ -64,15 +64,16 @@ class TransformedGraphFunction(Protocol):
     """Transformed graph function that returns a value or a tuple of a value and a graph"""
 
     def __call__(
-        self, graph: jraph.GraphsTuple, *args: jt.PyTree
+        self, graph: jraph.GraphsTuple, *args: jt.PyTree, **kwargs: jt.PyTree
     ) -> jt.PyTree | tuple[jt.PyTree, jraph.GraphsTuple]: ...
 
 
 def adapt(
     fn: "gcnn.typing.ExGraphFunction",
-    *ins: "gcnn.TreePathLike",
+    *args: "gcnn.TreePathLike",
     outs: "Sequence[gcnn.TreePathLike]" = tuple(),
     return_graphs: bool = False,
+    **keywords: "gcnn.TreePathLike",
 ) -> TransformedGraphFunction:
     """
     Given a graph function, this will return a function that takes a graph as the first argument
@@ -81,26 +82,32 @@ def adapt(
     function return one or more values from the graph as returned by ``fn``.
 
     :param fn: the graph function
-    :param ins: the input paths
+    :param args: the input paths
     :param outs: the output paths
     :param return_graphs: if `True` and ``outs`` is specified, this will return a tuple containing
         the output graph followed by the values at ``outs``
     :return: a function that wraps ``fn`` with the above properties
     """
-    ins = tuple(_tree.path_from_str(path) for path in ins)
+    args = tuple(_tree.path_from_str(path) for path in args)
+    kwarg_paths = {name: _tree.path_to_str(path) for name, path in keywords.items()}
     outs = tuple(_tree.path_from_str(path) for path in outs)
 
     def _fn(
-        graph: jraph.GraphsTuple, *args: jt.PyTree
+        graph: jraph.GraphsTuple, *arg_values: jt.PyTree, **kwarg_values
     ) -> jt.PyTree | tuple[jt.PyTree, jraph.GraphsTuple]:
         # Set the values from graph at the correct paths in the graphs tuple
         updater = exp_utils.update_graph(graph)
-        for path, arg in zip(ins, args):
+        # Update from positional arguments first
+        for path, arg in zip(args, arg_values):
             updater.set(path, arg)
+        # Now from kwargs
+        for name, value in kwarg_values.items():
+            updater.set(kwarg_paths[name], value)
+
         graph = updater.get()
 
         # Pass the graph through the original function
-        res = fn(graph, *args[len(ins) :])
+        res = fn(graph, *arg_values[len(args) :])
         if outs:
             # Extract the quantity that we want as outputs
             out_graph: jraph.GraphsTuple = res

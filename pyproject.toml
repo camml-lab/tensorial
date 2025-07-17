@@ -24,7 +24,6 @@ requires-python = '>=3.10'
 dependencies = [
     "ase",
     'beartype',
-    "clu",
     "flax>=0.10.7",
     "hydra-core",
     'jax<0.7.0',  # Control the JAX version, as previous updates have broken things
@@ -36,6 +35,7 @@ dependencies = [
     'e3nn-jax',
     "equinox>=0.12.0",
     "reax>=0.4",
+    "rich",
     "tensorboardX",
     "typing-extensions"
 ]
@@ -151,7 +151,7 @@ envlist = py311
 [testenv]
 usedevelop = true
 
-[testenv:py{39,310,311,312}]
+[testenv:py{310,311,312,313}]
 description = Run the unit tests
 extras =
     dev

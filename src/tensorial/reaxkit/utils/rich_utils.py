@@ -1,9 +1,10 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Final
 
 from hydra.core.hydra_config import HydraConfig
 from lightning_utilities.core import rank_zero
-from omegaconf import DictConfig, OmegaConf, open_dict
+import omegaconf
 import rich
 from rich.prompt import Prompt
 import rich.syntax
@@ -12,11 +13,35 @@ import rich.tree
 from . import pylogger
 
 _LOGGER = pylogger.RankedLogger(__name__, rank_zero_only=True)
+TREE_STYLE: Final[str] = "dim"
+
+
+def print_tree(root: Mapping, name: str):
+    tree = rich.tree.Tree(name, style=TREE_STYLE, guide_style=TREE_STYLE)
+
+    queue = []
+
+    # add all the other fields to queue (not specified in `print_order`)
+    for field in root:
+        if field not in queue:
+            queue.append(field)
+
+    # generate config tree from queue
+    for field in queue:
+        branch = tree.add(field, style=TREE_STYLE, guide_style=TREE_STYLE)
+
+        config_group = root[field]
+        branch_content = str(config_group)
+
+        branch.add(rich.syntax.Syntax(branch_content, "yaml"))
+
+    # print config tree
+    rich.print(tree)
 
 
 @rank_zero.rank_zero_only
 def print_config_tree(
-    cfg: DictConfig,
+    cfg: omegaconf.DictConfig,
     print_order: Sequence[str] = (
         "data",
         "model",
@@ -61,8 +86,8 @@ def print_config_tree(
         branch = tree.add(field, style=style, guide_style=style)
 
         config_group = cfg[field]
-        if isinstance(config_group, DictConfig):
-            branch_content = OmegaConf.to_yaml(config_group, resolve=resolve)
+        if isinstance(config_group, omegaconf.DictConfig):
+            branch_content = omegaconf.OmegaConf.to_yaml(config_group, resolve=resolve)
         else:
             branch_content = str(config_group)
 
@@ -78,7 +103,7 @@ def print_config_tree(
 
 
 @rank_zero.rank_zero_only
-def enforce_tags(cfg: DictConfig, save_to_file: bool = False) -> None:
+def enforce_tags(cfg: omegaconf.DictConfig, save_to_file: bool = False) -> None:
     """Prompts user to input tags from command line if no tags are provided in config.
 
     :param cfg: A DictConfig composed by Hydra.
@@ -92,7 +117,7 @@ def enforce_tags(cfg: DictConfig, save_to_file: bool = False) -> None:
         tags = Prompt.ask("Enter a list of comma separated tags", default="dev")
         tags = [t.strip() for t in tags.split(",") if t != ""]
 
-        with open_dict(cfg):
+        with omegaconf.open_dict(cfg):
             cfg.tags = tags
 
         _LOGGER.info(f"Tags: {cfg.tags}")

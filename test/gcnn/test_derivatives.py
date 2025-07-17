@@ -236,6 +236,30 @@ def test_diff_reduce(jit):
     assert jnp.allclose(jnp.abs(res), 0.0)
 
 
+#
+# @pytest.mark.parametrize("jit", [True, False])
+# def test_diff_numeric(jit):
+#     """Test taking the derivative of wrt to the same variable multiple times"""
+#
+#     def scaled_energy(graph, scale: float):
+#         return scale ** 2 * energy_fn(graph).globals["energy"]
+#
+#     diff = gcnn.experimental.diff(
+#         scaled_energy,
+#         # WRT argument 1 of the scaled_energy function
+#         wrt=["1:"],
+#     )
+#     if jit:
+#         diff = jax.jit(diff)
+#
+#     graph = gcnn.graph_from_points(jnp.array([[0.0, 0.0, 0.0], [-1.0, -1.0, -1.0]]), r_max=2.0)
+#     res = diff(graph, 4.0)
+#     assert res == 8.0
+#
+#     # The forces should be zero as there are only two particles and f_01 = -f_10
+#     assert jnp.allclose(jnp.abs(res), 0.0)
+
+
 def test_graph_spec():
     spec = gcnn.experimental.derivatives.GraphEntrySpec.create("")
     assert spec.key_path == tuple()

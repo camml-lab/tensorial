@@ -75,7 +75,10 @@ class GraphMutator:
         for op, path, value in self.mutations:
             root = path[0]
             if root not in mutated_fields:
-                raise ValueError(f"Invalid root field '{root}' in mutation path.")
+                raise ValueError(
+                    f"GraphsTuple does not have an attribute '{root}', "
+                    f"must be one of: {' '.join(mutated_fields.keys())}"
+                )
             result = self._apply_mutation(mutated_fields[root], path[1:], op, value)
             if result is not None:
                 mutated_fields[root] = result
