@@ -288,7 +288,8 @@ class SingleDerivative(Derivative):
             if len(args) <= argnum:
                 raise ValueError(
                     f"Derivative needs to be taken wrt argument {argnum}, "
-                    f"but only {len(args)} were passed"
+                    f"but only {len(args)} were passed.  Did you forget to pass a value for "
+                    f"the value at which you would like the derivative to be evaluated?"
                 )
             self._check_shape("wrt", self.wrt, args[argnum])
 

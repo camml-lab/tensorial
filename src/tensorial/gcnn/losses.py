@@ -102,13 +102,11 @@ class Loss(GraphLoss):
                 mask = mask & user_mask
 
         # Now calculate the number of elements that were masked so that we get the correct mean
-        num_elements = (
-            loss.size if mask is None else jnp.array([mask.sum(), *loss.shape[1:]]).prod()
-        )
+        num_entries = loss.size if mask is None else jnp.array([mask.sum(), *loss.shape[1:]]).prod()
 
         if self._reduction == "mean":
-            loss = loss / num_elements
-            # loss = loss.sum(where=mask) / num_elements
+            loss = loss / num_entries
+            # loss = loss.sum(where=mask) / num_entries
         # elif self._reduction == "sum":
         loss = loss.sum(where=mask)
 

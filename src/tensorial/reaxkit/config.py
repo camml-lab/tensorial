@@ -1,12 +1,14 @@
 import logging
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import hydra
 import omegaconf
 import reax
 
 from . import keys
-from .. import training
+
+if TYPE_CHECKING:
+    from tensorial import reaxkit
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,7 +22,7 @@ def load_module(
     ckpt_path: str = DEFAULT_CKPT_FILE,
     checkpointing: reax.training.Checkpointing = None,
     return_config: bool = False,
-) -> training.ReaxModule | tuple[training.ReaxModule, omegaconf.DictConfig]:
+) -> "reaxkit.ReaxModule | tuple[reaxkit.ReaxModule, omegaconf.DictConfig]":
     """
     Load a REAX module from a YAML configuration file, optionally restoring parameters
     from a checkpoint.
@@ -46,7 +48,7 @@ def load_module(
         "Instantiating model <%s>",
         cfg[keys.MODEL]._target_,  # pylint: disable=protected-access
     )
-    module: training.ReaxModule = hydra.utils.instantiate(cfg[keys.MODEL], _convert_="object")
+    module: "reaxkit.ReaxModule" = hydra.utils.instantiate(cfg[keys.MODEL], _convert_="object")
 
     if ckpt_path:
         if checkpointing is None:

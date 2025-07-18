@@ -517,8 +517,3 @@ class Mace(linen.Module):
             )
             .get()
         )
-        # updates = utils.UpdateGraphDicts(graph)
-        # updates.nodes[keys.FEATURES] = node_feats
-        # updates.nodes[self.out_field] = e3j.sum(e3j.stack(outputs, axis=1), axis=1)
-
-        # return updates.get()

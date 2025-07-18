@@ -1,9 +1,13 @@
+from typing import TYPE_CHECKING
+
 import hydra
 import omegaconf
 import reax
 
 from . import config, keys, utils
-from .. import training
+
+if TYPE_CHECKING:
+    from tensorial import reaxkit
 
 _LOGGER = utils.RankedLogger(__name__, rank_zero_only=True)
 
@@ -33,7 +37,7 @@ def evaluate(cfg: omegaconf.DictConfig) -> None:
         cfg[keys.TRAINER]._target_,  # pylint: disable=protected-access
     )
     trainer: reax.Trainer = hydra.utils.instantiate(cfg[keys.TRAINER], logger=logger)
-    model: training.ReaxModule = config.load_module(cfg[keys.CONFIG_PATH], cfg[keys.CKPT_PATH])
+    model: "reaxkit.ReaxModule" = config.load_module(cfg[keys.CONFIG_PATH], cfg[keys.CKPT_PATH])
 
     object_dict = {
         "cfg": cfg,
