@@ -4,7 +4,6 @@ import dataclasses
 import re
 from typing import TYPE_CHECKING, Final, Optional, Protocol, Union
 
-from flax import linen
 import jax
 import jaxtyping as jt
 import jraph
@@ -111,8 +110,11 @@ class Derivative(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def wrt_paths(self) -> "tuple[ArgumentSpecifier, ...]":
-        """Derivative output"""
+    def graph_tuple_paths(self) -> "dict[gcnn.typing.TreePath, int]": ...
+
+    @property
+    @abc.abstractmethod
+    def argnum_paths(self) -> dict[int, int]: ...
 
     @property
     @abc.abstractmethod
@@ -137,7 +139,7 @@ class Derivative(abc.ABC):
     def adapt(self, func: "gcnn.typing.ExGraphFunction") -> DerivableGraphFunction:
         return _base.adapt(
             func,
-            *self.wrt_paths,
+            *self.graph_tuple_paths,
             outs=tuple() if not self.of or not self.of.key_path else [self.of.key_path],
             return_graphs=True,
         )
@@ -242,8 +244,18 @@ class SingleDerivative(Derivative):
         return self._wrt
 
     @property
-    def wrt_paths(self) -> tuple[ArgumentSpecifier, ...]:
-        return (self._wrt.key_path,)
+    def graph_tuple_paths(self) -> "dict[gcnn.typing.TreePath, int]":
+        if isinstance(self._wrt.key_path, int):
+            return {}
+
+        return {self._wrt.key_path: 0}
+
+    @property
+    def argnum_paths(self) -> dict[int, int]:
+        if not isinstance(self._wrt.key_path, int):
+            return {}
+
+        return {self._wrt.key_path: 0}
 
     @property
     def out(self) -> GraphEntrySpec:
@@ -341,16 +353,6 @@ class SingleDerivative(Derivative):
 class MultiDerivative(Derivative):
     parts: tuple[SingleDerivative, ...]
 
-    # will be set in __post_init__
-    paths: "linen.FrozenDict[gcnn.typing.TreePath, int]" = dataclasses.field(init=False)
-
-    def __post_init__(self):
-        paths = {}
-        wrt_map = []
-        for part in self.parts:
-            wrt_map.append(paths.setdefault(part.wrt.key_path, len(paths)))
-        object.__setattr__(self, "paths", linen.FrozenDict(paths))
-
     @classmethod
     def create(
         cls,
@@ -379,12 +381,35 @@ class MultiDerivative(Derivative):
         return self.parts[0].of
 
     @property
-    def wrt_paths(self) -> tuple[ArgumentSpecifier, ...]:
-        return tuple(self.paths.keys())
+    def graph_tuple_paths(self) -> "dict[gcnn.typing.TreePath, int]":
+        paths: "dict[gcnn.typing.TreePath, int]" = {}
+        wrt_map = []
+        for part in self.parts:
+            if not isinstance(part.wrt.key_path, int):
+                wrt_map.append(paths.setdefault(part.wrt.key_path, len(paths)))
+        return paths
+
+    @property
+    def argnum_paths(self) -> dict[int, int]:
+        start_idx = len(self.graph_tuple_paths)
+        paths = {}
+        for part in self.parts:
+            if isinstance(part.wrt.key_path, int):
+                paths.setdefault(part.wrt.key_path, start_idx + len(paths))
+
+        return paths
 
     @property
     def out(self) -> GraphEntrySpec:
         return self.parts[-1].out
+
+    @property
+    def paths(self) -> dict[ArgumentSpecifier, int]:
+        paths = {}
+        wrt_map = []
+        for part in self.parts:
+            wrt_map.append(paths.setdefault(part.wrt.key_path, len(paths)))
+        return paths
 
     def __str__(self) -> str:
         parts = [f"∂{self.of}/∂{self[0].wrt}"]
@@ -408,12 +433,35 @@ class MultiDerivative(Derivative):
         self, func: DerivableGraphFunction, return_graph: bool, argnum: int
     ) -> DerivableGraphFunction:
         # Work our way from right to left creating the derivative evaluators
+        argnums = []
+        for part in self:
+            wrt_path = part.wrt.key_path
+            if isinstance(wrt_path, int):
+                argnums.append(self.argnum_paths[wrt_path])
+            else:
+                argnums.append(self.graph_tuple_paths[wrt_path])
 
-        func = self[0].evaluator(func, return_graph)
-        for part in self[1:]:
-            func = part.evaluator(func, return_graph, argnum=self.paths[part.wrt.key_path])
+        func = self[0].build_derivative_fn(func, return_graph=return_graph, argnum=argnums[0])
+        for part, argnum_ in zip(self[1:], argnums[1:]):
+            func = part.build_derivative_fn(func, return_graph=return_graph, argnum=argnum_)
 
         return func
+
+
+def process_paths(parts: Sequence[SingleDerivative]):
+    paths: dict[gcnn.typing.TreePath, int] = {}
+    wrt_map: list[int] = []
+    arg_parts = []
+    for part in parts:
+        if isinstance(part.wrt.key_path, int):
+            arg_parts.append(part.wrt.key_path)
+        else:
+            wrt_map.append(paths.setdefault(part.wrt.key_path, len(paths)))
+
+    for part in parts:
+        pass
+
+    return paths
 
 
 @dataclasses.dataclass(frozen=True)
@@ -435,9 +483,15 @@ class Evaluator:
         )
 
     def __call__(
-        self, graph: jraph.GraphsTuple, *args: jt.PyTree
+        self, graph: jraph.GraphsTuple, *args, **kwargs: dict[str, jt.PyTree]
     ) -> jt.Array | tuple[jt.Array, jraph.GraphsTuple]:
-        value, graph_out = self._evaluate_at(graph, *args)
+        values: dict[int, jt.PyTree] = {}
+        for name, value in kwargs.items():
+            idx = self.spec.graph_tuple_paths[_tree.path_from_str(name)]
+            values[idx] = value
+
+        diff_args = tuple(value for _, value in sorted(values.items())) + args
+        value, graph_out = self._evaluate_at(graph, *diff_args)
         if self.spec.out.indices is not None and not len(value.shape) == len(self.spec.out.indices):
             raise ValueError(
                 f"The output array rank ({len(value.shape)}) does not match the "

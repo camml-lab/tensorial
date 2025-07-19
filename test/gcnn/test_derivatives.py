@@ -91,7 +91,7 @@ def energy_fn(graph_) -> jraph.GraphsTuple:
     )
 
 
-@pytest.mark.parametrize("jit", [True, False])
+@pytest.mark.parametrize("jit", [False, True])
 def test_single_derivative_basic(jit):
     # Create a simple graph with two points
     graph = gcnn.graph_from_points(jnp.array([[0.0, 0.0, 0.0], [-1.0, -1.0, -1.0]]), r_max=2.0)
@@ -103,7 +103,7 @@ def test_single_derivative_basic(jit):
 
     # Evaluate the derivative with respect to new node positions
     new_positions = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
-    result = diff(graph, new_positions)
+    result = diff(graph, **{"nodes.positions": new_positions})
 
     # Check the shape and value (e.g., gradient magnitude)
     assert result.shape == (2, 3)  # Two nodes, 3 coordinates
@@ -115,7 +115,7 @@ def test_single_derivative_basic(jit):
     )
     if jit:
         diff = jax.jit(diff)
-    result_2 = diff(graph, new_positions)
+    result_2 = diff(graph, **{"nodes.positions": new_positions})
     assert jnp.allclose(
         result_2, scale * result, atol=1e-5
     ), f"Unexpected derivative result: {result}"
@@ -123,7 +123,7 @@ def test_single_derivative_basic(jit):
     diff = gcnn.experimental.diff(
         energy_fn, "globals.energy", wrt="nodes.positions:Iα", out=":Iα", return_graph=True
     )
-    result_3, _ = diff(graph, new_positions)
+    result_3, _ = diff(graph, **{"nodes.positions": new_positions})
     assert jnp.allclose(result, result_3)
 
 
@@ -141,14 +141,14 @@ def test_derivative_of_fn(jit):
 
     # Evaluate the derivative with respect to new node positions
     new_positions = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
-    result = diff(graph, new_positions)
+    result = diff(graph, **{"nodes.positions": new_positions})
 
     # Check the shape and value (e.g., gradient magnitude)
     assert result.shape == (2, 3)  # Two nodes, 3 coordinates
     assert jnp.allclose(jnp.abs(result), 4.0, atol=1e-5), f"Unexpected derivative result: {result}"
 
 
-@pytest.mark.parametrize("jit", [True, False])
+@pytest.mark.parametrize("jit", [False, True])
 def test_multi_derivative(jit):
     def scale_energy_fn(graph_) -> jraph.GraphsTuple:
         graph_ = energy_fn(graph_)
@@ -166,7 +166,6 @@ def test_multi_derivative(jit):
         scale_energy_fn,
         "globals.energy:",
         wrt=["nodes.positions:Ia", "globals.scale"],
-        # out=":Iαβ",
     )
 
     if jit:
@@ -174,7 +173,32 @@ def test_multi_derivative(jit):
 
     pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
     scale = 2.0
-    res = diff(graph, pos, scale)
+    res = diff(graph, **{"nodes.positions": pos, "globals.scale": scale})
+    assert jnp.allclose(jnp.abs(res), 2.0 * scale)
+
+
+@pytest.mark.parametrize("jit", [False, True])
+def test_diff_numeric(jit):
+    """Test taking the derivative of wrt to the same variable multiple times"""
+
+    def scaled_energy(graph, scale: float):
+        return scale * energy_fn(graph).globals["energy"]
+
+    graph = gcnn.graph_from_points(
+        jnp.array([[0.0, 0.0, 0.0], [-1.0, -1.0, -1.0]]), r_max=2.0, graph_globals={"scale": 2.0}
+    )
+
+    diff = gcnn.experimental.diff(
+        scaled_energy,
+        # WRT argument 1 of the energy scale
+        wrt=["nodes.positions:Ia", "1:"],
+    )
+    if jit:
+        diff = jax.jit(diff)
+
+    pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
+    scale = 2.0
+    res = diff(graph, 2.0 * scale, **{"nodes.positions": pos})
     assert jnp.allclose(jnp.abs(res), 2.0 * scale)
 
 
@@ -192,7 +216,7 @@ def test_multi_same_deriv(jit):
         diff = jax.jit(diff)
 
     pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
-    res = diff(graph, pos)
+    res = diff(graph, **{"nodes.positions": pos})
     assert res.shape == (2, 2, 3)
     assert jnp.allclose(jnp.abs(res), 4.0)
 
@@ -207,7 +231,7 @@ def test_multi_same_deriv(jit):
         diff = jax.jit(diff)
 
     pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
-    res = diff(graph, pos)
+    res = diff(graph, **{"nodes.positions": pos})
     assert res.shape == (2, 3, 2, 2)
     assert jnp.allclose(jnp.abs(res), 0.0)
 
@@ -229,35 +253,11 @@ def test_diff_reduce(jit):
         diff = jax.jit(diff)
 
     pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
-    res = diff(graph, pos)
+    res = diff(graph, **{"nodes.positions": pos})
     assert res.shape == tuple()
 
     # The forces should be zero as there are only two particles and f_01 = -f_10
     assert jnp.allclose(jnp.abs(res), 0.0)
-
-
-#
-# @pytest.mark.parametrize("jit", [True, False])
-# def test_diff_numeric(jit):
-#     """Test taking the derivative of wrt to the same variable multiple times"""
-#
-#     def scaled_energy(graph, scale: float):
-#         return scale ** 2 * energy_fn(graph).globals["energy"]
-#
-#     diff = gcnn.experimental.diff(
-#         scaled_energy,
-#         # WRT argument 1 of the scaled_energy function
-#         wrt=["1:"],
-#     )
-#     if jit:
-#         diff = jax.jit(diff)
-#
-#     graph = gcnn.graph_from_points(jnp.array([[0.0, 0.0, 0.0], [-1.0, -1.0, -1.0]]), r_max=2.0)
-#     res = diff(graph, 4.0)
-#     assert res == 8.0
-#
-#     # The forces should be zero as there are only two particles and f_01 = -f_10
-#     assert jnp.allclose(jnp.abs(res), 0.0)
 
 
 def test_graph_spec():

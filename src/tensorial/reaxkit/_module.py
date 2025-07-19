@@ -38,6 +38,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         scheduler: Optional[optax.Schedule] = None,
         metrics: Optional[MetricsDict] = None,
         jit=True,
+        donate_graph=True,
     ):
         super().__init__()
         self._model = model
@@ -49,8 +50,11 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         )
         self._debug = False
         if jit:
-            self.step = eqx.filter_jit(self.step)
-            # self.step = eqx.filter_jit(donate="all-except-first")(self.step)
+            if donate_graph:
+                self.step = eqx.filter_jit(donate="all-except-first")(self.step)
+            else:
+                self.step = eqx.filter_jit(self.step)
+
             self.calculate_metrics = eqx.filter_jit(donate="all")(self.calculate_metrics)
             self._forward = eqx.filter_jit(donate="all")(self._forward)
 
