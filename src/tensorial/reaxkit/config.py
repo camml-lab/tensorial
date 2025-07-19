@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Final
 import hydra
 import omegaconf
 import reax
+from reax.training import _checkpointing
 
 from . import keys
 
@@ -55,7 +56,7 @@ def load_module(
             checkpointing = reax.training.get_default_checkpointing()
 
         ckpt = checkpointing.load(ckpt_path)
-        module.set_parameters(ckpt["params"])
+        module.set_parameters(ckpt[_checkpointing.PARAMS])
 
     if return_config:
         return module, cfg
