@@ -24,6 +24,7 @@ __all__ = (
     "AvgNumNeighboursByAtomType",
     "TypeContributionLstsq",
     "EnergyContributionLstsq",
+    "EnergyPerAtomLstsq",
 )
 
 
@@ -241,14 +242,3 @@ class AvgNumNeighboursByAtomType(metrics.AvgNumNeighboursByType):
         state: Optional[metrics.AvgNumNeighboursByType.Averages] = None,
     ):
         super().__init__(atom_types, type_field, state)
-
-
-reax.metrics.get_registry().register_many(
-    {
-        "atomic/num_species": NumSpecies,
-        "atomic/all_atomic_numbers": AllAtomicNumbers,
-        "atomic/avg_num_neighbours": AvgNumNeighbours,
-        "atomic/force_std": ForceStd,
-        "atomic/energy_per_atom_lstsq": EnergyPerAtomLstsq,
-    }
-)

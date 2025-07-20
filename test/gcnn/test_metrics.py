@@ -125,3 +125,19 @@ def test_indexed_metrics(rng_key, batch_size: int):
         # Get all valid nodes of the right type
         mask = all_graphs.nodes[gcnn.keys.MASK] & (all_graphs.nodes[TYPE_FIELD] == i)
         assert jnp.isclose(counts[mask].mean(), res[i])
+
+
+def test_metrics_registry():
+    """Test that the metrics are correctly picked up through the plugin system"""
+    expected = {
+        "atomic/num_species": gcnn.atomic.NumSpecies,
+        "atomic/all_atomic_numbers": gcnn.atomic.AllAtomicNumbers,
+        "atomic/avg_num_neighbours": gcnn.atomic.AvgNumNeighbours,
+        "atomic/force_std": gcnn.atomic.ForceStd,
+        "atomic/energy_per_atom_lstsq": gcnn.atomic.EnergyPerAtomLstsq,
+    }
+
+    registry = reax.metrics.get_registry()
+
+    for metric_name in expected:
+        assert metric_name in registry
