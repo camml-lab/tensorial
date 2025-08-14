@@ -38,7 +38,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         scheduler: Optional[optax.Schedule] = None,
         metrics: Optional[MetricsDict] = None,
         jit=True,
-        donate_graph=True,
+        donate_graph=False,
     ):
         super().__init__()
         self._model = model

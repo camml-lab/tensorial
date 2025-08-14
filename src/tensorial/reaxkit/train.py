@@ -50,7 +50,7 @@ def train(cfg: omegaconf.DictConfig):
         )
         print(
             "Calculated from data (these can be used in your config files using "
-            "${{from_data.<name>}}:",
+            "${from_data.<name>}:",
         )
         utils.rich_utils.print_tree(stage.calculated, keys.FROM_DATA)
 
