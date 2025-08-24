@@ -43,11 +43,10 @@ def train(cfg: omegaconf.DictConfig):
     )
 
     if cfg.get(keys.FROM_DATA):
-        stage = trainer.run(
-            from_data.FromData(  # pylint: disable=no-member
-                cfg[keys.FROM_DATA], trainer.strategy, trainer.rng, datamodule=datamodule
-            )
+        from_data_stage = from_data.FromData(  # pylint: disable=no-member
+            cfg[keys.FROM_DATA], trainer.strategy, trainer.rngs, datamodule=datamodule
         )
+        stage = trainer.run(from_data_stage)
         print(
             "Calculated from data (these can be used in your config files using "
             "${from_data.<name>}:",

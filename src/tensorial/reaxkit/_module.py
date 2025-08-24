@@ -73,7 +73,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
             if isinstance(batch, tuple):
                 inputs = batch[0]
 
-            params = self._model.init(self.rng_key(), inputs)
+            params = self._model.init(self.rngs(), inputs)
             self.set_parameters(params)
 
     @override

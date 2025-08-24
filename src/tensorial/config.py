@@ -25,7 +25,7 @@ class FromData(reax.stages.Stage):
         self,
         cfg: omegaconf.DictConfig,
         strategy: reax.Strategy,
-        rng: reax.Generator,
+        rngs: reax.Generator,
         dataloader: Optional[reax.DataLoader] = None,
         datamodule: Optional[reax.DataModule] = None,
         dataloader_name: Optional[str] = "train",
@@ -36,7 +36,7 @@ class FromData(reax.stages.Stage):
 
         :param cfg: the configuration dictionary
         :param strategy: the trainer strategy
-        :param rng: the random number generator
+        :param rngs: the random number generator
         :param dataloader: the dataloader to use
         :param datamodule: if no dataloader is specified, a data module can be used instead
         :param dataloader_name: the datamodule dataloader name
@@ -47,7 +47,7 @@ class FromData(reax.stages.Stage):
             "from_data",
             module=None,
             strategy=strategy,
-            rng=rng,
+            rngs=rngs,
             datamanager=reax.data.create_manager(
                 datamodule=datamodule, **{f"{dataloader_name}_loader": dataloader}
             ),
@@ -103,7 +103,7 @@ class FromData(reax.stages.Stage):
             self._to_calculate,
             self._datamanager,
             self._strategy,
-            self._rng,
+            self._rngs,
             dataset_name=self._dataset_name,
             ignore_missing=True,
         )
