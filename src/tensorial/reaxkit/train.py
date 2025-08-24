@@ -44,7 +44,7 @@ def train(cfg: omegaconf.DictConfig):
 
     if cfg.get(keys.FROM_DATA):
         from_data_stage = from_data.FromData(  # pylint: disable=no-member
-            cfg[keys.FROM_DATA], trainer.strategy, trainer.rngs, datamodule=datamodule
+            cfg[keys.FROM_DATA], trainer.strategy, trainer.rng, datamodule=datamodule
         )
         stage = trainer.run(from_data_stage)
         print(

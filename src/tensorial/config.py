@@ -25,7 +25,7 @@ class FromData(reax.stages.Stage):
         self,
         cfg: omegaconf.DictConfig,
         strategy: reax.Strategy,
-        rngs: reax.Generator,
+        rng: reax.Generator,
         dataloader: Optional[reax.DataLoader] = None,
         datamodule: Optional[reax.DataModule] = None,
         dataloader_name: Optional[str] = "train",
@@ -47,7 +47,7 @@ class FromData(reax.stages.Stage):
             "from_data",
             module=None,
             strategy=strategy,
-            rngs=rngs,
+            rng=rng,
             datamanager=reax.data.create_manager(
                 datamodule=datamodule, **{f"{dataloader_name}_loader": dataloader}
             ),
@@ -103,7 +103,7 @@ class FromData(reax.stages.Stage):
             self._to_calculate,
             self._datamanager,
             self._strategy,
-            self._rngs,
+            self._rng,
             dataset_name=self._dataset_name,
             ignore_missing=True,
         )
