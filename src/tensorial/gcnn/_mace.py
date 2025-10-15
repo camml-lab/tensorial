@@ -1,7 +1,7 @@
 from collections.abc import Callable, Iterable
 import functools
 import math
-from typing import Optional, Union
+from typing import Literal, Optional
 
 import beartype
 import e3nn_jax as e3j
@@ -29,10 +29,10 @@ class SymmetricContraction(linen.Module):
     """
 
     correlation_order: int
-    keep_irrep_out: Union[str, Iterable[tensorial.typing.IrrepLike]]
+    keep_irrep_out: str | Iterable[tensorial.typing.IrrepLike]
 
     num_types: int = 1
-    gradient_normalisation: Optional[Union[str, float]] = None
+    gradient_normalisation: Optional[str | float] = None
     symmetric_tensor_product_basis: bool = True
     off_diagonal: bool = False
     param_dtype = jnp.float32
@@ -206,8 +206,8 @@ class EquivariantProductBasisBlock(linen.Module):
 
 class InteractionBlock(linen.Module):
     irreps_out: typing.IntoIrreps
-    avg_num_neighbours: Union[float, dict[int, float]] = 1.0
-    radial_activation: Union[str, nn_utils.ActivationFunction] = "swish"
+    avg_num_neighbours: float | dict[int, float] = 1.0
+    radial_activation: str | nn_utils.ActivationFunction = "swish"
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
@@ -383,7 +383,7 @@ class Mace(linen.Module):
     correlation_order: int = 3  # Correlation order at each layer (~ node_features^correlation)
     num_interactions: int = 2  # Number of interactions (layers)
     y0_values: Optional[list[float]] = None
-    avg_num_neighbours: Union[float, dict[int, float]] = 1.0
+    avg_num_neighbours: float | dict[int, float] = 1.0
     soft_normalisation: Optional[bool] = None
     # Number of features per node, default gcd of hidden_irreps multiplicities
     num_features: Optional[int] = None
@@ -394,7 +394,7 @@ class Mace(linen.Module):
 
     symmetric_tensor_product_basis: bool = True
     readout_mlp_irreps: typing.IntoIrreps = "16x0e"
-    interaction_irreps: Union[str, typing.IntoIrreps] = "o3_restricted"  # or o3_full
+    interaction_irreps: Literal["o3_restricted", "o3_full"] | typing.IntoIrreps = "o3_restricted"
 
     # Radial
     radial_activation: Callable = jax.nn.silu  # activation function
@@ -506,14 +506,10 @@ class Mace(linen.Module):
 
             outputs += [node_outputs]
 
+        # Calculate the final output value by summing the values from each correlation order
+        output = e3j.sum(e3j.stack(outputs, axis=1), axis=1)
         return (
             experimental.update_graph(graph)
-            .update(
-                "nodes",
-                {
-                    keys.FEATURES: node_feats,
-                    self.out_field: e3j.sum(e3j.stack(outputs, axis=1), axis=1),
-                },
-            )
+            .update("nodes", {keys.FEATURES: node_feats, self.out_field: output})
             .get()
         )

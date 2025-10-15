@@ -1,6 +1,8 @@
+from collections.abc import Mapping
 import functools
-from typing import Any, Mapping, Optional, Union
+from typing import Any, Optional, Union
 
+from flax import nnx
 import hydra
 import jaxtyping as jt
 import omegaconf
@@ -24,8 +26,8 @@ class FromData(reax.stages.Stage):
     def __init__(
         self,
         cfg: omegaconf.DictConfig,
-        strategy: reax.Strategy,
-        rng: reax.Generator,
+        engine: reax.Strategy,
+        rng: nnx.Rngs,
         dataloader: Optional[reax.DataLoader] = None,
         datamodule: Optional[reax.DataModule] = None,
         dataloader_name: Optional[str] = "train",
@@ -35,7 +37,7 @@ class FromData(reax.stages.Stage):
         Populate a hydra configurations dictionary using calculated stats
 
         :param cfg: the configuration dictionary
-        :param strategy: the trainer strategy
+        :param engine: the trainer strategy
         :param rngs: the random number generator
         :param dataloader: the dataloader to use
         :param datamodule: if no dataloader is specified, a data module can be used instead
@@ -46,7 +48,7 @@ class FromData(reax.stages.Stage):
         super().__init__(
             "from_data",
             module=None,
-            strategy=strategy,
+            engine=engine,
             rng=rng,
             datamanager=reax.data.create_manager(
                 datamodule=datamodule, **{f"{dataloader_name}_loader": dataloader}
@@ -102,7 +104,7 @@ class FromData(reax.stages.Stage):
         eval_stats = reax.stages.EvaluateStats(
             self._to_calculate,
             self._datamanager,
-            self._strategy,
+            self._engine,
             self._rng,
             dataset_name=self._dataset_name,
             ignore_missing=True,

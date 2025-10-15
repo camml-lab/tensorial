@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import e3nn_jax as e3j
 from flax import linen
+import jax
 import jraph
 
 from . import _base, _spatial, keys
@@ -99,15 +100,18 @@ class RadialBasisEdgeEmbedding(linen.Module):
             x_max=self.r_max,
             n=self.num_basis,
         )
+        self.envelope = e3j.poly_envelope(1, 1)
 
     @_base.shape_check
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         edge_dict = _spatial.with_edge_vectors(graph).edges
-        edge_dict[self.out_field] = self.radial_embedding(
-            base.as_array(edge_dict[keys.EDGE_LENGTHS])[:, 0]
-        )
+        r = base.as_array(edge_dict[keys.EDGE_LENGTHS])[:, 0]
+        embedded = self.radial_embedding(r)
+        embedded = jax.vmap(self.envelope)(r / self.r_max)[..., None] * embedded
+
+        edge_dict[self.out_field] = embedded
         return graph._replace(edges=edge_dict)
 
 
