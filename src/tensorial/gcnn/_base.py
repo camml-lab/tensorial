@@ -1,6 +1,7 @@
+from collections.abc import Sequence
 import functools
 import logging
-from typing import TYPE_CHECKING, Protocol, Sequence
+from typing import TYPE_CHECKING, Protocol
 
 from jax import tree_util
 import jaxtyping as jt

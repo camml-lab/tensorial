@@ -1,6 +1,6 @@
-from collections.abc import Hashable, Iterable
+from collections.abc import Hashable, Iterable, Mapping, MutableMapping
 import numbers
-from typing import Mapping, MutableMapping, Optional, Union
+from typing import Optional, Union
 
 import jraph
 import numpy as np

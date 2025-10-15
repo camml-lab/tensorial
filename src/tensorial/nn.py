@@ -1,5 +1,6 @@
+from collections.abc import Sequence
 import functools
-from typing import Sequence, Union
+from typing import Union
 
 from flax import linen
 

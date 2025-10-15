@@ -1,5 +1,6 @@
+from collections.abc import Mapping
 import functools
-from typing import Any, Mapping, Union
+from typing import Any, Union
 
 import beartype
 import e3nn_jax as e3j
