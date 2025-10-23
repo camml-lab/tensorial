@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 import functools
-from typing import TYPE_CHECKING, Final, Optional, Union
+from typing import TYPE_CHECKING, Final
 
 import jax
 import jraph
@@ -59,7 +59,7 @@ def path_to_str(path: "gcnn.typing.TreePathLike", delimiter: str = DEFAULT_DELIM
 
 def get(
     graph: jraph.GraphsTuple, *path: "gcnn.typing.TreePathLike"
-) -> Union[jax.Array, tuple[jax.Array, ...]]:
+) -> jax.Array | tuple[jax.Array, ...]:
     """
     Given a graph, this will extract the values as the passed path(s) and return them directly
 
@@ -77,7 +77,7 @@ def get(
 
 
 def to_paths(
-    wrt: Optional[Union[str, Sequence["gcnn.typing.TreePathLike"]]],
+    wrt: str | Sequence["gcnn.typing.TreePathLike"] | None,
 ) -> "tuple[gcnn.typing.TreePath, ...]":
     if wrt is None:
         return tuple()

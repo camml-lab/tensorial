@@ -115,7 +115,7 @@ def test_indexed_metrics(rng_key, batch_size: int):
 
     trainer = reax.Trainer()
     logged: dict = trainer.eval_stats(avg_num_neighbours, loader).logged_metrics
-    res: dict[int, jt.Float[jax.Array, "n_types"]] = logged.logged_metrics[
+    res: dict[int, jt.Float[jax.Array, "n_types"]] = logged[
         gcnn.metrics.AvgNumNeighboursByType.__name__
     ]
 

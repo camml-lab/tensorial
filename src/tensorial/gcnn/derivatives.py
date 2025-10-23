@@ -1,6 +1,6 @@
 from collections.abc import Callable, Sequence
 import functools
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Union
 
 import beartype
 from flax import linen
@@ -51,7 +51,7 @@ def _create_grad_shim(
     fn: "gcnn.typing.GraphFunction",
     of: "gcnn.TreePathLike",
     wrt: "Sequence[gcnn.typing.TreePathLike]",
-    sum_axis: Optional[Union[bool, int]] = None,
+    sum_axis: bool | int | None = None,
 ) -> "Callable[[jraph.GraphsTuple, ...], tuple[tensorial.typing.ArrayType, jraph.GraphsTuple]]":
     """
     Create a function that takes the values of the quantities we want to take the derivatives with
@@ -216,8 +216,8 @@ class Grad(linen.Module):
 class Jacobian(linen.Module):
     func: "gcnn.typing.GraphFunction"
     of: "gcnn.typing.TreePathLike"
-    wrt: Union[str, Sequence["gcnn.typing.TreePathLike"]]
-    out_field: Union[str, Sequence[str]] = "auto"
+    wrt: str | Sequence["gcnn.typing.TreePathLike"]
+    out_field: str | Sequence[str] = "auto"
     sign: float = 1.0
 
     def setup(self):
@@ -245,8 +245,8 @@ class Jacobian(linen.Module):
 class Jacfwd(linen.Module):
     func: "gcnn.typing.GraphFunction"
     of: "gcnn.typing.TreePathLike"
-    wrt: Union[str, Sequence["gcnn.typing.TreePathLike"]]
-    out_field: Union[str, Sequence[str]] = "auto"
+    wrt: str | Sequence["gcnn.typing.TreePathLike"]
+    out_field: str | Sequence[str] = "auto"
     sign: float = 1.0
 
     def setup(self):

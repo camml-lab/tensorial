@@ -1,6 +1,5 @@
 import logging
 import pathlib
-from typing import Optional
 
 import hydra
 from hydra.core import hydra_config
@@ -107,7 +106,7 @@ def train(cfg: omegaconf.DictConfig):
     return metric_dict, object_dict
 
 
-def main(cfg: omegaconf.DictConfig) -> Optional[float]:
+def main(cfg: omegaconf.DictConfig) -> float | None:
     """Main entry point for training.
 
     :param cfg: DictConfig configuration composed by Hydra.

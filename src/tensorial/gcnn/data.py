@@ -4,7 +4,7 @@ import enum
 import functools
 import itertools
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import beartype
 import jax
@@ -12,20 +12,25 @@ import jaxtyping as jt
 import jraph
 import numpy as np
 from pytray import tree
+import reax
+from typing_extensions import override
 
 from . import keys, utils
 from .. import data
 from .. import utils as tensorial_utils
+
+GraphsOrGraphsTuple = jraph.GraphsTuple | tuple[jraph.GraphsTuple, ...]
+
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class GraphBatch(tuple):
     inputs: jraph.GraphsTuple
-    targets: Optional[Any]
+    targets: Any | None
 
 
-GraphDataset = data.Dataset[GraphBatch]
+GraphDataset = data.Dataset[GraphBatch]  # pylint: disable=invalid-name
 GraphPadding = collections.namedtuple("GraphPadding", ["n_nodes", "n_edges", "n_graphs"])
 
 
@@ -148,7 +153,7 @@ def pad_with_graphs(
     n_node: int,
     n_edge: int,
     n_graph: int = 2,
-    mask_field: Optional[str] = keys.MASK,
+    mask_field: str | None = keys.MASK,
     overwrite_mask=False,
 ) -> jraph.GraphsTuple:
     padded = jraph.pad_with_graphs(graph, n_node, n_edge, n_graph)
@@ -157,18 +162,19 @@ def pad_with_graphs(
     return padded
 
 
-class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
+class GraphLoader(reax.DataLoader[GraphsOrGraphsTuple, GraphsOrGraphsTuple]):
     """Data loader for graphs"""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        *datasets: Optional[jraph.GraphsTuple | Sequence[jraph.GraphsTuple]],
+        *datasets: jraph.GraphsTuple | Sequence[jraph.GraphsTuple] | None,
         batch_size: int = 1,
         shuffle: bool = False,
-        pad: Optional[bool] = None,
-        padding: Optional[GraphPadding] = None,
+        pad: bool | None = None,
+        padding: GraphPadding | None = None,
         batch_mode: BatchMode | str = BatchMode.IMPLICIT,
+        sampler: reax.data.Sampler = None,
     ):
         # Params
         self._batch_size = batch_size
@@ -177,16 +183,11 @@ class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
         # State
         # If the graphs were supplied as GraphTuples then unbatch them to have a base sequence of
         # individual graphs per input
-        unbatched = tuple(
+        self._dataset = tuple(
             jraph.unbatch_np(graphs) if isinstance(graphs, jraph.GraphsTuple) else graphs
             for graphs in datasets
         )
-
-        # Find one that is not None that we can use to generate the sequence sampler
-        example = next(filter(lambda g: g is not None, unbatched))
-        self._sampler: data.Sampler[list[int]] = data.samplers.create_sequence_sampler(
-            example, batch_size=batch_size, shuffle=shuffle
-        )
+        self._sampler = self._create_sampler(self._dataset, batch_size, shuffle, sampler)
 
         if pad is None:
             pad = padding is not None
@@ -199,24 +200,68 @@ class GraphLoader(data.DataLoader[tuple[jraph.GraphsTuple, ...]]):
             padding=padding,
             mode=batch_mode,
         )
-        self._batchers: tuple[Optional[GraphBatcher], ...] = tuple(
+        self._batchers: tuple[GraphBatcher | None, ...] = tuple(
             create_batcher(graph_batch) if graph_batch is not None else None
-            for graph_batch in unbatched
+            for graph_batch in self._dataset
         )
+
+    @staticmethod
+    def _create_sampler(
+        dataset, batch_size: int, shuffle: bool, sampler: reax.data.Sampler | None
+    ) -> reax.data.Sampler:
+        if sampler is not None:
+            return sampler
+
+        example = next(filter(lambda g: g is not None, dataset))
+        return data.samplers.create_sequence_sampler(
+            example, batch_size=batch_size, shuffle=shuffle
+        )
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    @property
+    def shuffle(self) -> bool:
+        return self._shuffle
+
+    @property
+    def dataset(self):
+        return self._dataset
 
     @property
     def padding(self) -> GraphPadding:
         return self._batchers[0].padding
 
-    def __len__(self) -> int:
-        return len(self._sampler)
+    @property
+    def sampler(self) -> "reax.data.Sampler":
+        """Access the index sampler used by the dataloader"""
+        return self._sampler
 
+    @override
+    def __len__(self) -> int:
+        return len(self.sampler)
+
+    @override
     def __iter__(self) -> Iterator[tuple[jraph.GraphsTuple, ...]]:
         for idxs in self._sampler:
             batch_graphs = tuple(
                 batcher.fetch(idxs) if batcher is not None else None for batcher in self._batchers
             )
             yield batch_graphs
+
+    @override
+    def with_new_sampler(
+        self, sampler: "reax.data.Sampler"
+    ) -> "GraphLoader(reax.DataLoader[GraphsOrGraphsTuple, GraphsOrGraphsTuple])":
+        """Recreate the loader with the given index sampler"""
+        return GraphLoader(
+            *self._dataset,
+            batch_size=self.batch_size,
+            shuffle=self.shuffle,
+            padding=self.padding,
+            smpler=sampler,
+        )
 
 
 class GraphBatcher(Iterable[jraph.GraphsTuple]):
@@ -233,7 +278,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         shuffle: bool = False,
         pad: bool = False,
         add_mask: bool = True,
-        padding: Optional[GraphPadding] = None,
+        padding: GraphPadding | None = None,
         drop_last: bool = False,
         mode: str | BatchMode = BatchMode.IMPLICIT,
     ):
@@ -281,6 +326,10 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         self._sampler = data.samplers.create_batch_sampler(
             self._graphs, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last
         )
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
 
     @property
     def padding(self) -> GraphPadding:

@@ -17,7 +17,7 @@ class MetricCollection(equinox.Module):
     _metrics: flax.core.FrozenDict[str, Metric]
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def __init__(self, metrics: Union[MetricType, Sequence[MetricType], dict[str, MetricType]]):
+    def __init__(self, metrics: MetricType | Sequence[MetricType] | dict[str, MetricType]):
         super().__init__()
         if isinstance(metrics, Metric):
             metrics = [metrics]

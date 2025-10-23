@@ -45,12 +45,12 @@ IntoIrreps = Union[
     Sequence[Union[str, e3j.Irrep, e3j.MulIrrep, tuple[int, "IntoIrreps"]]],
 ]
 # "IrrepsArray with explicit shape"
-IrrepsArrayShape = _Helper(e3j.IrrepsArray, jt.Float)
+IrrepsArrayShape = _Helper(e3j.IrrepsArray, jt.Float)  # pylint: disable=invalid-name
 
 
 ArrayType = Union[jax.Array, np.ndarray]
 # "Integer array that is used as an index"
-IndexArray = _Helper(ArrayType, jt.Int)
+IndexArray = _Helper(ArrayType, jt.Int)  # pylint: disable=invalid-name
 CellType = Annotated[
     jt.Float[ArrayType, "3 3"], "Unit cell array i.e. rows containing cell vectors"
 ]

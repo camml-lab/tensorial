@@ -1,5 +1,4 @@
 import numbers
-from typing import Optional
 
 import jax.typing
 import jaxtyping as jt
@@ -20,7 +19,7 @@ class GridCells:
         self,
         cell: jt.Float[jt.Array, "3 3"],
         grid_coords: jt.Int[jt.ArrayLike, "... 3"],
-        grid_pts: Optional[jt.Float[jt.ArrayLike, "... 3"]] = None,
+        grid_pts: jt.Float[jt.ArrayLike, "... 3"] | None = None,
     ):
         self._cell = cell
         self._grid_coords = grid_coords
@@ -104,7 +103,9 @@ class OpenBoundary(distances.NeighbourFinder):
         self._include_self = include_self
 
     def get_neighbours(
-        self, positions: jt.Float[jax.typing.ArrayLike, "N 3"], max_neighbours: int = None
+        self,
+        positions: jt.Float[jax.typing.ArrayLike, "N 3"],
+        max_neighbours: int = None,  # pylint: disable=unused-argument
     ) -> distances.NeighbourList:
         npts = positions.shape[0]
         dists = ssd.squareform(ssd.pdist(positions))
@@ -156,7 +157,9 @@ class PeriodicBoundary(distances.NeighbourFinder):
         self._full_grid.flatten()
 
     def get_neighbours(
-        self, positions: jt.Float[jax.typing.ArrayLike, "N 3"], max_neighbours: int = None
+        self,
+        positions: jt.Float[jax.typing.ArrayLike, "N 3"],
+        max_neighbours: int = None,  # pylint: disable=unused-argument
     ) -> distances.NeighbourList:
         n_pts: int = positions.shape[0]
 
@@ -185,8 +188,8 @@ class PeriodicBoundary(distances.NeighbourFinder):
 # too slow: @jt.jaxtyped(typechecker=beartype.beartype)
 def neighbour_finder(
     cutoff: numbers.Number,
-    cell: Optional[typing.CellType] = None,
-    pbc: Optional[typing.PbcType] = None,
+    cell: typing.CellType | None = None,
+    pbc: typing.PbcType | None = None,
     include_self: bool = False,
     **kwargs,
 ) -> distances.NeighbourFinder:

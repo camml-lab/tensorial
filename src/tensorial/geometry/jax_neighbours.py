@@ -1,6 +1,5 @@
 import functools
 import numbers
-from typing import Optional
 
 import beartype
 import equinox
@@ -141,7 +140,7 @@ class PeriodicBoundary(NeighbourFinder):
         self,
         cell: typing.CellType,
         cutoff: numbers.Number,
-        pbc: Optional[typing.PbcType] = None,
+        pbc: typing.PbcType | None = None,
         *,
         max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
         include_self=False,
@@ -207,8 +206,8 @@ class PeriodicBoundary(NeighbourFinder):
 @jt.jaxtyped(typechecker=beartype.beartype)
 def neighbour_finder(
     cutoff: numbers.Number,
-    cell: Optional[typing.CellType] = None,
-    pbc: Optional[typing.PbcType] = None,
+    cell: typing.CellType | None = None,
+    pbc: typing.PbcType | None = None,
     include_self: bool = False,
     **kwargs,
 ) -> NeighbourFinder:
@@ -225,7 +224,7 @@ def generate_positions(cell: jax.Array, positions: jax.Array, cell_shifts: jax.A
 def get_cell_list(
     cell: typing.CellType,
     cutoff: numbers.Number,
-    pbc: Optional[typing.PbcType] = (True, True, True),
+    pbc: typing.PbcType | None = (True, True, True),
     max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
 ) -> tuple[jax.Array, jax.Array]:
     cell = jnp.asarray(cell)

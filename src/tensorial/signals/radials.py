@@ -1,7 +1,6 @@
 import abc
 from collections.abc import Callable
 import math
-from typing import Optional
 
 import e3nn_jax
 import jax
@@ -64,7 +63,7 @@ class E3nnRadial(RadialBasis):
         return self._basis
 
     @property
-    def cutoff(self) -> Optional[bool]:
+    def cutoff(self) -> bool | None:
         return self._cutoff
 
     def evaluate(self, radius):

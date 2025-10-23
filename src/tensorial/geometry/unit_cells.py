@@ -1,5 +1,4 @@
 import math
-from typing import Optional
 
 import beartype
 import jax.typing
@@ -21,7 +20,7 @@ def get_cell_multiple_range(
 def get_cell_multiple_ranges(
     cell: typing.CellType,
     cutoff: float,
-    pbc: Optional[typing.PbcType] = (True, True, True),
+    pbc: typing.PbcType | None = (True, True, True),
 ) -> tuple[tuple[int, int], tuple[int, int], tuple[int, int]]:
     return tuple(
         (get_cell_multiple_range(cell, cell_vector, cutoff=cutoff) if pbc[cell_vector] else (0, 1))

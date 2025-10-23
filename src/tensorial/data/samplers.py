@@ -1,7 +1,7 @@
 from collections.abc import Hashable, Iterable, Iterator, Sequence
 import functools
 import itertools
-from typing import TypeVar, Union
+from typing import TypeVar
 
 import numpy as np
 
@@ -131,7 +131,7 @@ def create_iterable_sampler(
     batch_size: int = 1,
     replacements: bool = False,
     shuffle: bool = False,
-) -> Union[_types.Sampler[None], _types.Sampler[list[None]]]:
+) -> _types.Sampler[None] | _types.Sampler[list[None]]:
     if shuffle:
         raise ValueError(
             f"``shuffle=True`` is not supported with dataset type {type(dataset).__name__} which "

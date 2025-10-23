@@ -1,4 +1,4 @@
-from typing import Literal, Optional, Union
+from typing import Literal
 
 import beartype
 import e3nn_jax as e3j
@@ -47,14 +47,14 @@ class SphericalHarmonic(base.Attr):
     """An attribute that is the spherical harmonics evaluated as some values"""
 
     normalise: bool
-    normalisation: Optional[Literal["integral", "component", "norm"]] = None
-    algorithm: Optional[tuple[str]] = None
+    normalisation: Literal["integral", "component", "norm"] | None = None
+    algorithm: tuple[str] | None = None
 
     def __init__(
         self,
         irreps,
         normalise,
-        normalisation: Optional[Literal["integral", "component", "norm"]] = None,
+        normalisation: Literal["integral", "component", "norm"] | None = None,
         *,
         algorithm: tuple[str] = None,
     ):
@@ -63,7 +63,7 @@ class SphericalHarmonic(base.Attr):
         self.normalisation = normalisation
         self.algorithm = algorithm
 
-    def create_tensor(self, value: Union[jax.Array, e3j.IrrepsArray]) -> jnp.array:
+    def create_tensor(self, value: jax.Array | e3j.IrrepsArray) -> jnp.array:
         return e3j.spherical_harmonics(
             self.irreps,
             base.as_array(value),
@@ -93,7 +93,7 @@ class OneHot(base.Attr):
 
 class CartesianTensor(base.Attr):
     formula: str
-    keep_ir: Optional[Union[e3j.Irreps, list[e3j.Irrep]]]
+    keep_ir: e3j.Irreps | list[e3j.Irrep] | None
     irreps_dict: dict
     change_of_basis: jax.Array
     _indices: str
@@ -118,8 +118,8 @@ class CartesianTensor(base.Attr):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def from_tensor(
         self,
-        tensor: Union[typing.IrrepsArrayShape["irreps"], typing.IrrepsArrayShape["batch irreps"]],
-    ) -> Union[jt.Float[jax.Array, "..."], jt.Float[jax.Array, "batch ..."]]:
+        tensor: typing.IrrepsArrayShape["irreps"] | typing.IrrepsArrayShape["batch irreps"],
+    ) -> jt.Float[jax.Array, "..."] | jt.Float[jax.Array, "batch ..."]:
         """
         Take an irrep tensor and perform the change of basis transformation back to a Cartesian
         tensor

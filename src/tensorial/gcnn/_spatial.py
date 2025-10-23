@@ -31,7 +31,7 @@ def graph_from_points(
     strict_self_interaction: bool = False,
     cell: "Optional[tt.CellType]" = None,
     pbc: "Optional[bool | tt.PbcType]" = None,
-    nodes: Optional[dict[str, jt.Num[jax.typing.ArrayLike, "n_nodes *"]]] = None,
+    nodes: dict[str, jt.Num[jax.typing.ArrayLike, "n_nodes *"]] | None = None,
     edges: dict = None,
     graph_globals: dict = None,
     np_=np,
@@ -133,7 +133,7 @@ def graph_from_points(
 def with_edge_vectors(
     graph: jraph.GraphsTuple,
     with_lengths: bool = True,
-    as_irreps_array: Optional[bool] = True,
+    as_irreps_array: bool | None = True,
 ) -> jraph.GraphsTuple:
     """Compute edge displacements for edge vectors in a graph.
 

@@ -1,5 +1,5 @@
 import functools
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 import e3nn_jax as e3j
 from flax import linen
@@ -26,10 +26,10 @@ __all__ = (
 class EdgewiseLinear(linen.Module):
     """Edgewise linear operation"""
 
-    irreps_out: Union[str, e3j.Irreps]
-    irreps_in: Optional[e3j.Irreps] = None
+    irreps_out: str | e3j.Irreps
+    irreps_in: e3j.Irreps | None = None
     field: str = keys.FEATURES
-    out_field: Optional[str] = keys.FEATURES
+    out_field: str | None = keys.FEATURES
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
@@ -95,6 +95,7 @@ class RadialBasisEdgeEmbedding(linen.Module):
     r_max: float = 4.0
 
     def setup(self):
+        # pylint: disable=attribute-defined-outside-init
         self.radial_embedding = functools.partial(  # pylint: disable=attribute-defined-outside-init
             e3j.bessel,
             x_max=self.r_max,

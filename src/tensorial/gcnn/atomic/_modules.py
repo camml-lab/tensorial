@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from typing import Union
 
 import beartype
 import equinox
@@ -30,7 +29,7 @@ class SpeciesTransform(equinox.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        atomic_numbers: Union[Sequence[int], jt.Int[typing.ArrayType, "numbers"]],
+        atomic_numbers: Sequence[int] | jt.Int[typing.ArrayType, "numbers"],
         field: str = keys.ATOMIC_NUMBERS,
         out_field: str = gcnn_keys.SPECIES,
     ):

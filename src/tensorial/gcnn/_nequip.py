@@ -1,6 +1,6 @@
 from collections.abc import Callable, Mapping
 import functools
-from typing import Optional, Union
+from typing import Union
 
 import beartype
 import e3nn_jax as e3j
@@ -41,9 +41,9 @@ class InteractionBlock(linen.Module):
     radial_num_neurons: int = 8
     radial_activation: ActivationLike = "swish"
 
-    avg_num_neighbours: Union[float, dict[int, float]] = 1.0
+    avg_num_neighbours: float | dict[int, float] = 1.0
     skip_connection: bool = True
-    activations: Union[str, Mapping[str, ActivationLike]] = DEFAULT_ACTIVATIONS
+    activations: str | Mapping[str, ActivationLike] = DEFAULT_ACTIVATIONS
 
     num_species: int = 1
 
@@ -75,10 +75,10 @@ class InteractionBlock(linen.Module):
         radial_embedding: jt.Float[typing.ArrayType, "n_edges radial_embedding_dim"],
         senders: typing.IndexArray["n_edges"],
         receivers: typing.IndexArray["n_edges"],
-        node_species: Optional[jt.Int[typing.ArrayType, "n_nodes"]] = None,
+        node_species: jt.Int[typing.ArrayType, "n_nodes"] | None = None,
         *,
-        node_mask: Optional[jt.Bool[typing.ArrayType, "n_nodes"]] = None,
-        edge_mask: Optional[jt.Bool[typing.ArrayType, "n_edges"]] = None,
+        node_mask: jt.Bool[typing.ArrayType, "n_nodes"] | None = None,
+        edge_mask: jt.Bool[typing.ArrayType, "n_edges"] | None = None,
     ) -> e3j.IrrepsArray:
         """
         A NequIP interaction made up of the following steps:
@@ -148,8 +148,8 @@ class NequipLayer(linen.Module):
     radial_num_neurons: int = 8
     radial_activation: ActivationLike = "swish"
 
-    avg_num_neighbours: Union[float, dict[int, float]] = 1.0
-    activations: Union[str, Mapping[str, ActivationLike]] = DEFAULT_ACTIVATIONS
+    avg_num_neighbours: float | dict[int, float] = 1.0
+    activations: str | Mapping[str, ActivationLike] = DEFAULT_ACTIVATIONS
     node_features_field = keys.FEATURES
     skip_connection: bool = True
     num_species: int = 1

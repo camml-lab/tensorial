@@ -2,7 +2,7 @@ import abc
 from collections.abc import Sequence
 import dataclasses
 import re
-from typing import TYPE_CHECKING, Final, Optional, Protocol, Union
+from typing import TYPE_CHECKING, Final, Protocol, Union
 
 import jax
 import jaxtyping as jt
@@ -39,8 +39,8 @@ class GraphEntrySpec:
             annotate tensor dimensions for operations like differentiation.
     """
 
-    key_path: Optional[ArgumentSpecifier]
-    indices: Optional[str]
+    key_path: ArgumentSpecifier | None
+    indices: str | None
 
     @classmethod
     def create(cls, spec: "GraphEntrySpecLike") -> "GraphEntrySpec":
@@ -81,7 +81,7 @@ class GraphEntrySpec:
     def __truediv__(self, other: "GraphEntrySpecLike") -> "SingleDerivative":
         return SingleDerivative.create(self, other)
 
-    def index_union(self, other: "GraphEntrySpec") -> Optional[str]:
+    def index_union(self, other: "GraphEntrySpec") -> str | None:
         # use dictionary keys as a set
         out = dict() if not self.indices else dict.fromkeys(self.indices)
         if other.indices:
@@ -226,7 +226,7 @@ class SingleDerivative(Derivative):
         cls,
         of: GraphEntrySpecLike,
         wrt: GraphEntrySpecLike,
-        out: Optional[GraphEntrySpecLike] = None,
+        out: GraphEntrySpecLike | None = None,
     ) -> "SingleDerivative":
         of = GraphEntrySpec.create(of)
         wrt = GraphEntrySpec.create(wrt)
@@ -358,7 +358,7 @@ class MultiDerivative(Derivative):
         cls,
         of: GraphEntrySpecLike,
         wrt: str | Sequence[GraphEntrySpecLike],
-        out: Optional[GraphEntrySpecLike] = None,
+        out: GraphEntrySpecLike | None = None,
     ) -> "MultiDerivative":
         if isinstance(wrt, str):
             wrt = wrt.split(",")
@@ -513,7 +513,7 @@ def diff(
     scale: float = 1.0,
     return_graph=False,
 ) -> Evaluator:
-    of: Optional[GraphEntrySpecLike]
+    of: GraphEntrySpecLike | None
 
     if len(func_of) == 1:
         func, of = func_of[0], None

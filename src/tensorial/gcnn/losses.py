@@ -1,6 +1,6 @@
 import abc
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Literal, Optional, Union
+from typing import TYPE_CHECKING, Literal, Optional
 
 import beartype
 import equinox
@@ -57,18 +57,18 @@ class Loss(GraphLoss):
     _prediction_field: "gcnn.typing.TreePath"
     _target_field: "gcnn.typing.TreePath"
     _mask_field: "Optional[gcnn.typing.TreePath]"
-    _reduction: Optional[Literal["sum", "mean"]]
+    _reduction: Literal["sum", "mean"] | None
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         field: str,
         target_field: str = None,
-        loss_fn: Union[str, PureLossFn] = optax.squared_error,
+        loss_fn: str | PureLossFn = optax.squared_error,
         *,
-        reduction: Optional[Literal["sum", "mean"]] = "mean",
+        reduction: Literal["sum", "mean"] | None = "mean",
         label: str = None,
-        mask_field: Optional[str] = None,
+        mask_field: str | None = None,
     ):
         self._loss_fn = _get_pure_loss_fn(loss_fn)
         self._prediction_field = utils.path_from_str(field)
@@ -121,7 +121,7 @@ class WeightedLoss(GraphLoss):
     def __init__(
         self,
         loss_fns: Sequence[GraphLoss],
-        weights: Optional[Sequence[float]] = None,
+        weights: Sequence[float] | None = None,
     ):
         super().__init__("weighted loss")
         for loss in loss_fns:
@@ -164,7 +164,7 @@ class WeightedLoss(GraphLoss):
         return jnp.dot(self.weights, losses), contribs
 
 
-def _get_pure_loss_fn(loss_fn: Union[str, PureLossFn]) -> PureLossFn:
+def _get_pure_loss_fn(loss_fn: str | PureLossFn) -> PureLossFn:
     if isinstance(loss_fn, str):
         return getattr(optax.losses, loss_fn)
     if isinstance(loss_fn, Callable):

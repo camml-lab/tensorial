@@ -1,6 +1,5 @@
 from collections.abc import Hashable, Iterable, Mapping, MutableMapping
 import numbers
-from typing import Optional, Union
 
 import jraph
 import numpy as np
@@ -17,12 +16,12 @@ def graph_from_pymatgen(
     pymatgen_structure: "pymatgen.SiteCollection",
     r_max: numbers.Number,
     *,
-    key_mapping: Optional[dict[str, str]] = None,
-    atom_include_keys: Optional[Iterable] = ("numbers",),
-    edge_include_keys: Optional[Iterable] = tuple(),
-    global_include_keys: Optional[Iterable] = tuple(),
-    cell: Optional[typing.CellType] = None,
-    pbc: Optional[Union[bool, typing.PbcType]] = None,
+    key_mapping: dict[str, str] | None = None,
+    atom_include_keys: Iterable | None = ("numbers",),
+    edge_include_keys: Iterable | None = tuple(),
+    global_include_keys: Iterable | None = tuple(),
+    cell: typing.CellType | None = None,
+    pbc: bool | typing.PbcType | None = None,
     **kwargs,
 ) -> jraph.GraphsTuple:
     """Create a jraph Graph from a pymatgen SiteCollection object or subclass
@@ -92,12 +91,12 @@ def graph_from_ase(
     ase_atoms: "ase.atoms.Atoms",
     r_max: numbers.Number,
     *,
-    key_mapping: Optional[dict[str, str]] = None,
-    atom_include_keys: Optional[Iterable] = ("numbers",),
-    edge_include_keys: Optional[Iterable] = tuple(),
-    global_include_keys: Optional[Iterable] = tuple(),
-    cell: Optional[typing.CellType] = None,
-    pbc: Optional[Union[bool, typing.PbcType]] = None,
+    key_mapping: dict[str, str] | None = None,
+    atom_include_keys: Iterable | None = ("numbers",),
+    edge_include_keys: Iterable | None = tuple(),
+    global_include_keys: Iterable | None = tuple(),
+    cell: typing.CellType | None = None,
+    pbc: bool | typing.PbcType | None = None,
     use_calculator: bool = True,
     **kwargs,
 ) -> jraph.GraphsTuple:

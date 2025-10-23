@@ -5,7 +5,7 @@ import os
 import pathlib
 import tarfile
 import types
-from typing import Any, Final, Optional, TypedDict, Union
+from typing import Any, Final, TypedDict
 import urllib.request
 
 import ase.data
@@ -45,8 +45,8 @@ QM9_XYZ_LABELS: Final[list[str]] = [
 class GraphOptions(TypedDict):
     r_max: float
     self_edges: bool
-    node_attrs: list[Union[str, tuple[str, str]]]
-    graph_attrs: list[Union[str, tuple[str, str]]]
+    node_attrs: list[str | tuple[str, str]]
+    graph_attrs: list[str | tuple[str, str]]
     np_: types.ModuleType
 
 
@@ -59,8 +59,8 @@ class Qm9(collections.abc.Sequence):
         self,
         data_dir: str = "data/",
         download: bool = True,
-        limit: Optional[int] = None,
-        as_graphs: Optional[dict] = None,
+        limit: int | None = None,
+        as_graphs: dict | None = None,
     ):
         # Params
         self._data_dir: Final[str] = data_dir
@@ -162,8 +162,8 @@ def to_graph(
     entry: MoleculeDict,
     r_max: float,
     self_edges: bool = False,
-    node_attrs: list[Union[str, tuple[str, str]]] = None,
-    graph_attrs: list[Union[str, tuple[str, str]]] = None,
+    node_attrs: list[str | tuple[str, str]] = None,
+    graph_attrs: list[str | tuple[str, str]] = None,
     np_=np,
 ) -> jraph.GraphsTuple:
     n_nodes = len(entry["species"])

@@ -1,7 +1,7 @@
 from collections.abc import Callable, Iterable
 import functools
 import math
-from typing import Literal, Optional
+from typing import Literal
 
 import beartype
 import e3nn_jax as e3j
@@ -32,7 +32,7 @@ class SymmetricContraction(linen.Module):
     keep_irrep_out: str | Iterable[tensorial.typing.IrrepLike]
 
     num_types: int = 1
-    gradient_normalisation: Optional[str | float] = None
+    gradient_normalisation: str | float | None = None
     symmetric_tensor_product_basis: bool = True
     off_diagonal: bool = False
     param_dtype = jnp.float32
@@ -226,7 +226,7 @@ class InteractionBlock(linen.Module):
         senders: jt.Int[typing.ArrayType, "n_edges"],
         receivers: jt.Int[typing.ArrayType, "n_edges"],
         *,
-        edge_mask: Optional[jt.Bool[typing.ArrayType, "n_edges"]] = None,
+        edge_mask: jt.Bool[typing.ArrayType, "n_edges"] | None = None,
     ) -> typing.IrrepsArrayShape["n_nodes target_irreps"]:
         node_features = e3j.flax.Linear(node_features.irreps, name="linear_up")(node_features)
 
@@ -243,8 +243,8 @@ class InteractionBlock(linen.Module):
 class NonLinearReadoutBlock(linen.Module):
     hidden_irreps: typing.IntoIrreps
     output_irreps: typing.IntoIrreps
-    activation: Optional[Callable] = None
-    gate: Optional[Callable] = None
+    activation: Callable | None = None
+    gate: Callable | None = None
 
     def setup(self) -> None:
         # pylint: disable=attribute-defined-outside-init
@@ -283,7 +283,7 @@ class MaceLayer(linen.Module):
     radial_activation: Callable
 
     # Normalisation
-    epsilon: Optional[float]
+    epsilon: float | None
     avg_num_neighbours: float
 
     # Product basis
@@ -292,7 +292,7 @@ class MaceLayer(linen.Module):
     symmetric_tensor_product_basis: bool
     off_diagonal: bool
 
-    soft_normalisation: Optional[float]
+    soft_normalisation: float | None
     skip_connection: bool = True
 
     def setup(self):
@@ -338,9 +338,9 @@ class MaceLayer(linen.Module):
         senders: jt.Int[typing.ArrayType, "n_edges"],
         receivers: jt.Int[typing.ArrayType, "n_edges"],
         *,
-        edge_mask: Optional[jt.Bool[typing.ArrayType, "n_edges"]] = None,
+        edge_mask: jt.Bool[typing.ArrayType, "n_edges"] | None = None,
     ) -> typing.IrrepsArrayShape["n_nodes node_irreps_out"]:
-        skip_connection: Optional[typing.IrrepsArrayShape["n_nodes feature*hidden_irreps"]] = None
+        skip_connection: typing.IrrepsArrayShape["n_nodes feature*hidden_irreps"] | None = None
         if self._skip_connection is not None:
             skip_connection = self._skip_connection(node_species, node_features)
 
@@ -382,14 +382,14 @@ class Mace(linen.Module):
 
     correlation_order: int = 3  # Correlation order at each layer (~ node_features^correlation)
     num_interactions: int = 2  # Number of interactions (layers)
-    y0_values: Optional[list[float]] = None
+    y0_values: list[float] | None = None
     avg_num_neighbours: float | dict[int, float] = 1.0
-    soft_normalisation: Optional[bool] = None
+    soft_normalisation: bool | None = None
     # Number of features per node, default gcd of hidden_irreps multiplicities
-    num_features: Optional[int] = None
+    num_features: int | None = None
     num_types: int = 1
     max_ell: int = 3  # Max spherical harmonic degree
-    epsilon: Optional[float] = None
+    epsilon: float | None = None
     off_diagonal: bool = False
 
     symmetric_tensor_product_basis: bool = True

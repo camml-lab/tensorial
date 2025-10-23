@@ -32,13 +32,13 @@ __all__ = (
 Array = jax.typing.ArrayLike
 
 
-def atleast_1d(arr, np_=jnp) -> Union[jax.Array, np.ndarray]:
+def atleast_1d(arr, np_=jnp) -> jax.Array | np.ndarray:
     np_ = np_ if np_ is not None else arrays.infer_backend(arr)
     arr = np_.asarray(arr)
     return arr if np_.ndim(arr) >= 1 else np_.reshape(arr, -1)
 
 
-def as_array(arr: Union[jax.typing.ArrayLike, e3j.IrrepsArray]) -> jax.Array:
+def as_array(arr: jax.typing.ArrayLike | e3j.IrrepsArray) -> jax.Array:
     """
     Get a standard JAX array given either:
         1. a numpy.ndarray

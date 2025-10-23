@@ -5,6 +5,7 @@ import beartype
 import jax
 import jaxtyping as jt
 import numpy as np
+import reax
 
 from . import _types, samplers
 
@@ -14,7 +15,7 @@ __all__ = ("ArrayLoader", "CachingLoader")
 T = TypeVar("T")
 
 
-def _single_or_value(value: tuple[T, ...], to_test=None) -> Union[T, tuple[T, ...]]:
+def _single_or_value(value: tuple[T, ...], to_test=None) -> T | tuple[T, ...]:
     if to_test is None:
         to_test = value
     if len(to_test) > 1:
@@ -62,10 +63,9 @@ class CachingLoader(Iterable):
     Caching loader is useful, for example, if you don't want to shuffle data every time but at
     some interval defined by ``repeat_every``.  Naturally, this means you need to have enough memory
     to accommodate all the data.
-
     """
 
-    def __init__(self, loader: _types.DataLoader, reset_every: int):
+    def __init__(self, loader: reax.DataLoader, reset_every: int):
         self._loader = loader
         self._reset_every = reset_every
         self._time_since_reset = 0

@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 import functools
-from typing import Any, Optional
+from typing import Any
 
 from flax import nnx
 import hydra
@@ -23,9 +23,9 @@ class FromData(reax.stages.Stage):
         cfg: omegaconf.DictConfig,
         engine: reax.Strategy,
         rng: nnx.Rngs,
-        dataloader: Optional[reax.DataLoader] = None,
-        datamodule: Optional[reax.DataModule] = None,
-        dataloader_name: Optional[str] = "train",
+        dataloader: reax.DataLoader | None = None,
+        datamodule: reax.DataModule | None = None,
+        dataloader_name: str | None = "train",
         ignore_missing: bool = True,
     ):
         """
@@ -60,11 +60,11 @@ class FromData(reax.stages.Stage):
         self._to_calculate: dict[str, Any] = self._update_stats(self._cfg)
 
     @property
-    def dataloader(self) -> Optional[reax.DataLoader]:
+    def dataloader(self) -> reax.DataLoader | None:
         return self._datamanager.get_dataloader(self._dataset_name)
 
     @property
-    def dataloaders(self) -> Optional[reax.DataLoader]:
+    def dataloaders(self) -> reax.DataLoader | None:
         """Dataloader function."""
         return self.dataloader
 
@@ -78,7 +78,7 @@ class FromData(reax.stages.Stage):
         self,
         name: str,
         value,
-        batch_size: Optional[int] = None,
+        batch_size: int | None = None,
         prog_bar: bool = False,
         logger: bool = False,
         on_step=False,

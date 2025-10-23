@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 import functools
-from typing import Union
 
 from flax import linen
 
@@ -16,7 +15,7 @@ class Sequential(linen.Module):
     subclasses thereof are kept intact when calling the next layer.
     """
 
-    layers: Sequence[Union[linen.Module, functools.partial]]
+    layers: Sequence[linen.Module | functools.partial]
 
     def setup(self) -> None:
         # pylint: disable=attribute-defined-outside-init
@@ -42,7 +41,7 @@ class Sequential(linen.Module):
         return outputs
 
 
-def _layers(layers: Sequence[Union[linen.Module, functools.partial]]) -> list[linen.Module]:
+def _layers(layers: Sequence[linen.Module | functools.partial]) -> list[linen.Module]:
     """Create the model from the configuration object"""
     new_layers = []
     for layer in layers:

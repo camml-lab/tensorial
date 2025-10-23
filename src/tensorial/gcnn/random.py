@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from typing import Optional, Union
 
 import beartype
 import jax.random
@@ -9,7 +8,7 @@ import jraph
 from . import _spatial
 
 RandomFn = Callable[[jax.typing.ArrayLike, int], jax.typing.ArrayLike]
-LiteralOrRandom = Union[jax.typing.ArrayLike, RandomFn]
+LiteralOrRandom = jax.typing.ArrayLike | RandomFn
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)
@@ -18,8 +17,8 @@ def spatial_graph(
     num_nodes: int = None,
     num_graphs=None,
     cutoff=0.4,
-    nodes: Optional[dict[str, LiteralOrRandom]] = None,
-) -> Union[jraph.GraphsTuple, list[jraph.GraphsTuple]]:
+    nodes: dict[str, LiteralOrRandom] | None = None,
+) -> jraph.GraphsTuple | list[jraph.GraphsTuple]:
     """Create graph(s) with nodes that have random positions"""
     graphs = []
     for _ in range(num_graphs or 1):

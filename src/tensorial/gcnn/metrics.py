@@ -68,14 +68,14 @@ class GraphMetric(reax.Metric):
     mask_key: "ClassVar[Optional[gcnn.typing.TreePathLike]]" = "auto"
     normalise_by: "ClassVar[Optional[gcnn.typing.TreePathLike]]" = None
 
-    _state: Optional[reax.Metric[OutT]]
+    _state: reax.Metric[OutT] | None
 
-    def __init__(self, state: Optional[reax.Metric[OutT]] = None):
+    def __init__(self, state: reax.Metric[OutT] | None = None):
         super().__init__()
         self._state = state
 
     @property
-    def metric(self) -> Optional[reax.Metric[OutT]]:
+    def metric(self) -> reax.Metric[OutT] | None:
         return self._state
 
     @property
@@ -86,7 +86,7 @@ class GraphMetric(reax.Metric):
         # pylint: disable=arguments-differ
         self,
         predictions: jraph.GraphsTuple,
-        targets: Optional[jraph.GraphsTuple] = None,
+        targets: jraph.GraphsTuple | None = None,
     ) -> "GraphMetric":
         if targets is None:
             # In this case, the user is typically using a different key in the same graph
@@ -147,18 +147,18 @@ class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
     Averages = list[reax.metrics.Average]
     _type_field: str
     _node_types: jt.Int[jax.Array, "n_types"]
-    _state: Optional[Averages]
+    _state: Averages | None
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         node_types: Sequence[int] | jt.Int[jt.Array, "n_types"],
         type_field: str = "type_id",
-        state: Optional[Averages] = None,
+        state: Averages | None = None,
     ):
         self._node_types = jnp.asarray(node_types)
         self._type_field = type_field
-        self._state: Optional[AvgNumNeighboursByType.Averages] = state
+        self._state: AvgNumNeighboursByType.Averages | None = state
 
     @property
     def is_empty(self) -> bool:

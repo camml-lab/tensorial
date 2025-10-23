@@ -2,7 +2,7 @@
 Common utility functions that operate on graphs
 """
 
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 import beartype
 import e3nn_jax as e3j
@@ -24,10 +24,10 @@ __all__ = ("reduce",)
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def reduce(
-    graph: Union[jraph.GraphsTuple, dict],
+    graph: jraph.GraphsTuple | dict,
     field: "gcnn.typing.TreePathLike",
     reduction: str = "sum",
-) -> Union[e3j.IrrepsArray, jax.Array]:
+) -> e3j.IrrepsArray | jax.Array:
     if isinstance(graph, (jraph.GraphsTuple)):
         graph_dict = graph._asdict()
     else:
@@ -57,11 +57,11 @@ def reduce(
 def _reduce(
     inputs: "tensorial.typing.ArrayType",
     segment_lengths: "tensorial.typing.ArrayType",
-    num_segments: Optional[int] = None,
+    num_segments: int | None = None,
     indices_are_sorted: bool = False,
     unique_indices: bool = False,
     reduction: str = "sum",
-) -> Union[e3j.IrrepsArray, jax.Array]:
+) -> e3j.IrrepsArray | jax.Array:
     try:
         op = getattr(jraph, f"segment_{reduction}")
     except AttributeError:

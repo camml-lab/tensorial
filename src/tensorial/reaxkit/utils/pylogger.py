@@ -1,6 +1,5 @@
 from collections.abc import Mapping
 import logging
-from typing import Optional
 
 from lightning_utilities.core import rank_zero
 
@@ -14,7 +13,7 @@ class RankedLogger(logging.LoggerAdapter):
         self,
         name: str = __name__,
         rank_zero_only: bool = False,
-        extra: Optional[Mapping[str, object]] = None,
+        extra: Mapping[str, object] | None = None,
     ) -> None:
         """Initializes a multi-GPU-friendly python command line logger that logs on all processes
         with their rank prefixed in the log message.
@@ -29,7 +28,7 @@ class RankedLogger(logging.LoggerAdapter):
         super().__init__(logger=logger, extra=extra)
         self.rank_zero_only = rank_zero_only
 
-    def log(self, level: int, msg: str, *args, rank: Optional[int] = None, **kwargs) -> None:
+    def log(self, level: int, msg: str, *args, rank: int | None = None, **kwargs) -> None:
         """Delegate a log call to the underlying logger, after prefixing its message with the rank
         of the process it's being logged from. If `'rank'` is provided, then the log will only
         occur on that rank/process.

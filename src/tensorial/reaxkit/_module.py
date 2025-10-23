@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Any, Final, Optional, cast
+from typing import Any, Final, cast
 
 import beartype
 import equinox as eqx
@@ -24,9 +24,9 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
 
     # pylint: disable=method-hidden
 
-    _model: Optional[linen.Module] = None
+    _model: linen.Module | None = None
     _loss_fn: LossFn
-    _metrics: Optional[reax.metrics.MetricCollection] = None
+    _metrics: reax.metrics.MetricCollection | None = None
     _optimizer: Optimizer
 
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -35,8 +35,8 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         model: linen.Module,
         loss_fn: LossFn,
         optimizer: Optimizer,
-        scheduler: Optional[optax.Schedule] = None,
-        metrics: Optional[MetricsDict] = None,
+        scheduler: optax.Schedule | None = None,
+        metrics: MetricsDict | None = None,
         jit=True,
         donate_graph=False,
     ):
@@ -45,7 +45,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         self._loss_fn = loss_fn
         self._optimizer = optimizer
         self._scheduler = scheduler
-        self._metrics: Final[Optional[reax.metrics.MetricCollection]] = (
+        self._metrics: Final[reax.metrics.MetricCollection | None] = (
             metrics if metrics is None else reax.metrics.build_collection(metrics)
         )
         self._debug = False
@@ -188,8 +188,8 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         _targets: jraph.GraphsTuple,
         model: Callable[[jt.PyTree, jraph.GraphsTuple], jraph.GraphsTuple],
         loss_fn: Callable,
-        metrics: Optional[reax.metrics.MetricCollection] = None,
-    ) -> tuple[jax.Array, Optional[reax.metrics.MetricCollection]]:
+        metrics: reax.metrics.MetricCollection | None = None,
+    ) -> tuple[jax.Array, reax.metrics.MetricCollection | None]:
         """Calculate loss and, optionally metrics."""
         predictions = model(params, inputs)
         if metrics:
@@ -211,7 +211,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
     ) -> dict[str, reax.Metric]:
         return {key: metric.create(predictions, targets) for key, metric in metrics.items()}
 
-    def _prep_batch(self, batch) -> tuple[jraph.GraphsTuple, Optional[jraph.GraphsTuple]]:
+    def _prep_batch(self, batch) -> tuple[jraph.GraphsTuple, jraph.GraphsTuple | None]:
         if isinstance(batch, jraph.GraphsTuple):
             inputs = outputs = batch
         else:

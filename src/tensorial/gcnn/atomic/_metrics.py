@@ -1,5 +1,4 @@
 from collections.abc import Mapping, Sequence
-from typing import Optional, Union
 
 import beartype
 import jax
@@ -70,9 +69,9 @@ class EnergyPerAtomLstsq(reax.metrics.FromFun):
 
 
 class TypeContributionLstsq(reax.metrics.Metric[jax.typing.ArrayLike]):
-    type_counts: Optional[typing.ArrayType] = None
-    values: Optional[typing.ArrayType] = None
-    mask: Optional[typing.ArrayType] = None
+    type_counts: typing.ArrayType | None = None
+    values: typing.ArrayType | None = None
+    mask: typing.ArrayType | None = None
 
     @property
     def is_empty(self):
@@ -134,7 +133,7 @@ class TypeContributionLstsq(reax.metrics.Metric[jax.typing.ArrayLike]):
 
 class EnergyContributionLstsq(reax.Metric):
     _type_map: jax.typing.ArrayLike
-    _metric: Optional[TypeContributionLstsq] = None
+    _metric: TypeContributionLstsq | None = None
 
     def __init__(self, type_map: Sequence, metric: TypeContributionLstsq = None):
         if type_map is None:
@@ -187,7 +186,7 @@ class EnergyContributionLstsq(reax.Metric):
     def _fun(self, graphs: jraph.GraphsTuple, *_) -> tuple[
         jt.Float[typing.ArrayType, "batch_size k"],
         jt.Float[typing.ArrayType, "batch_size 1"],
-        Optional[jt.Bool[typing.ArrayType, "batch_size"]],
+        jt.Bool[typing.ArrayType, "batch_size"] | None,
     ]:
         graph_dict = graphs._asdict()
         num_nodes = graphs.n_node
@@ -237,8 +236,8 @@ class AvgNumNeighboursByAtomType(metrics.AvgNumNeighboursByType):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        atom_types: Union[Sequence[int], jt.Int[jt.Array, "n_types"]],
+        atom_types: Sequence[int] | jt.Int[jt.Array, "n_types"],
         type_field: str = keys.ATOMIC_NUMBERS,
-        state: Optional[metrics.AvgNumNeighboursByType.Averages] = None,
+        state: metrics.AvgNumNeighboursByType.Averages | None = None,
     ):
         super().__init__(atom_types, type_field, state)

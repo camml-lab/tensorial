@@ -1,6 +1,6 @@
 from collections.abc import Hashable, Sequence
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import e3nn_jax as e3j
 from flax import linen
@@ -158,9 +158,9 @@ class IndexedRescale(linen.Module):
     num_types: int
     index_field: str
     field: str
-    out_field: Optional[str] = None
-    shifts: Optional[jax.typing.ArrayLike] = None
-    scales: Optional[jax.typing.ArrayLike] = None
+    out_field: str | None = None
+    shifts: jax.typing.ArrayLike | None = None
+    scales: jax.typing.ArrayLike | None = None
 
     rescale_init: linen.initializers.Initializer = linen.initializers.lecun_normal()
     shift_init: linen.initializers.Initializer = linen.initializers.zeros_init()
@@ -263,7 +263,7 @@ class IndexedLinear(linen.Module):
     num_types: int
     index_field: str
     field: str
-    out_field: Optional[str] = None
+    out_field: str | None = None
     name: str = None
 
     @linen.compact

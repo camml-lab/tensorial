@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 import e3nn_jax as e3j
 from flax import linen
@@ -27,12 +27,12 @@ _LOGGER = logging.getLogger(__name__)
 class NodewiseLinear(linen.Module):
     """Nodewise linear operation"""
 
-    irreps_out: Union[str, e3j.Irreps]
-    irreps_in: Optional[e3j.Irreps] = None
+    irreps_out: str | e3j.Irreps
+    irreps_in: e3j.Irreps | None = None
     field: str = keys.FEATURES
-    out_field: Optional[str] = keys.FEATURES
-    num_types: Optional[int] = None
-    types_field: Optional[str] = None
+    out_field: str | None = keys.FEATURES
+    num_types: int | None = None
+    types_field: str | None = None
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
@@ -49,7 +49,8 @@ class NodewiseLinear(linen.Module):
             if not self.num_types:
                 _LOGGER.warning(
                     "User supplied a ``types_field``, %s, but failed to supply ``num_types``. "
-                    "Ignoring."
+                    "Ignoring.",
+                    self._types_field,
                 )
             self._types_field = self.types_field
 
@@ -92,7 +93,7 @@ class NodewiseReduce(linen.Module):
     """
 
     field: str
-    out_field: Optional[str] = None
+    out_field: str | None = None
     reduce: str = "sum"
     average_num_atoms: float = None
 
@@ -131,7 +132,7 @@ class NodewiseEmbedding(linen.Module):
 
     attrs: "tensorial.IrrepsTree"
     out_field: str = keys.ATTRIBUTES
-    node_shape_from: Optional[str] = keys.POSITIONS
+    node_shape_from: str | None = keys.POSITIONS
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
