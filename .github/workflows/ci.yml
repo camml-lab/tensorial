@@ -9,10 +9,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install Python dependencies
         run: pip install -e .[dev]
@@ -64,7 +64,7 @@ jobs:
         run: pip install -e .[dev]
 
       - name: Run pytest
-        run: pytest --cov=tensorial -sv -p no:nb_regression test
+        run: pytest --cov=tensorial --durations 0 -sv -p no:nb_regression test
 
       - name: Create xml coverage
         run: coverage xml

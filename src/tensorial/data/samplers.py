@@ -1,11 +1,14 @@
 from collections.abc import Hashable, Iterable, Iterator, Sequence
 import functools
 import itertools
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
 
 from . import _types
+
+if TYPE_CHECKING:
+    import reax
 
 __all__ = "SequentialSampler", "RandomSampler", "BatchSampler", "IterableSampler"
 
@@ -65,6 +68,14 @@ class BatchSampler(_types.Sampler[list[IdxT]]):
         self._sampler = sampler
         self._batch_size = batch_size
         self._drop_last = drop_last
+
+    @property
+    def sampler(self):
+        return self._sampler
+
+    @sampler.setter
+    def sampler(self, sampler: "reax.data.Sampler[IdxT]"):
+        self._sampler = sampler
 
     def __iter__(self) -> Iterator[list[IdxT]]:
         if self._drop_last:

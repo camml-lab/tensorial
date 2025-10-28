@@ -41,8 +41,8 @@ dependencies = [
 ]
 
 [project.urls]
-Home = 'https://github.com/muhrin/tensorial'
-Source = 'https://github.com/muhrin/tensorial'
+Home = 'https://github.com/camml-lab/tensorial'
+Source = 'https://github.com/camml-lab/tensorial'
 
 [project.optional-dependencies]
 docs = [
