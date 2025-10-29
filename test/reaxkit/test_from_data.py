@@ -22,7 +22,7 @@ def test_from_data(rng_key, test_trainer):
     loader = reax.data.ArrayLoader(values, batch_size=batch_size)
 
     # Use a trainer to run the stage
-    from_data = rkit.FromData(cfg, test_trainer.engine, test_trainer.rngs, dataloader=loader)
+    from_data = rkit.FromData(cfg, test_trainer.engine, rngs=test_trainer.rngs, dataloader=loader)
     # This will do an in-place update of cfg
     test_trainer.run(from_data)
 
