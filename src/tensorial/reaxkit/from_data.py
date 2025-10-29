@@ -2,6 +2,7 @@ from collections.abc import Mapping
 import functools
 from typing import Any
 
+import beartype
 from flax import nnx
 import hydra
 import jaxtyping as jt
@@ -12,17 +13,20 @@ from typing_extensions import override
 
 DONE_KEY = "done"
 
+__all__ = ("FromData",)
+
 
 class FromData(reax.stages.Stage):
     """A trainer stage that will populate an OmegaConf dictionary with data statistics calculated
     from metrics.
     """
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         cfg: omegaconf.DictConfig,
-        engine: reax.Strategy,
-        rng: nnx.Rngs,
+        engine: reax.Engine,
+        rngs: nnx.Rngs,
         dataloader: reax.DataLoader | None = None,
         datamodule: reax.DataModule | None = None,
         dataloader_name: str | None = "train",
@@ -44,9 +48,9 @@ class FromData(reax.stages.Stage):
             "from_data",
             module=None,
             engine=engine,
-            rng=rng,
+            rngs=rngs,
             datamanager=reax.data.create_manager(
-                datamodule=datamodule, **{f"{dataloader_name}_loader": dataloader}
+                datamodule=datamodule, engine=engine, **{f"{dataloader_name}": dataloader}
             ),
         )
         # Params
@@ -100,7 +104,7 @@ class FromData(reax.stages.Stage):
             self._to_calculate,
             self._datamanager,
             self._engine,
-            self._rng,
+            rngs=self._engine.rngs,
             dataset_name=self._dataset_name,
             ignore_missing=True,
         )

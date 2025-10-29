@@ -10,7 +10,7 @@ import reax
 import reax.utils
 from typing_extensions import override
 
-__all__ = ("instantiate",)
+__all__ = ("instantiate", "FromData")
 
 
 def instantiate(cfg: omegaconf.OmegaConf, **kwargs) -> Any:
