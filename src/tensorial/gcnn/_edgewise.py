@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import functools
 from typing import TYPE_CHECKING
 
@@ -93,6 +94,7 @@ class RadialBasisEdgeEmbedding(linen.Module):
     out_field: str = keys.RADIAL_EMBEDDINGS
     num_basis: int = 8
     r_max: float = 4.0
+    envelope: bool | Callable = False
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
@@ -101,7 +103,14 @@ class RadialBasisEdgeEmbedding(linen.Module):
             x_max=self.r_max,
             n=self.num_basis,
         )
-        self.envelope = e3j.poly_envelope(1, 1)
+        self._envelope = self._init_envelope(self.envelope)
+
+    @staticmethod
+    def _init_envelope(envelope) -> Callable | None:
+        if envelope:
+            return envelope if callable(envelope) else e3j.poly_envelope(1, 1)
+
+        return None
 
     @_base.shape_check
     def __call__(
@@ -110,7 +119,8 @@ class RadialBasisEdgeEmbedding(linen.Module):
         edge_dict = _spatial.with_edge_vectors(graph).edges
         r = base.as_array(edge_dict[keys.EDGE_LENGTHS])[:, 0]
         embedded = self.radial_embedding(r)
-        embedded = jax.vmap(self.envelope)(r / self.r_max)[..., None] * embedded
+        if self._envelope is not None:
+            embedded = jax.vmap(self._envelope)(r / self.r_max)[..., None] * embedded
 
         edge_dict[self.out_field] = embedded
         return graph._replace(edges=edge_dict)
