@@ -34,18 +34,29 @@ def get(mapping: Mapping, key: str):
         raise reax.exceptions.DataNotFound(f"Missing key: {key}") from None
 
 
-AllAtomicNumbers = reax.metrics.Unique.from_fun(
-    lambda graph, *_: (get(graph.nodes, keys.ATOMIC_NUMBERS), graph.nodes.get(graph_keys.MASK))
-)
+class AllAtomicNumbers(reax.metrics.FromFun):
+    metric = reax.metrics.Unique
 
-NumSpecies = reax.metrics.NumUnique.from_fun(
-    lambda graph, *_: (get(graph.nodes, keys.ATOMIC_NUMBERS), graph.nodes.get(graph_keys.MASK))
-)
+    @staticmethod
+    def func(graph: jraph.GraphsTuple, *_):
+        return get(graph.nodes, keys.ATOMIC_NUMBERS), graph.nodes.get(graph_keys.MASK)
 
 
-ForceStd = reax.metrics.Std.from_fun(
-    lambda graph, *_: (get(graph.nodes, keys.FORCES), graph.nodes.get(graph_keys.MASK))
-)
+class NumSpecies(reax.metrics.FromFun):
+    metric = reax.metrics.NumUnique
+
+    @staticmethod
+    def func(graph: jraph.GraphsTuple, *_):
+        return get(graph.nodes, keys.ATOMIC_NUMBERS), graph.nodes.get(graph_keys.MASK)
+
+
+class ForceStd(reax.metrics.FromFun):
+    metric = reax.metrics.Std
+
+    @staticmethod
+    def func(graph: jraph.GraphsTuple, *_):
+        return get(graph.nodes, keys.FORCES), graph.nodes.get(graph_keys.MASK)
+
 
 AvgNumNeighbours = reax.metrics.Average.from_fun(
     lambda graph, *_: (

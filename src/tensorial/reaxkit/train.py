@@ -13,17 +13,18 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_TRAIN_FILE = "train.yaml"
 
 
-def train(cfg: omegaconf.DictConfig):
-    output_dir = pathlib.Path(hydra_config.HydraConfig.get().runtime.output_dir)
+def train(cfg: omegaconf.DictConfig | dict):
+    if isinstance(cfg, dict):
+        cfg = omegaconf.DictConfig(cfg)
+
+    try:
+        output_dir = pathlib.Path(hydra_config.HydraConfig.get().runtime.output_dir)
+    except ValueError:
+        output_dir = None
 
     # set seed for random number generators in JAX, numpy and python.random
     if cfg.get("seed"):
         reax.seed_everything(cfg.seed, workers=True)
-
-    _LOGGER.info(
-        "Instantiating datamodule <%s>", cfg.data._target_  # pylint: disable=protected-access
-    )
-    datamodule: reax.DataModule = hydra.utils.instantiate(cfg.data, _convert_="object")
 
     _LOGGER.info("Instantiating listeners...")
     listeners: list[reax.TrainerListener] = utils.instantiate_listeners(cfg.get("listeners"))
@@ -41,6 +42,11 @@ def train(cfg: omegaconf.DictConfig):
         default_root_dir=output_dir,
     )
 
+    _LOGGER.info(
+        "Instantiating datamodule <%s>", cfg.data._target_  # pylint: disable=protected-access
+    )
+    datamodule: reax.DataModule = hydra.utils.instantiate(cfg.data, _convert_="object")
+
     if cfg.get(keys.FROM_DATA):
         from_data_stage = from_data.FromData(  # pylint: disable=no-member
             cfg[keys.FROM_DATA], trainer.engine, rngs=trainer.rngs, datamodule=datamodule
@@ -54,8 +60,9 @@ def train(cfg: omegaconf.DictConfig):
 
     # Save the configuration file here, this way things like inputs used to setup the model
     # will be baked into the input
-    with open(output_dir / config.DEFAULT_CONFIG_FILE, "w", encoding="utf-8") as file:
-        file.write(omegaconf.OmegaConf.to_yaml(cfg, resolve=True))
+    if output_dir is not None:
+        with open(output_dir / config.DEFAULT_CONFIG_FILE, "w", encoding="utf-8") as file:
+            file.write(omegaconf.OmegaConf.to_yaml(cfg, resolve=True))
 
     _LOGGER.info(
         "Instantiating model <%s>",

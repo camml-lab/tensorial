@@ -14,9 +14,6 @@ tensorial
     :target: https://pypi.python.org/pypi/tensorial/
     :alt: Latest Version
 
-.. image:: https://img.shields.io/pypi/wheel/tensorial.svg
-    :target: https://pypi.python.org/pypi/tensorial/
-
 .. image:: https://img.shields.io/pypi/pyversions/tensorial.svg
     :target: https://pypi.python.org/pypi/tensorial/
 

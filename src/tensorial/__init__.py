@@ -9,7 +9,18 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 
 from tensorial.metrics import metric
 
-from . import base, config, data, datasets, geometry, metrics, tensors, training, typing, utils
+from . import (
+    base,
+    config,
+    datasets,
+    gcnn,
+    geometry,
+    metrics,
+    tensors,
+    training,
+    typing,
+    utils,
+)
 from .base import *
 from .tensors import *
 from .training import *
@@ -24,11 +35,11 @@ __all__ = (
     + (
         "datasets",
         "config",
+        "gcnn",
         "geometry",
         "metrics",
         "training",
         "metric",
-        "data",
         "typing",
         "ReaxModule",
         "utils",

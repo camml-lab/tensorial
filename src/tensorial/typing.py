@@ -6,9 +6,6 @@ import jax.typing
 import jaxtyping as jt
 import numpy as np
 
-from .data import _types as _data_types
-from .data._types import *  # pylint: disable=wildcard-import, unused-wildcard-import
-
 __all__ = (
     "ArrayType",
     "IrrepLike",
@@ -18,7 +15,7 @@ __all__ = (
     "IndexArray",
     "CellType",
     "PbcType",
-) + _data_types.__all__
+)
 
 
 ArrayT = TypeVar("ArrayT")

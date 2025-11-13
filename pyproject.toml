@@ -26,8 +26,8 @@ dependencies = [
     'beartype',
     "flax>=0.10.7",
     "hydra-core",
-    'jax<0.8.0', # Control the JAX version, as previous updates have broken things
-    'jaxlib<0.8.0',
+    'jax<0.9.0', # Control the JAX version, as previous updates have broken things
+    'jaxlib<0.9.0',
     'jaxtyping<0.4.0',
     'jraph',
     'orbax-checkpoint',
