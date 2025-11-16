@@ -9,11 +9,13 @@ from pytray import tree
 import reax
 from typing_extensions import override
 
+from tensorial.typing import Array
+
 from . import keys
 from .. import _common
 from .. import keys as graph_keys
 from .. import metrics
-from ... import nn_utils, typing
+from ... import nn_utils
 
 __all__ = (
     "AllAtomicNumbers",
@@ -79,10 +81,10 @@ class EnergyPerAtomLstsq(reax.metrics.FromFun):
         return super().compute().reshape(())
 
 
-class TypeContributionLstsq(reax.metrics.Metric[jax.typing.ArrayLike]):
-    type_counts: typing.ArrayType | None = None
-    values: typing.ArrayType | None = None
-    mask: typing.ArrayType | None = None
+class TypeContributionLstsq(reax.metrics.Metric[jt.ArrayLike]):
+    type_counts: jt.Int[Array, "batch_size ..."] | None = None
+    values: jt.Float[Array, "batch_size ..."] | None = None
+    mask: jt.Bool[Array, "batch_size ..."] | None = None
 
     @property
     def is_empty(self):
@@ -92,9 +94,9 @@ class TypeContributionLstsq(reax.metrics.Metric[jax.typing.ArrayLike]):
     def create(
         # pylint: disable=arguments-differ
         self,
-        type_counts: jt.Float[typing.ArrayType, "batch_size ..."],
-        values: jt.Float[typing.ArrayType, "batch_size ..."],
-        mask: jt.Bool[typing.ArrayType, "batch_size ..."] = None,
+        type_counts: jt.Int[Array, "batch_size ..."],
+        values: jt.Float[Array, "batch_size ..."],
+        mask: jt.Bool[Array, "batch_size ..."] | None = None,
     ) -> "TypeContributionLstsq":
         return TypeContributionLstsq(type_counts, values, mask)
 
@@ -102,9 +104,9 @@ class TypeContributionLstsq(reax.metrics.Metric[jax.typing.ArrayLike]):
     def update(
         # pylint: disable=arguments-differ
         self,
-        type_counts: jt.Float[typing.ArrayType, "batch_size ..."],
-        values: jt.Float[typing.ArrayType, "batch_size ..."],
-        mask: jt.Bool[typing.ArrayType, "batch_size ..."] = None,
+        type_counts: jt.Int[Array, "batch_size ..."],
+        values: jt.Float[Array, "batch_size ..."],
+        mask: jt.Bool[Array, "batch_size ..."] | None = None,
     ) -> "TypeContributionLstsq":
         if self.is_empty:
             return self.create(type_counts, values)  # pylint: disable=not-callable
@@ -143,7 +145,7 @@ class TypeContributionLstsq(reax.metrics.Metric[jax.typing.ArrayLike]):
 
 
 class EnergyContributionLstsq(reax.Metric):
-    _type_map: jax.typing.ArrayLike
+    _type_map: jt.ArrayLike
     _metric: TypeContributionLstsq | None = None
 
     def __init__(self, type_map: Sequence, metric: TypeContributionLstsq = None):
@@ -195,9 +197,9 @@ class EnergyContributionLstsq(reax.Metric):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def _fun(self, graphs: jraph.GraphsTuple, *_) -> tuple[
-        jt.Float[typing.ArrayType, "batch_size k"],
-        jt.Float[typing.ArrayType, "batch_size 1"],
-        jt.Bool[typing.ArrayType, "batch_size"] | None,
+        jt.Float[Array, "batch_size k"],
+        jt.Float[Array, "batch_size 1"],
+        jt.Bool[Array, "batch_size"] | None,
     ]:
         graph_dict = graphs._asdict()
         num_nodes = graphs.n_node
@@ -247,7 +249,7 @@ class AvgNumNeighboursByAtomType(metrics.AvgNumNeighboursByType):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        atom_types: Sequence[int] | jt.Int[jt.Array, "n_types"],
+        atom_types: Sequence[int] | jt.Int[Array, "n_types"],
         type_field: str = keys.ATOMIC_NUMBERS,
         state: metrics.AvgNumNeighboursByType.Averages | None = None,
     ):

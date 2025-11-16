@@ -1,19 +1,13 @@
-from typing import TYPE_CHECKING
-
-import jax
 import jaxtyping as jt
-import numpy as np
+
+from tensorial.typing import Array
 
 from .. import utils
-
-if TYPE_CHECKING:
-    import tensorial.typing as tt
-
 
 __all__ = ("cell_volume",)
 
 
-def cell_volume(cell_vectors: "jt.Float[tt.ArrayType, '3 3']", np_=None) -> np.ndarray | jax.Array:
+def cell_volume(cell_vectors: jt.Float[Array, "3 3"], np_=None) -> Array:
     if np_ is None:
         np_ = utils.infer_backend(cell_vectors)
 

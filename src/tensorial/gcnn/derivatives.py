@@ -1,6 +1,6 @@
 from collections.abc import Callable, Sequence
 import functools
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any
 
 import beartype
 from flax import linen
@@ -21,7 +21,7 @@ __all__ = ("grad", "jacobian", "jacrev", "jacfwd", "hessian", "Grad", "Jacobian"
 
 TreePath = tuple[Any, ...]
 
-GradOut = Union[jraph.GraphsTuple, jt.PyTree, tuple[jt.PyTree]]
+GradOut = jraph.GraphsTuple | jt.PyTree | tuple[jt.PyTree]
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)
@@ -80,7 +80,7 @@ def _graph_autodiff(
     diff_fn: Callable,
     func: "gcnn.typing.GraphFunction",
     of: "gcnn.typing.TreePathLike",
-    wrt: "Union[str, Sequence[gcnn.typing.TreePathLike]]",
+    wrt: "str | Sequence[gcnn.typing.TreePathLike]",
     sign: float = 1.0,
     sum_axis=None,
     has_aux: bool = False,
@@ -119,7 +119,7 @@ def _graph_autodiff(
 
 def grad(
     of: "gcnn.TreePathLike",
-    wrt: Union["gcnn.TreePathLike", Sequence["gcnn.TreePathLike"]],
+    wrt: "gcnn.TreePathLike | Sequence[gcnn.TreePathLike]",
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
@@ -133,7 +133,7 @@ def grad(
 
 def jacrev(
     of: "gcnn.TreePathLike",
-    wrt: Union["gcnn.TreePathLike", Sequence["gcnn.TreePathLike"]],
+    wrt: "gcnn.TreePathLike | Sequence[gcnn.TreePathLike]",
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
@@ -149,7 +149,7 @@ def jacrev(
 
 def jacfwd(
     of: "gcnn.TreePathLike",
-    wrt: Union["gcnn.typing.TreePathLike", Sequence["gcnn.typing.TreePathLike"]],
+    wrt: "gcnn.typing.TreePathLike | Sequence[gcnn.typing.TreePathLike]",
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
@@ -168,7 +168,7 @@ jacobian = jacrev
 
 def hessian(
     of: "gcnn.TreePathLike",
-    wrt: Union["gcnn.TreePathLike", Sequence["gcnn.TreePathLike"]],
+    wrt: "gcnn.TreePathLike | Sequence[gcnn.TreePathLike]",
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
@@ -185,8 +185,8 @@ def hessian(
 class Grad(linen.Module):
     func: "gcnn.typing.GraphFunction"
     of: "gcnn.typing.TreePathLike"  # Gradient of
-    wrt: "Union[gcnn.TreePathLike, list[gcnn.TreePathLike]]"  # Gradient with respect to
-    out_field: "Union[str, gcnn.TreePathLike, list[gcnn.TreePathLike]]" = "auto"
+    wrt: "gcnn.TreePathLike | list[gcnn.TreePathLike]"  # Gradient with respect to
+    out_field: "str | gcnn.TreePathLike | list[gcnn.TreePathLike]" = "auto"
     sign: float = 1.0
 
     def setup(self):

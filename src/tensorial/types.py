@@ -18,6 +18,8 @@ __all__ = (
 )
 
 
+# pylint: disable=invalid-name
+
 ArrayT = TypeVar("ArrayT")
 ValueT = TypeVar("ValueT")
 
@@ -31,18 +33,18 @@ class _Helper(Generic[ArrayT, ValueT]):
         return self._value_type[self._array_type, shape]
 
 
-IrrepLike = Union[str, e3j.Irrep]
-IrrepsLike = Union[str, e3j.Irreps, tuple[e3j.MulIrrep]]
+IrrepLike = str | e3j.Irrep
+IrrepsLike = str | e3j.Irreps | tuple[e3j.MulIrrep]
 IntoIrreps = Union[
     None,
     e3j.Irrep,
     e3j.MulIrrep,
     str,
     e3j.Irreps,
-    Sequence[Union[str, e3j.Irrep, e3j.MulIrrep, tuple[int, "IntoIrreps"]]],
+    Sequence[str | e3j.Irrep | e3j.MulIrrep | tuple[int, "IntoIrreps"]],
 ]
 # "IrrepsArray with explicit shape"
-IrrepsArrayShape = _Helper(e3j.IrrepsArray, jt.Float)  # pylint: disable=invalid-name
+IrrepsArrayShape = _Helper(e3j.IrrepsArray, jt.Float)
 
 
 ArrayType = Union[jax.Array, np.ndarray]
@@ -52,6 +54,6 @@ CellType = Annotated[
     jt.Float[ArrayType, "3 3"], "Unit cell array i.e. rows containing cell vectors"
 ]
 PbcType = Annotated[
-    Union[tuple[bool, bool, bool], jt.Bool[jax.typing.ArrayLike, "3"]],
+    tuple[bool, bool, bool] | jt.Bool[jax.typing.ArrayLike, "3"],
     "Boolean sequence indicating whether boundaries are periodic in each a, b, c directions",
 ]

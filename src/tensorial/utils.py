@@ -1,11 +1,13 @@
 import types
+from typing import TYPE_CHECKING
 
 import e3nn_jax as e3j
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from . import typing
+if TYPE_CHECKING:
+    import tensorial
 
 
 def infer_backend(pytree) -> types.ModuleType:
@@ -25,7 +27,10 @@ def infer_backend(pytree) -> types.ModuleType:
 
 
 def zeros(
-    irreps: typing.IntoIrreps, leading_shape: tuple = (), dtype: jnp.dtype = None, np_=jnp
+    irreps: "tensorial.types.IntoIrreps",
+    leading_shape: tuple = (),
+    dtype: jnp.dtype = None,
+    np_=jnp,
 ) -> e3j.IrrepsArray:
     r"""Create an IrrepsArray of zeros."""
     irreps = e3j.Irreps(irreps)
@@ -40,7 +45,10 @@ def zeros_like(irreps_array: e3j.IrrepsArray) -> e3j.IrrepsArray:
 
 
 def ones(
-    irreps: typing.IntoIrreps, leading_shape: tuple = (), dtype: jnp.dtype = None, np_=jnp
+    irreps: "tensorial.types.IntoIrreps",
+    leading_shape: tuple = (),
+    dtype: jnp.dtype = None,
+    np_=jnp,
 ) -> e3j.IrrepsArray:
     r"""Create an IrrepsArray of ones."""
     irreps = e3j.Irreps(irreps)

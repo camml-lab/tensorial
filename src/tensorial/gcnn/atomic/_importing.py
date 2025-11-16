@@ -4,9 +4,11 @@ import numbers
 import jraph
 import numpy as np
 
+from tensorial.typing import CellType, PbcType
+
 from . import keys
 from .. import _spatial as gcnn_graphs
-from ... import base, typing
+from ... import base
 
 __all__ = "graph_from_pymatgen", "graph_from_ase"
 
@@ -20,8 +22,8 @@ def graph_from_pymatgen(
     atom_include_keys: Iterable | None = ("numbers",),
     edge_include_keys: Iterable | None = tuple(),
     global_include_keys: Iterable | None = tuple(),
-    cell: typing.CellType | None = None,
-    pbc: bool | typing.PbcType | None = None,
+    cell: CellType | None = None,
+    pbc: bool | PbcType | None = None,
     **kwargs,
 ) -> jraph.GraphsTuple:
     """Create a jraph Graph from a pymatgen SiteCollection object or subclass
@@ -95,8 +97,8 @@ def graph_from_ase(
     atom_include_keys: Iterable | None = ("numbers",),
     edge_include_keys: Iterable | None = tuple(),
     global_include_keys: Iterable | None = tuple(),
-    cell: typing.CellType | None = None,
-    pbc: bool | typing.PbcType | None = None,
+    cell: CellType | None = None,
+    pbc: bool | PbcType | None = None,
     use_calculator: bool = True,
     **kwargs,
 ) -> jraph.GraphsTuple:

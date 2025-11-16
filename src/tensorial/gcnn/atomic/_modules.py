@@ -7,10 +7,12 @@ import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
 
+from tensorial.typing import Array
+
 from . import keys
 from .. import _modules as gcnn_modules
 from .. import keys as gcnn_keys
-from ... import nn_utils, typing
+from ... import nn_utils
 
 __all__ = "SpeciesTransform", "per_species_rescale"
 
@@ -29,7 +31,7 @@ class SpeciesTransform(equinox.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        atomic_numbers: Sequence[int] | jt.Int[typing.ArrayType, "numbers"],
+        atomic_numbers: Sequence[int] | jt.Int[Array, "numbers"],
         field: str = keys.ATOMIC_NUMBERS,
         out_field: str = gcnn_keys.SPECIES,
     ):

@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Any, TypeVar, Union
+from typing import Any, TypeVar
 
 import beartype
 import jax
@@ -13,7 +13,7 @@ __all__ = ("Evaluator",)
 OutT = TypeVar("OutT")
 
 
-M = TypeVar("M", bound=Union[Metric, reax.metrics.MetricCollection])
+M = TypeVar("M", bound=Metric | reax.metrics.MetricCollection)
 T_co = TypeVar("T_co", covariant=True)
 
 

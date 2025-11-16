@@ -1,7 +1,7 @@
 from collections.abc import Callable, Iterable
 import functools
 import math
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import beartype
 import e3nn_jax as e3j
@@ -11,10 +11,12 @@ import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
 
-import tensorial
-from tensorial import gcnn, nn_utils, typing
+from tensorial import gcnn, nn_utils
 
 from . import _base, _message_passing, experimental, keys
+
+if TYPE_CHECKING:
+    from tensorial.types import IndexArray, IntoIrreps, IrrepLike, IrrepsArrayShape
 
 A025582 = [0, 1, 3, 7, 12, 20, 30, 44, 65, 80, 96, 122, 147, 181, 203, 251, 289]
 
@@ -29,7 +31,7 @@ class SymmetricContraction(linen.Module):
     """
 
     correlation_order: int
-    keep_irrep_out: str | Iterable[tensorial.typing.IrrepLike]
+    keep_irrep_out: "str | Iterable[IrrepLike]"
 
     num_types: int = 1
     gradient_normalisation: str | float | None = None
@@ -59,8 +61,8 @@ class SymmetricContraction(linen.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
-        inputs: typing.IrrepsArrayShape["n_node features irreps"],
-        input_type: typing.IndexArray["n_node"],
+        inputs: "IrrepsArrayShape['n_node features irreps']",
+        input_type: "IndexArray['n_node']",
     ) -> e3j.IrrepsArray:
         # Treat batch indices using vmap
         shape = jnp.broadcast_shapes(inputs.shape[:-2], input_type.shape)
@@ -76,9 +78,9 @@ class SymmetricContraction(linen.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def _contract(
         self,
-        inputs: typing.IrrepsArrayShape["num_features irreps_in"],
-        input_type: typing.IndexArray[""],
-    ) -> typing.IrrepsArrayShape["num_features irreps_out"]:
+        inputs: "IrrepsArrayShape['num_features irreps_out']",
+        input_type: "IndexArray['']",
+    ) -> "IrrepsArrayShape['num_features irreps_out']":
         """
         This operation is parallel on the feature dimension (but each feature has its own
         parameters)
@@ -195,8 +197,8 @@ class EquivariantProductBasisBlock(linen.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
-        node_features: typing.IrrepsArrayShape["n_nodes featuresXirreps"],
-        node_types: typing.IndexArray["n_node"],
+        node_features: IrrepsArrayShape["n_nodes featuresXirreps"],
+        node_types: IndexArray["n_node"],
     ) -> e3j.IrrepsArray:
         node_features = node_features.mul_to_axis().remove_zero_chunks()
         node_features = self.symmetric_contractions(node_features, node_types)
@@ -205,7 +207,7 @@ class EquivariantProductBasisBlock(linen.Module):
 
 
 class InteractionBlock(linen.Module):
-    irreps_out: typing.IntoIrreps
+    irreps_out: "IntoIrreps"
     avg_num_neighbours: float | dict[int, float] = 1.0
     radial_activation: str | nn_utils.ActivationFunction = "swish"
 
@@ -220,14 +222,14 @@ class InteractionBlock(linen.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
-        node_features: typing.IrrepsArrayShape["n_nodes node_irreps"],
-        edge_features: typing.IrrepsArrayShape["n_edges edge_irreps"],
+        node_features: IrrepsArrayShape["n_nodes node_irreps"],
+        edge_features: IrrepsArrayShape["n_edges edge_irreps"],
         radial_embedding: jt.Float[jnp.ndarray, "n_edges radial_embeddings"],
-        senders: jt.Int[typing.ArrayType, "n_edges"],
-        receivers: jt.Int[typing.ArrayType, "n_edges"],
+        senders: jt.Int["ArrayType", "n_edges"],
+        receivers: jt.Int["ArrayType", "n_edges"],
         *,
-        edge_mask: jt.Bool[typing.ArrayType, "n_edges"] | None = None,
-    ) -> typing.IrrepsArrayShape["n_nodes target_irreps"]:
+        edge_mask: jt.Bool[ArrayType, "n_edges"] | None = None,
+    ) -> IrrepsArrayShape["n_nodes target_irreps"]:
         node_features = e3j.flax.Linear(node_features.irreps, name="linear_up")(node_features)
 
         node_features = self._message_passing(
@@ -241,8 +243,8 @@ class InteractionBlock(linen.Module):
 
 
 class NonLinearReadoutBlock(linen.Module):
-    hidden_irreps: typing.IntoIrreps
-    output_irreps: typing.IntoIrreps
+    hidden_irreps: "IntoIrreps"
+    output_irreps: "IntoIrreps"
     activation: Callable | None = None
     gate: Callable | None = None
 
@@ -257,8 +259,8 @@ class NonLinearReadoutBlock(linen.Module):
         self._linear_out = e3j.flax.Linear(output_irreps, force_irreps_out=True)
 
     def __call__(
-        self, inputs: typing.IrrepsArrayShape["n_node irreps"]
-    ) -> typing.IrrepsArrayShape["n_nodes output_irreps"]:
+        self, inputs: "IrrepsArrayShape['n_node irreps']"
+    ) -> IrrepsArrayShape["n_nodes output_irreps"]:
         inputs = self._linear(inputs)
         inputs = e3j.gate(inputs, even_act=self.activation, even_gate_act=self.gate)
         return self._linear_out(inputs)

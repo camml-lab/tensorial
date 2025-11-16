@@ -6,7 +6,9 @@ import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 
-from . import base, typing
+from tensorial.typing import Array, IrrepsArrayShape
+
+from . import base
 
 __all__ = "SphericalHarmonic", "CartesianTensor", "NoOp", "OneHot", "AsIrreps"
 
@@ -33,7 +35,7 @@ class AsIrreps(base.Attr):
         assert value.shape[-1] == self.irreps.dim, "Dimension mismatch"
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def create_tensor(self, value: jax.typing.ArrayLike) -> e3j.IrrepsArray:
+    def create_tensor(self, value: jt.ArrayLike) -> e3j.IrrepsArray:
         self._validate(value)
         return e3j.IrrepsArray(self.irreps, value)
 
@@ -87,7 +89,7 @@ class OneHot(base.Attr):
         raise ValueError("Expected self.irreps to contain a MulIrrep.")
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def create_tensor(self, value: jt.Int[typing.ArrayType, "n_vals"]) -> e3j.IrrepsArray:
+    def create_tensor(self, value: jt.Int[Array, "n_vals"]) -> e3j.IrrepsArray:
         return e3j.IrrepsArray(self.irreps, jax.nn.one_hot(value, self.num_classes))
 
 
@@ -110,7 +112,7 @@ class CartesianTensor(base.Attr):
         super().__init__(cob.irreps)
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def create_tensor(self, value: jax.typing.ArrayLike) -> e3j.IrrepsArray:
+    def create_tensor(self, value: jt.ArrayLike) -> e3j.IrrepsArray:
         return super().create_tensor(  # pylint: disable=not-callable
             jnp.einsum("ij,ijz->z", value, self.change_of_basis)
         )
@@ -118,7 +120,7 @@ class CartesianTensor(base.Attr):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def from_tensor(
         self,
-        tensor: typing.IrrepsArrayShape["irreps"] | typing.IrrepsArrayShape["batch irreps"],
+        tensor: IrrepsArrayShape["irreps"] | IrrepsArrayShape["batch irreps"],
     ) -> jt.Float[jax.Array, "..."] | jt.Float[jax.Array, "batch ..."]:
         """
         Take an irrep tensor and perform the change of basis transformation back to a Cartesian

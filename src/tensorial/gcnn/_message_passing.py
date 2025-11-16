@@ -5,13 +5,14 @@ import jax.numpy as jnp
 import jaxtyping as jt
 import reax.metrics
 
-from tensorial import nn_utils, typing
+from tensorial import nn_utils
+from tensorial.typing import Array, IndexArray, IntoIrreps, IrrepsArrayShape
 
 
 class MessagePassingConvolution(linen.Module):
     """Equivariant message passing convolution operation."""
 
-    irreps_out: typing.IntoIrreps
+    irreps_out: IntoIrreps
     avg_num_neighbours: float | dict[int, float] = 1.0
 
     # Radial
@@ -30,15 +31,15 @@ class MessagePassingConvolution(linen.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
-        node_feats: typing.IrrepsArrayShape["n_nodes node_irreps"],
-        edge_features: typing.IrrepsArrayShape["n_edges edge_irreps"],
-        radial_embedding: jt.Float[typing.ArrayType, "n_edges radial_embedding_dim"],
-        senders: typing.IndexArray["n_edges"],
-        receivers: typing.IndexArray["n_edges"],
+        node_feats: IrrepsArrayShape["n_nodes node_irreps"],
+        edge_features: IrrepsArrayShape["n_edges edge_irreps"],
+        radial_embedding: jt.Float[Array, "n_edges radial_embedding_dim"],
+        senders: IndexArray["n_edges"],
+        receivers: IndexArray["n_edges"],
         *,
-        edge_mask: jt.Bool[typing.ArrayType, "n_edges"] | None = None,
-        node_types: jt.Int[jt.Array, "n_nodes"] | None = None,
-    ) -> typing.IrrepsArrayShape["n_nodes node_irreps_out"]:
+        edge_mask: jt.Bool[Array, "n_edges"] | None = None,
+        node_types: jt.Int[Array, "n_nodes"] | None = None,
+    ) -> IrrepsArrayShape["n_nodes node_irreps_out"]:
         irreps_out = e3j.Irreps(self.irreps_out)  # Recast, because flax converts to tuple
 
         # The irreps to use for the output node features
@@ -52,7 +53,7 @@ class MessagePassingConvolution(linen.Module):
         )
 
         # Make a compound message
-        messages: typing.IrrepsArrayShape["n_edges node_irreps+edge_irreps"] = e3j.concatenate(
+        messages: IrrepsArrayShape["n_edges node_irreps+edge_irreps"] = e3j.concatenate(
             [messages.filter(irreps_out + "0e"), edge_features]
         ).regroup()
 

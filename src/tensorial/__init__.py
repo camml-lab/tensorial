@@ -18,7 +18,7 @@ from . import (
     metrics,
     tensors,
     training,
-    typing,
+    types,
     utils,
 )
 from .base import *
@@ -40,7 +40,7 @@ __all__ = (
         "metrics",
         "training",
         "metric",
-        "typing",
+        "types",
         "ReaxModule",
         "utils",
     )

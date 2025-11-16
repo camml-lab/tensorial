@@ -1,13 +1,13 @@
 import numbers
 
-import jax.typing
 import jaxtyping as jt
 import numpy as np
 import scipy.spatial.distance as ssd
 from typing_extensions import override
 
+from tensorial.typing import Array, CellType, PbcType
+
 from . import distances, unit_cells
-from .. import typing
 
 __all__ = ("neighbour_finder", "OpenBoundary", "PeriodicBoundary")
 
@@ -17,9 +17,9 @@ Range = tuple[int, int]
 class GridCells:
     def __init__(
         self,
-        cell: jt.Float[jt.Array, "3 3"],
-        grid_coords: jt.Int[jt.ArrayLike, "... 3"],
-        grid_pts: jt.Float[jt.ArrayLike, "... 3"] | None = None,
+        cell: jt.Float[Array, "3 3"],
+        grid_coords: jt.Int[Array, "... 3"],
+        grid_pts: jt.Float[Array, "... 3"] | None = None,
     ):
         self._cell = cell
         self._grid_coords = grid_coords
@@ -30,21 +30,21 @@ class GridCells:
         return self._grid_coords.shape[0]
 
     @property
-    def cell(self) -> jt.Float[jt.Array, "3 3"]:
+    def cell(self) -> jt.Float[Array, "3 3"]:
         return self._cell
 
     @property
-    def grid_coords(self) -> jt.Int[jt.Array, "... 3"]:
+    def grid_coords(self) -> jt.Int[Array, "... 3"]:
         return self._grid_coords
 
     @property
-    def grid_pts(self) -> jt.Float[jt.Array, "... 3"]:
+    def grid_pts(self) -> jt.Float[Array, "... 3"]:
         if self._grid_pts is None:
             self._grid_pts = self._grid_coords @ self._cell
 
         return self._grid_pts
 
-    def mask_off(self, mask: jt.Bool[jt.Array, "... 3"]) -> "GridCells":
+    def mask_off(self, mask: jt.Bool[Array, "... 3"]) -> "GridCells":
         return GridCells(
             self._cell,
             self._grid_coords[mask],
@@ -52,10 +52,8 @@ class GridCells:
         )
 
     def bloom(
-        self, points: jt.Float[jt.ArrayLike, "N 3"]
-    ) -> tuple[
-        jt.Float[jt.ArrayLike, "... 3"], jt.Int[jt.ArrayLike, "..."], jt.Int[jt.ArrayLike, "... 3"]
-    ]:
+        self, points: jt.Float[Array, "N 3"]
+    ) -> tuple[jt.Float[Array, "... 3"], jt.Int[Array, "..."], jt.Int[Array, "... 3"]]:
         bloomed_points = []
         for grid_pt in self.grid_pts:
             bloomed_points.extend(grid_pt + points)
@@ -104,7 +102,7 @@ class OpenBoundary(distances.NeighbourFinder):
 
     def get_neighbours(
         self,
-        positions: jt.Float[jax.typing.ArrayLike, "N 3"],
+        positions: jt.Float[Array, "N 3"],
         max_neighbours: int = None,  # pylint: disable=unused-argument
     ) -> distances.NeighbourList:
         npts = positions.shape[0]
@@ -122,9 +120,9 @@ class OpenBoundary(distances.NeighbourFinder):
 class PeriodicBoundary(distances.NeighbourFinder):
     def __init__(
         self,
-        cell: typing.CellType,
+        cell: CellType,
         cutoff: numbers.Number,
-        pbc: typing.PbcType,
+        pbc: PbcType,
         *,
         include_self=False,
         include_images=True,
@@ -158,7 +156,7 @@ class PeriodicBoundary(distances.NeighbourFinder):
 
     def get_neighbours(
         self,
-        positions: jt.Float[jax.typing.ArrayLike, "N 3"],
+        positions: jt.Float[Array, "N 3"],
         max_neighbours: int = None,  # pylint: disable=unused-argument
     ) -> distances.NeighbourList:
         n_pts: int = positions.shape[0]
@@ -185,11 +183,10 @@ class PeriodicBoundary(distances.NeighbourFinder):
         )
 
 
-# too slow: @jt.jaxtyped(typechecker=beartype.beartype)
 def neighbour_finder(
     cutoff: numbers.Number,
-    cell: typing.CellType | None = None,
-    pbc: typing.PbcType | None = None,
+    cell: CellType | None = None,
+    pbc: PbcType | None = None,
     include_self: bool = False,
     **kwargs,
 ) -> distances.NeighbourFinder:

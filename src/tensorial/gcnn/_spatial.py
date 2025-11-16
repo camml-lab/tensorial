@@ -1,37 +1,34 @@
 import logging
 import numbers
-from typing import TYPE_CHECKING, Final, Optional
+from typing import Final
 
 import e3nn_jax as e3j
-import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
 import numpy as np
 import reax.metrics
 
+from tensorial.typing import Array, CellType, PbcType
+
 from . import keys
 from .. import base, geometry, nn_utils
-
-if TYPE_CHECKING:
-    import tensorial.typing as tt
 
 _LOGGER = logging.getLogger(__name__)
 
 __all__ = ("graph_from_points", "with_edge_vectors")
 
 
-# @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_points(
-    pos: "jt.Float[tt.ArrayType, 'n_nodes 3']",
+    pos: jt.Float[Array, "n_nodes 3"],
     r_max: numbers.Number,
     *,
     fractional_positions: bool = False,
     self_interaction: bool = True,
     strict_self_interaction: bool = False,
-    cell: "Optional[tt.CellType]" = None,
-    pbc: "Optional[bool | tt.PbcType]" = None,
-    nodes: dict[str, jt.Num[jax.typing.ArrayLike, "n_nodes *"]] | None = None,
+    cell: CellType | None = None,
+    pbc: bool | PbcType | None = None,
+    nodes: dict[str, jt.Num[Array, "n_nodes *"]] | None = None,
     edges: dict = None,
     graph_globals: dict = None,
     np_=np,
@@ -179,7 +176,7 @@ def with_edge_vectors(
     return graph
 
 
-def _pairwise_sq_distances(pos: "tt.ArrayType", mask: "Optional[tt.ArrayType]") -> "tt.ArrayType":
+def _pairwise_sq_distances(pos: Array, mask: Array | None) -> Array:
     # x_shape: (num_nodes_in_graph, 3)
     if mask is not None:
         mask = nn_utils.prepare_mask(mask, pos)
@@ -190,7 +187,7 @@ def _pairwise_sq_distances(pos: "tt.ArrayType", mask: "Optional[tt.ArrayType]") 
 
 
 def _update_positions(
-    padded_graph: jraph.GraphsTuple, new_pos: "tt.ArrayType", r_max: float
+    padded_graph: jraph.GraphsTuple, new_pos: Array, r_max: float
 ) -> jraph.GraphsTuple:
     nodes_dict = padded_graph.nodes
     if not nodes_dict[keys.POSITIONS].shape == new_pos.shape:

@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 
-from tensorial import typing
+from tensorial.typing import CellType, PbcType
 
 from . import distances, unit_cells
 
@@ -25,8 +25,8 @@ class NeighbourList(equinox.Module, distances.NeighbourList):
 
     def __init__(
         self,
-        neighbours: jax.typing.ArrayLike,
-        cell_indices: jax.typing.ArrayLike,
+        neighbours: jt.ArrayLike,
+        cell_indices: jt.ArrayLike,
         actual_max_neighbours: jax.Array = -1,
         finder: "NeighbourFinder" = None,
     ):
@@ -69,17 +69,15 @@ class NeighbourList(equinox.Module, distances.NeighbourList):
     def list_overflow(self) -> bool:
         return self.actual_max_neighbours > self.max_neighbours
 
-    def reallocate(self, positions: jax.typing.ArrayLike) -> "NeighbourList":
+    def reallocate(self, positions: jt.ArrayLike) -> "NeighbourList":
         return self._finder.get_neighbours(positions, max_neighbours=self.actual_max_neighbours)
 
 
 class NeighbourFinder(equinox.Module, distances.NeighbourFinder):
-    def get_neighbours(
-        self, positions: jax.typing.ArrayLike, max_neighbours: int = None
-    ) -> NeighbourList:
+    def get_neighbours(self, positions: jt.ArrayLike, max_neighbours: int = None) -> NeighbourList:
         """Get the neighbour list for the given positions"""
 
-    def estimate_neighbours(self, positions: jax.typing.ArrayLike) -> int:
+    def estimate_neighbours(self, positions: jt.ArrayLike) -> int:
         """Estimate the number of neighbours per particle"""
 
 
@@ -91,9 +89,7 @@ class OpenBoundary(NeighbourFinder):
         self._cutoff = float(cutoff)
         self._include_self = include_self
 
-    def get_neighbours(
-        self, positions: jax.typing.ArrayLike, max_neighbours: int = None
-    ) -> NeighbourList:
+    def get_neighbours(self, positions: jt.ArrayLike, max_neighbours: int = None) -> NeighbourList:
         positions = jnp.asarray(positions)
         num_points = positions.shape[0]
         max_neighbours = max_neighbours or self.estimate_neighbours(positions)
@@ -116,7 +112,7 @@ class OpenBoundary(NeighbourFinder):
             finder=self,
         )
 
-    def estimate_neighbours(self, positions: jax.typing.ArrayLike) -> int:
+    def estimate_neighbours(self, positions: jt.ArrayLike) -> int:
         positions = jnp.asarray(positions)
 
         dimensions = jnp.max(positions, axis=0) - jnp.min(positions, axis=0)
@@ -138,9 +134,9 @@ class PeriodicBoundary(NeighbourFinder):
 
     def __init__(
         self,
-        cell: typing.CellType,
+        cell: CellType,
         cutoff: numbers.Number,
-        pbc: typing.PbcType | None = None,
+        pbc: PbcType | None = None,
         *,
         max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
         include_self=False,
@@ -157,9 +153,7 @@ class PeriodicBoundary(NeighbourFinder):
         self._include_self = include_self
         self._include_images = include_images
 
-    def get_neighbours(
-        self, positions: jax.typing.ArrayLike, max_neighbours: int = None
-    ) -> NeighbourList:
+    def get_neighbours(self, positions: jt.ArrayLike, max_neighbours: int = None) -> NeighbourList:
         num_points = positions.shape[0]
         num_cells = self._cell_list.shape[0]
         max_neighbours = (
@@ -198,7 +192,7 @@ class PeriodicBoundary(NeighbourFinder):
             finder=self,
         )
 
-    def estimate_neighbours(self, positions: jax.typing.ArrayLike) -> int:
+    def estimate_neighbours(self, positions: jt.ArrayLike) -> int:
         density = positions.shape[0] / unit_cells.cell_volume(self._cell)
         return int(1.3 * jnp.ceil(density * unit_cells.sphere_volume(self._cutoff) + 1.0).item())
 
@@ -206,8 +200,8 @@ class PeriodicBoundary(NeighbourFinder):
 @jt.jaxtyped(typechecker=beartype.beartype)
 def neighbour_finder(
     cutoff: numbers.Number,
-    cell: typing.CellType | None = None,
-    pbc: typing.PbcType | None = None,
+    cell: CellType | None = None,
+    pbc: PbcType | None = None,
     include_self: bool = False,
     **kwargs,
 ) -> NeighbourFinder:
@@ -222,9 +216,9 @@ def generate_positions(cell: jax.Array, positions: jax.Array, cell_shifts: jax.A
 
 
 def get_cell_list(
-    cell: typing.CellType,
+    cell: CellType,
     cutoff: numbers.Number,
-    pbc: typing.PbcType | None = (True, True, True),
+    pbc: PbcType | None = (True, True, True),
     max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
 ) -> tuple[jax.Array, jax.Array]:
     cell = jnp.asarray(cell)
@@ -257,7 +251,7 @@ def get_cell_list(
 
 
 def neighbours_mask_aabb(
-    centre: jax.typing.ArrayLike, neighbours: jax.typing.ArrayLike, cutoff: float
+    centre: jt.ArrayLike, neighbours: jt.ArrayLike, cutoff: float
 ) -> jax.Array:
     """
     Get the indices of all points that are within a cutoff sphere centred on `centre` with a
@@ -281,7 +275,7 @@ def neighbours_mask_aabb(
 
 
 def neighbours_mask_direct(
-    centre: jax.typing.ArrayLike, neighbours: jax.typing.ArrayLike, cutoff: float
+    centre: jt.ArrayLike, neighbours: jt.ArrayLike, cutoff: float
 ) -> jax.Array:
     """
     Get the indices of all points that are within a cutoff sphere centred on ``centre`` with a

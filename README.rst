@@ -20,4 +20,7 @@ tensorial
 .. image:: https://img.shields.io/pypi/l/tensorial.svg
     :target: https://pypi.python.org/pypi/tensorial/
 
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+    :target: https://github.com/psf/black
+
 Library for machine learning on physical tensors

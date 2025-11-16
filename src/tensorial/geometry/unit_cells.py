@@ -5,22 +5,18 @@ import jax.typing
 import jaxtyping as jt
 import numpy as np
 
-from tensorial import typing
+from tensorial.typing import CellType, PbcType
 
 from . import distances
 
 
-def get_cell_multiple_range(
-    cell: jax.typing.ArrayLike, cell_vector: int, cutoff: float
-) -> tuple[int, int]:
+def get_cell_multiple_range(cell: jt.ArrayLike, cell_vector: int, cutoff: float) -> tuple[int, int]:
     multiplier = get_max_cell_vector_repetitions(cell, cell_vector, cutoff=cutoff)
     return -math.ceil(multiplier), math.ceil(multiplier) + 1
 
 
 def get_cell_multiple_ranges(
-    cell: typing.CellType,
-    cutoff: float,
-    pbc: typing.PbcType | None = (True, True, True),
+    cell: CellType, cutoff: float, pbc: PbcType | None = (True, True, True)
 ) -> tuple[tuple[int, int], tuple[int, int], tuple[int, int]]:
     return tuple(
         (get_cell_multiple_range(cell, cell_vector, cutoff=cutoff) if pbc[cell_vector] else (0, 1))
@@ -28,9 +24,7 @@ def get_cell_multiple_ranges(
     )
 
 
-def get_max_cell_vector_repetitions(
-    cell: typing.CellType, cell_vector: int, cutoff: float
-) -> float:
+def get_max_cell_vector_repetitions(cell: CellType, cell_vector: int, cutoff: float) -> float:
     """
     Given a unit cell defined by three vectors this will return the number of multiples of the
     vector indexed by `cell_vector` that are needed to reach the edge of a sphere with radius
@@ -54,7 +48,7 @@ def get_num_plane_repetitions_to_bound_sphere(
     return radius / volume * cross_len
 
 
-def cell_volume(cell: typing.CellType) -> jax.Array:
+def cell_volume(cell: CellType) -> jax.Array:
     return np.abs(np.dot(cell[0], np.cross(cell[1], cell[2])))
 
 
@@ -64,6 +58,6 @@ def sphere_volume(radius: float) -> float:
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def get_edge_vectors(
-    positions: jax.typing.ArrayLike, edges: distances.Edges, cell: typing.CellType
-) -> jax.typing.ArrayLike:
+    positions: jt.ArrayLike, edges: distances.Edges, cell: CellType
+) -> jt.ArrayLike:
     return positions[edges.to_idx] - positions[edges.from_idx] + (edges.cell_shift @ cell)

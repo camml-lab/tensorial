@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 import functools
-from typing import Any, Union
+from typing import Any
 
 import beartype
 import e3nn_jax as e3j
@@ -76,9 +76,9 @@ class IrrepsObj:
     """An object that contains tensorial attributes."""
 
 
-Tensorial = Union[Attr, IrrepsObj, type(IrrepsObj), dict, linen.FrozenDict, e3j.Irreps]
-IrrepsTree = Union[IrrepsObj, dict]
-ValueType = Union[Any, list["ValueType"], dict[str, "ValueType"]]
+Tensorial = Attr | IrrepsObj | type(IrrepsObj) | dict | linen.FrozenDict | e3j.Irreps
+IrrepsTree = IrrepsObj | dict
+ValueType = Any | list["ValueType"] | dict[str, "ValueType"]
 
 
 @functools.singledispatch

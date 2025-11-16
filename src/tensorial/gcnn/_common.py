@@ -12,10 +12,11 @@ import jaxtyping as jt
 import jraph
 from pytray import tree
 
+from tensorial.typing import Array
+
 from . import utils
 
 if TYPE_CHECKING:
-    import tensorial
     from tensorial import gcnn
 
 
@@ -55,8 +56,8 @@ def reduce(
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def _reduce(
-    inputs: "tensorial.typing.ArrayType",
-    segment_lengths: "tensorial.typing.ArrayType",
+    inputs: Array,
+    segment_lengths: Array,
     num_segments: int | None = None,
     indices_are_sorted: bool = False,
     unique_indices: bool = False,
