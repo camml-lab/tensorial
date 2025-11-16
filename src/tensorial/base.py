@@ -12,7 +12,7 @@ import jaxtyping as jt
 import numpy as np
 from reax.utils import arrays
 
-from . import typing
+from tensorial.typing import IntoIrreps
 
 __all__ = (
     "IrrepsObj",
@@ -38,7 +38,7 @@ def atleast_1d(arr, np_=jnp) -> jax.Array | np.ndarray:
     return arr if np_.ndim(arr) >= 1 else np_.reshape(arr, -1)
 
 
-def as_array(arr: jax.typing.ArrayLike | e3j.IrrepsArray) -> jax.Array:
+def as_array(arr: jt.ArrayLike | e3j.IrrepsArray) -> jax.Array:
     """
     Get a standard JAX array given either:
         1. a numpy.ndarray
@@ -59,7 +59,7 @@ class Attr(equinox.Module):
 
     irreps: e3j.Irreps
 
-    def __init__(self, irreps: typing.IntoIrreps) -> None:  # pylint: disable=redefined-outer-name
+    def __init__(self, irreps: IntoIrreps) -> None:  # pylint: disable=redefined-outer-name
         self.irreps = e3j.Irreps(irreps)
 
     @jt.jaxtyped(typechecker=beartype.beartype)

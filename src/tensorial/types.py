@@ -47,9 +47,10 @@ IntoIrreps = Union[
 IrrepsArrayShape = _Helper(e3j.IrrepsArray, jt.Float)
 
 
+Array = Union[jax.Array, np.ndarray]
 ArrayType = Union[jax.Array, np.ndarray]
 # "Integer array that is used as an index"
-IndexArray = _Helper(ArrayType, jt.Int)  # pylint: disable=invalid-name
+IndexArray = _Helper(Array, jt.Int)  # pylint: disable=invalid-name
 CellType = Annotated[
     jt.Float[ArrayType, "3 3"], "Unit cell array i.e. rows containing cell vectors"
 ]

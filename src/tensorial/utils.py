@@ -6,8 +6,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-if TYPE_CHECKING:
-    import tensorial
+from tensorial.typing import IntoIrreps
 
 
 def infer_backend(pytree) -> types.ModuleType:
@@ -27,10 +26,7 @@ def infer_backend(pytree) -> types.ModuleType:
 
 
 def zeros(
-    irreps: "tensorial.types.IntoIrreps",
-    leading_shape: tuple = (),
-    dtype: jnp.dtype = None,
-    np_=jnp,
+    irreps: IntoIrreps, leading_shape: tuple = (), dtype: jnp.dtype = None, np_=jnp
 ) -> e3j.IrrepsArray:
     r"""Create an IrrepsArray of zeros."""
     irreps = e3j.Irreps(irreps)
@@ -45,10 +41,7 @@ def zeros_like(irreps_array: e3j.IrrepsArray) -> e3j.IrrepsArray:
 
 
 def ones(
-    irreps: "tensorial.types.IntoIrreps",
-    leading_shape: tuple = (),
-    dtype: jnp.dtype = None,
-    np_=jnp,
+    irreps: IntoIrreps, leading_shape: tuple = (), dtype: jnp.dtype = None, np_=jnp
 ) -> e3j.IrrepsArray:
     r"""Create an IrrepsArray of ones."""
     irreps = e3j.Irreps(irreps)

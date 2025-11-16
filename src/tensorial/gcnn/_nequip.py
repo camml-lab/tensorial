@@ -7,8 +7,10 @@ from flax import linen
 import jaxtyping as jt
 import jraph
 
+from tensorial.typing import Array, IndexArray, IntoIrreps, IrrepsArrayShape
+
 from . import _base, _message_passing, keys
-from .. import nn_utils, typing
+from .. import nn_utils
 from .. import utils as tensorial_utils
 
 __all__ = ("NequipLayer",)
@@ -34,7 +36,7 @@ class InteractionBlock(linen.Module):
     :param skip_connection: If True, skip connection will be applied at end of interaction
     """
 
-    irreps_out: typing.IntoIrreps = 4 * e3j.Irreps("0e + 1o + 2e")
+    irreps_out: IntoIrreps = 4 * e3j.Irreps("0e + 1o + 2e")
     # Radial
     radial_num_layers: int = 1
     radial_num_neurons: int = 8
@@ -69,15 +71,15 @@ class InteractionBlock(linen.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
-        node_features: typing.IrrepsArrayShape["n_nodes irreps"],
-        edge_features: typing.IrrepsArrayShape["n_edges edge_irreps"],
-        radial_embedding: jt.Float[typing.ArrayType, "n_edges radial_embedding_dim"],
-        senders: typing.IndexArray["n_edges"],
-        receivers: typing.IndexArray["n_edges"],
-        node_species: jt.Int[typing.ArrayType, "n_nodes"] | None = None,
+        node_features: IrrepsArrayShape["n_nodes irreps"],
+        edge_features: IrrepsArrayShape["n_edges edge_irreps"],
+        radial_embedding: jt.Float[Array, "n_edges radial_embedding_dim"],
+        senders: IndexArray["n_edges"],
+        receivers: IndexArray["n_edges"],
+        node_species: jt.Int[Array, "n_nodes"] | None = None,
         *,
-        node_mask: jt.Bool[typing.ArrayType, "n_nodes"] | None = None,
-        edge_mask: jt.Bool[typing.ArrayType, "n_edges"] | None = None,
+        node_mask: jt.Bool[Array, "n_nodes"] | None = None,
+        edge_mask: jt.Bool[Array, "n_edges"] | None = None,
     ) -> e3j.IrrepsArray:
         """
         A NequIP interaction made up of the following steps:
@@ -139,7 +141,7 @@ class NequipLayer(linen.Module):
     https://github.com/mir-group/nequip/blob/main/nequip/nn/_convnetlayer.py
     """
 
-    irreps_out: typing.IntoIrreps
+    irreps_out: IntoIrreps
     invariant_layers: int = 1
     invariant_neurons: int = 8
     # Radial
