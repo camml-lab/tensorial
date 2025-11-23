@@ -26,7 +26,7 @@ from .tensors import *
 from .training import *
 from .training import ReaxModule
 
-__version__ = "0.5.0b1"
+__version__ = "0.5.0"
 
 __all__ = (
     base.__all__
