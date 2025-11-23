@@ -56,7 +56,7 @@ def reduce(
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def _reduce(
-    inputs: Array,
+    inputs: e3j.IrrepsArray | Array,
     segment_lengths: Array,
     num_segments: int | None = None,
     indices_are_sorted: bool = False,

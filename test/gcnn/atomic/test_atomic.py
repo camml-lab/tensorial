@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import Final
 
 import ase.build
 import jax
@@ -12,6 +13,7 @@ import reax
 import tensorial
 from tensorial import gcnn
 from tensorial.gcnn import atomic
+from tensorial.gcnn.atomic import keys
 
 
 @pytest.fixture
@@ -133,3 +135,90 @@ def test_metrics(molecule_dataset: Sequence[jraph.GraphsTuple]):
         value = metric.create(all_molecules).compute()
 
         assert jnp.allclose(res, value), f"Problem with metric {name}"
+
+
+def test_all_atomic_numbers():
+    numbers = [[1, 2, 5], [1, 5, 7], [1], [2, 9]]
+
+    def make_graph(atomic_numbers):
+        return jraph.GraphsTuple(
+            nodes={keys.ATOMIC_NUMBERS: np.array(atomic_numbers)},
+            n_node=len(atomic_numbers),
+            edges=None,
+            n_edge=0,
+            globals=None,
+            senders=None,
+            receivers=None,
+        )
+
+    graphs = list(map(make_graph, numbers))
+
+    metric = atomic.AllAtomicNumbers.empty()
+    for graph in graphs:
+        metric = metric.update(graph)
+
+    assert np.all(metric.compute() == np.array([1, 2, 5, 7, 9]))
+
+
+def test_num_species():
+    # Five different atomic numbers
+    numbers = [[1, 2, 5], [1, 5, 7], [1], [2, 9]]
+
+    def make_graph(atomic_numbers):
+        return jraph.GraphsTuple(
+            nodes={keys.ATOMIC_NUMBERS: np.array(atomic_numbers)},
+            n_node=len(atomic_numbers),
+            edges=None,
+            n_edge=0,
+            globals=None,
+            senders=None,
+            receivers=None,
+        )
+
+    graphs = list(map(make_graph, numbers))
+
+    metric = atomic.NumSpecies.empty()
+    for graph in graphs:
+        metric = metric.update(graph)
+
+    assert metric.compute() == 5
+
+
+def test_type_contribution_lst_sq():
+    batch_size: Final = 1
+    num_types: Final = 5
+    numbers: Final = [[0, 1, 4], [0, 2, 3], [0, 0], [1, 3, 1]]
+    type_counts: Final = np.array(
+        list(map(lambda num: np.bincount(num, minlength=num_types), numbers))
+    )
+    energies: Final = np.array([1.0, 2.0, 3.0, 4.0])
+    masks: Final = np.array([True, True, False, True])
+
+    data = list(zip(type_counts, energies, masks))
+
+    def add_batchdim(counts, energy, mask):
+        return (
+            counts.reshape(batch_size, -1),
+            energy.reshape(batch_size, -1),
+            mask.reshape(batch_size),
+        )
+
+    # Calculate the metric
+    metric = gcnn.atomic.TypeContributionLstsq.empty()
+    for counts, energy, mask in data:
+        counts, energy, mask = add_batchdim(counts, energy, mask)
+        metric = metric.update(counts, energy, mask)
+    res = metric.compute()[:, 0]
+    expected = np.linalg.lstsq(type_counts[masks], energies[masks])[0]
+
+    assert np.allclose(res, expected)
+
+    # Calculate the metric by starting from .create()
+    metric = gcnn.atomic.TypeContributionLstsq.create(*add_batchdim(*data[0]))
+    for counts, energy, mask in data:
+        counts, energy, mask = add_batchdim(counts, energy, mask)
+        metric = metric.update(counts, energy, mask)
+    res = metric.compute()[:, 0]
+    expected = np.linalg.lstsq(type_counts[masks], energies[masks])[0]
+
+    assert np.allclose(res, expected)

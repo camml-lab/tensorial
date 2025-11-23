@@ -29,8 +29,8 @@ def graph_from_points(
     cell: CellType | None = None,
     pbc: bool | PbcType | None = None,
     nodes: dict[str, jt.Num[Array, "n_nodes *"]] | None = None,
-    edges: dict = None,
-    graph_globals: dict = None,
+    edges: dict | None = None,
+    graph_globals: dict[str, Array] | None = None,
     np_=np,
 ) -> jraph.GraphsTuple:
     """

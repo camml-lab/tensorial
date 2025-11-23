@@ -1,21 +1,28 @@
 from collections.abc import Hashable, Iterable, Mapping, MutableMapping
 import numbers
+from typing import TYPE_CHECKING
 
 import jraph
 import numpy as np
 
-from tensorial.typing import CellType, PbcType
+from tensorial.typing import Array, CellType, PbcType
 
 from . import keys
 from .. import _spatial as gcnn_graphs
 from ... import base
+
+if TYPE_CHECKING:
+    try:
+        import pymatgen
+    except ImportError:
+        pass
 
 __all__ = "graph_from_pymatgen", "graph_from_ase"
 
 
 # too slow: @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_pymatgen(
-    pymatgen_structure: "pymatgen.SiteCollection",
+    pymatgen_structure: "pymatgen.core.SiteCollection",
     r_max: numbers.Number,
     *,
     key_mapping: dict[str, str] | None = None,
@@ -24,6 +31,7 @@ def graph_from_pymatgen(
     global_include_keys: Iterable | None = tuple(),
     cell: CellType | None = None,
     pbc: bool | PbcType | None = None,
+    graph_globals: dict[str, Array] | None = None,
     **kwargs,
 ) -> jraph.GraphsTuple:
     """Create a jraph Graph from a pymatgen SiteCollection object or subclass
@@ -71,7 +79,7 @@ def graph_from_pymatgen(
     for key in edge_include_keys:
         get_attrs(edges, pymatgen_structure.properties, key, key_mapping)
 
-    graph_globals = {}
+    graph_globals = graph_globals or {}
     for key in global_include_keys:
         get_attrs(graph_globals, pymatgen_structure.properties, key, key_mapping)
 

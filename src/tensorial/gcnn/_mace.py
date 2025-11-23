@@ -1,7 +1,7 @@
 from collections.abc import Callable, Iterable
 import functools
 import math
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 import beartype
 import e3nn_jax as e3j
@@ -15,9 +15,6 @@ from tensorial import gcnn, nn_utils
 from tensorial.typing import Array, IndexArray, IntoIrreps, IrrepLike, IrrepsArrayShape
 
 from . import _base, _message_passing, experimental, keys
-
-if TYPE_CHECKING:
-    from tensorial.types import IndexArray, IntoIrreps, IrrepLike, IrrepsArrayShape
 
 A025582 = [0, 1, 3, 7, 12, 20, 30, 44, 65, 80, 96, 122, 147, 181, 203, 251, 289]
 
@@ -120,14 +117,14 @@ class SymmetricContraction(linen.Module):
             #       out
 
             for (mul, ir_out), basis_fn in zip(basis.irreps, basis.chunks):
-                basis_fn: jt.Float[
-                    Array, "irreps_in^order multiplicity irreps_out"
-                ] = basis_fn.astype(inp.dtype)
+                basis_fn: jt.Float[Array, "irreps_in^order multiplicity irreps_out"] = (
+                    basis_fn.astype(inp.dtype)
+                )
 
                 weights: jt.Float[Array, "multiplicity num_features"] = self.param(
                     f"w{order}_{ir_out}",
                     linen.initializers.normal(
-                        stddev=(mul ** -0.5) ** (1.0 - self._gradient_normalisation)
+                        stddev=(mul**-0.5) ** (1.0 - self._gradient_normalisation)
                     ),
                     (self.num_types, mul, inputs.shape[0]),
                     self.param_dtype,
@@ -136,7 +133,7 @@ class SymmetricContraction(linen.Module):
                 weights = weights[input_type]  # pylint: disable=unsubscriptable-object
 
                 # normalize the weights
-                weights = weights * (mul ** -0.5) ** self._gradient_normalisation
+                weights = weights * (mul**-0.5) ** self._gradient_normalisation
 
                 if ir_out not in outputs:
                     outputs[ir_out] = (

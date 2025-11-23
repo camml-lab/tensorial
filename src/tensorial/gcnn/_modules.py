@@ -64,8 +64,8 @@ class Rescale(linen.Module):
 
     shift_fields: str | Sequence[Hashable] = tuple()
     scale_fields: str | Sequence[Hashable] = tuple()
-    shift: jax.Array = 0.0
-    scale: jax.Array = 1.0
+    shift: jax.typing.ArrayLike = 0.0
+    scale: jax.typing.ArrayLike = 1.0
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init

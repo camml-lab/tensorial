@@ -1,10 +1,7 @@
-import collections
 from collections.abc import Iterable, Iterator, Sequence
-import enum
-import functools
 import itertools
 import logging
-from typing import Any, Final
+from typing import TYPE_CHECKING
 
 import beartype
 import jax
@@ -13,27 +10,28 @@ import jraph
 import numpy as np
 from pytray import tree
 import reax
-from typing_extensions import override
 
-from . import keys, utils
-from .. import utils as tensorial_utils
+from . import _common
+from .. import keys, utils
+from ... import utils as tensorial_utils
 
-GraphsOrGraphsTuple = jraph.GraphsTuple | tuple[jraph.GraphsTuple, ...]
+if TYPE_CHECKING:
+    import tensorial.gcnn.data
 
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class GraphBatch(tuple):
-    inputs: jraph.GraphsTuple
-    targets: Any | None
+__all__ = (
+    "max_padding",
+    "generated_padded_graphs",
+    "add_padding_mask",
+    "pad_with_graphs",
+    "GraphBatcher",
+)
 
 
-GraphDataset = reax.data.Dataset[GraphBatch]  # pylint: disable=invalid-name
-GraphPadding = collections.namedtuple("GraphPadding", ["n_nodes", "n_edges", "n_graphs"])
-
-
-def max_padding(*padding: GraphPadding) -> "GraphPadding":
+def max_padding(*padding: "tensorial.gcnn.data.GraphPadding") -> "tensorial.gcnn.data.GraphPadding":
     """Get a padding that contains the maximum number of nodes, edges and graphs over all the
     provided paddings"""
     n_node = 0
@@ -43,24 +41,16 @@ def max_padding(*padding: GraphPadding) -> "GraphPadding":
         n_node = max(n_node, pad.n_nodes)
         n_edge = max(n_edge, pad.n_edges)
         n_graph = max(n_graph, pad.n_graphs)
-    return GraphPadding(n_node, n_edge, n_graph)
-
-
-class GraphAttributes(enum.IntFlag):
-    NODES = 0b0001
-    EDGES = 0b0010
-    GLOBALS = 0b0100
-    ALL = NODES | EDGES | GLOBALS
-
-
-class BatchMode(str, enum.Enum):
-    IMPLICIT = "implicit"
-    EXPLICIT = "explicit"
+    return _common.GraphPadding(n_node, n_edge, n_graph)
 
 
 def generated_padded_graphs(
-    dataset: GraphDataset, add_mask=False, num_nodes=None, num_edges=None, num_graphs=None
-) -> Iterator[GraphBatch]:
+    dataset: "tensorial.gcnn.data.GraphDataset",
+    add_mask=False,
+    num_nodes=None,
+    num_edges=None,
+    num_graphs=None,
+) -> "Iterator[tensorial.gcnn.data.GraphBatch]":
     """
     Provides an iterator over graphs tuple batches that are padded to make the number of nodes,
     edges and graphs in each batch equal to the maximum found in the dataset
@@ -90,13 +80,13 @@ def generated_padded_graphs(
             if add_mask:
                 batch_out = add_padding_mask(batch_out)
 
-        yield GraphBatch((batch_in, batch_out))
+        yield _common.GraphBatch((batch_in, batch_out))
 
 
 def add_padding_mask(
     graph: jraph.GraphsTuple,
     mask_field=keys.MASK,
-    what=GraphAttributes.ALL,
+    what=_common.GraphAttributes.ALL,
     overwrite=False,
     np_=None,
 ) -> jraph.GraphsTuple:
@@ -116,19 +106,19 @@ def add_padding_mask(
 
     # Create the masks that we have been asked to add
     masks = {}
-    if what & GraphAttributes.NODES:
+    if what & _common.GraphAttributes.NODES:
         mask = jraph.get_node_padding_mask(graph)
         if not isinstance(mask, np_.ndarray):
             mask = np_.array(mask)
         masks["nodes"] = mask
 
-    if what & GraphAttributes.EDGES:
+    if what & _common.GraphAttributes.EDGES:
         mask = jraph.get_edge_padding_mask(graph)
         if not isinstance(mask, np_.ndarray):
             mask = np_.array(mask)
         masks["edges"] = mask
 
-    if what & GraphAttributes.GLOBALS:
+    if what & _common.GraphAttributes.GLOBALS:
         mask = jraph.get_graph_padding_mask(graph)
         if not isinstance(mask, np_.ndarray):
             mask = np_.array(mask)
@@ -161,105 +151,6 @@ def pad_with_graphs(
     return padded
 
 
-class GraphLoader(reax.DataLoader[GraphsOrGraphsTuple, GraphsOrGraphsTuple]):
-    """Data loader for graphs"""
-
-    @jt.jaxtyped(typechecker=beartype.beartype)
-    def __init__(
-        self,
-        *datasets: jraph.GraphsTuple | Sequence[jraph.GraphsTuple] | None,
-        batch_size: int = 1,
-        shuffle: bool = False,
-        pad: bool | None = None,
-        padding: GraphPadding | None = None,
-        batch_mode: BatchMode | str = BatchMode.IMPLICIT,
-        sampler: reax.data.Sampler = None,
-    ):
-        # Params
-        self._batch_size: Final[int] = batch_size
-        self._shuffle: Final[bool] = shuffle
-
-        # State
-        # If the graphs were supplied as GraphTuples then unbatch them to have a base sequence of
-        # individual graphs per input
-        self._dataset = tuple(
-            jraph.unbatch_np(graphs) if isinstance(graphs, jraph.GraphsTuple) else graphs
-            for graphs in datasets
-        )
-        self._sampler = self._create_sampler(self._dataset, batch_size, shuffle, sampler)
-
-        if pad is None:
-            pad = padding is not None
-
-        create_batcher = functools.partial(
-            GraphBatcher,
-            batch_size=batch_size,
-            shuffle=shuffle,
-            pad=pad,
-            padding=padding,
-            mode=batch_mode,
-        )
-        self._batchers: tuple[GraphBatcher | None, ...] = tuple(
-            create_batcher(graph_batch) if graph_batch is not None else None
-            for graph_batch in self._dataset
-        )
-
-    @staticmethod
-    def _create_sampler(
-        dataset, batch_size: int, shuffle: bool, sampler: reax.data.Sampler | None
-    ) -> reax.data.Sampler:
-        if sampler is not None:
-            return sampler
-
-        example = next(filter(lambda g: g is not None, dataset))
-        return reax.data.samplers.create_sampler(example, batch_size=batch_size, shuffle=shuffle)
-
-    @property
-    def batch_size(self) -> int:
-        return self._batch_size
-
-    @property
-    def shuffle(self) -> bool:
-        return self._shuffle
-
-    @override
-    @property
-    def dataset(self):
-        return self._dataset
-
-    @property
-    def padding(self) -> GraphPadding:
-        return self._batchers[0].padding
-
-    @property
-    def sampler(self) -> "reax.data.Sampler":
-        """Access the index sampler used by the dataloader"""
-        return self._sampler
-
-    @override
-    def __len__(self) -> int:
-        return len(self.sampler)
-
-    @override
-    def __iter__(self) -> Iterator[tuple[jraph.GraphsTuple, ...]]:
-        for idxs in self._sampler:
-            batch_graphs = tuple(
-                batcher.fetch(idxs) if batcher is not None else None for batcher in self._batchers
-            )
-            yield batch_graphs
-
-    @override
-    def with_new_sampler(self, sampler: "reax.data.Sampler") -> "GraphLoader":
-        """Recreate the loader with the given index sampler"""
-        return GraphLoader(
-            *self._dataset,
-            batch_size=self.batch_size,
-            shuffle=self.shuffle,
-            padding=self.padding,
-            sampler=sampler,
-        )
-
-
 class GraphBatcher(Iterable[jraph.GraphsTuple]):
     """
     Take an iterable of graphs tuples and break it up into batches
@@ -274,9 +165,9 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         shuffle: bool = False,
         pad: bool = False,
         add_mask: bool = True,
-        padding: GraphPadding | None = None,
+        padding: "tensorial.gcnn.data.GraphPadding | None" = None,
         drop_last: bool = False,
-        mode: str | BatchMode = BatchMode.IMPLICIT,
+        mode: "str | tensorial.gcnn.data.BatchMode" = _common.BatchMode.IMPLICIT,
     ):
         if add_mask and not pad:
             _LOGGER.warning(
@@ -288,7 +179,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         # Params
         self._batch_size: int = batch_size
         self._add_mask: bool = add_mask
-        self._mode: BatchMode = BatchMode(mode)
+        self._mode: "tensorial.gcnn.data.BatchMode" = _common.BatchMode(mode)
 
         if isinstance(graphs, jraph.GraphsTuple):
             graphs = jraph.unbatch_np(graphs)
@@ -297,7 +188,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
                 if len(graph.n_node) != 1:
                     raise ValueError("``graphs`` should be a sequence of individual graphs")
 
-        if self._mode is BatchMode.IMPLICIT:
+        if self._mode is _common.BatchMode.IMPLICIT:
             if pad and padding is None:
                 # Automatically determine padding
                 padding = self.calculate_padding(graphs, batch_size, with_shuffle=shuffle)
@@ -309,7 +200,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
                 pad=True,
                 add_mask=True,
                 padding=padding,
-                mode=BatchMode.IMPLICIT,
+                mode=_common.BatchMode.IMPLICIT,
             )
             graphs = list(batcher)
             if padding is None:
@@ -328,7 +219,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         return self._batch_size
 
     @property
-    def padding(self) -> GraphPadding:
+    def padding(self) -> "tensorial.gcnn.data.GraphPadding":
         return self._padding
 
     def __len__(self) -> int:
@@ -344,7 +235,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
     @staticmethod
     def calculate_padding(
         graphs: Sequence[jraph.GraphsTuple], batch_size: int, with_shuffle: bool = False
-    ) -> GraphPadding:
+    ) -> "tensorial.gcnn.data.GraphPadding":
         """Calculate the padding necessary to fit the given graphs into a batch"""
         if with_shuffle:
             # Calculate the maximum possible number of nodes and edges over any possible shuffling
@@ -363,7 +254,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
                 pad_edges = max(pad_edges, sum(graph.n_edge.item() for graph in batch))
             pad_nodes += 1
 
-        return GraphPadding(pad_nodes, pad_edges, n_graphs=batch_size + 1)
+        return _common.GraphPadding(pad_nodes, pad_edges, n_graphs=batch_size + 1)
 
     def fetch(self, idxs: Sequence[int]) -> jraph.GraphsTuple:
         if len(idxs) > self._batch_size:
@@ -372,7 +263,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
                 f"({self._batch_size}), got {len(idxs)}"
             )
 
-        if self._mode is BatchMode.IMPLICIT:
+        if self._mode is _common.BatchMode.IMPLICIT:
             return self._fetch_batch(self._graphs, idxs)
 
         return self._fetch_batch_explicit(self._graphs, idxs)
@@ -410,37 +301,6 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         batch = stack_graphs_tuple(graph_list, np_=np_)
 
         return batch
-
-
-def get_by_path(graph: jraph.GraphsTuple, path: tuple, pad_value=None) -> Any:
-    res = tree.get_by_path(graph._asdict(), path)
-    np_ = tensorial_utils.infer_backend(res)
-
-    if pad_value is not None:
-        mask = np_.ones(res.shape[0], dtype=bool)
-        if path[0] == "globals":
-            mask = jraph.get_graph_padding_mask(graph)
-        elif path[0] == "edges":
-            mask = jraph.get_edge_padding_mask(graph)
-        elif path[0] == "nodes":
-            mask = jraph.get_node_padding_mask(graph)
-        res = np_.where(mask, res, pad_value)
-
-    return res
-
-
-def get_graph_stats(*graph: jraph.GraphsTuple) -> dict:
-    nodes = np.array([len(g.n_node) for g in graph])
-    edges = np.array([len(g.n_edge) for g in graph])
-
-    return dict(
-        min_nodes=nodes.min,
-        max_nodes=nodes.max(),
-        mean_nodes=nodes.mean(),
-        min_edges=edges.min(),
-        max_edges=edges.max(),
-        avg_edges=edges.mean(),
-    )
 
 
 def _chunks(iterable: Iterable, batch_size: int):

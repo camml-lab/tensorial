@@ -11,6 +11,7 @@ import pytest
 import reax
 
 from tensorial import gcnn
+from tensorial.gcnn import keys
 
 
 @pytest.mark.parametrize("mask_field", [None, "auto"])

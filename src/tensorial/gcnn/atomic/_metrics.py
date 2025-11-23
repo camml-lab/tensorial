@@ -15,7 +15,7 @@ from . import keys
 from .. import _common
 from .. import keys as graph_keys
 from .. import metrics
-from ... import nn_utils
+from ... import nn_utils, utils
 
 __all__ = (
     "AllAtomicNumbers",
@@ -36,28 +36,21 @@ def get(mapping: Mapping, key: str):
         raise reax.exceptions.DataNotFound(f"Missing key: {key}") from None
 
 
-class AllAtomicNumbers(reax.metrics.FromFun):
-    metric = reax.metrics.Unique
-
-    @staticmethod
-    def func(graph: jraph.GraphsTuple, *_):
-        return get(graph.nodes, keys.ATOMIC_NUMBERS), graph.nodes.get(graph_keys.MASK)
+AllAtomicNumbers = reax.metrics.Unique.from_fun(
+    lambda graph, *_: (get(graph.nodes, keys.ATOMIC_NUMBERS), graph.nodes.get(graph_keys.MASK)),
+    name="AtomicNumbers",
+)
 
 
-class NumSpecies(reax.metrics.FromFun):
-    metric = reax.metrics.NumUnique
-
-    @staticmethod
-    def func(graph: jraph.GraphsTuple, *_):
-        return get(graph.nodes, keys.ATOMIC_NUMBERS), graph.nodes.get(graph_keys.MASK)
+NumSpecies = reax.metrics.NumUnique.from_fun(
+    lambda graph: (get(graph.nodes, keys.ATOMIC_NUMBERS), graph.nodes.get(graph_keys.MASK)),
+    name="Species",
+)
 
 
-class ForceStd(reax.metrics.FromFun):
-    metric = reax.metrics.Std
-
-    @staticmethod
-    def func(graph: jraph.GraphsTuple, *_):
-        return get(graph.nodes, keys.FORCES), graph.nodes.get(graph_keys.MASK)
+ForceStd = reax.metrics.Std.from_fun(
+    lambda graph: (get(graph.nodes, keys.FORCES), graph.nodes.get(graph_keys.MASK)), name="Force"
+)
 
 
 AvgNumNeighbours = reax.metrics.Average.from_fun(
@@ -71,102 +64,162 @@ AvgNumNeighbours = reax.metrics.Average.from_fun(
 class EnergyPerAtomLstsq(reax.metrics.FromFun):
     """Calculate the least squares estimate of the energy per atom"""
 
-    metric = reax.metrics.LeastSquaresEstimate()
+    metric = reax.metrics.LeastSquaresEstimate
 
     @staticmethod
-    def fun(graph, *_):
+    def func(graph, *_):
         return graph.n_node.reshape(-1, 1), graph.globals[keys.TOTAL_ENERGY].reshape(-1)
 
     def compute(self) -> jax.Array:
         return super().compute().reshape(())
 
 
-class TypeContributionLstsq(reax.metrics.Metric[jt.ArrayLike]):
-    type_counts: jt.Int[Array, "batch_size ..."] | None = None
-    values: jt.Float[Array, "batch_size ..."] | None = None
-    mask: jt.Bool[Array, "batch_size ..."] | None = None
+class TypeContributionLstsq(reax.metrics.Metric[Array]):
+    """
+    Online Least Squares Metric.
+
+    Uses 'Sufficient Statistics' (XtX, Xty) to perform linear regression
+    without storing the entire dataset history.
+    """
+
+    # XtX: The Gram Matrix (A.T @ A) -> Shape: (n_types, n_types)
+    xtx: jt.Float[jax.Array, "n_types n_types"] | None = None
+
+    # Xty: The Moment Vector (A.T @ b) -> Shape: (n_types, ...)
+    xty: jt.Float[jax.Array, "n_types ..."] | None = None
 
     @property
     def is_empty(self):
-        return self.type_counts is None
+        return self.xtx is None
+
+    @classmethod
+    @override
+    def empty(cls) -> "TypeContributionLstsq":  # pylint: disable=arguments-differ
+        return cls()
+
+    @classmethod
+    @jt.jaxtyped(typechecker=beartype.beartype)
+    @override
+    def create(  # pylint: disable=arguments-differ
+        cls,
+        type_counts: jt.Int[Array, "batch_size n_types"] | jt.Float[Array, "batch_size n_types"],
+        values: jt.Float[Array, "batch_size ..."],
+        mask: jt.Bool[Array, "batch_size"] | None = None,
+        /,
+    ) -> "TypeContributionLstsq":
+        np_ = utils.infer_backend(type_counts)
+
+        # 1. Cast inputs to float for matrix operations
+        a_mtx = type_counts.astype(np_.float32)
+        b_vec = values
+
+        # 2. Apply shape-stable masking
+        # Instead of A[mask] (which changes shape), we use jnp.where.
+        if mask is not None:
+            # Broadcast mask: (batch,) -> (batch, 1)
+            mask_expanded = mask[:, None]
+
+            # CRITICAL: Use jnp.where instead of (A * mask).
+            # If the masked-out rows in A contain NaNs, (NaN * 0) is still NaN.
+            # jnp.where ensures safe zeros are used for ignored rows.
+            a_mtx = jnp.where(mask_expanded, a_mtx, 0.0)
+
+            # Handle masking for 'b' (values)
+            # We align the mask dimensions to match b
+            if b_vec.ndim > 1:
+                # If b is (batch, targets), reshape mask to (batch, 1)
+                mask_b = mask.reshape((mask.shape[0],) + (1,) * (b_vec.ndim - 1))
+            else:
+                # If b is (batch,), standard mask works
+                mask_b = mask
+
+            b_vec = jnp.where(mask_b, b_vec, 0.0)
+
+        # 3. Compute Sufficient Statistics for this batch
+        # Since ignored rows are now exactly 0.0, they add nothing to the result
+        # of the matrix multiplication, effectively filtering them out.
+
+        # A.T @ A -> (n_types, n_types)
+        batch_xtx = a_mtx.T @ a_mtx
+
+        # A.T @ b -> (n_types, ...)
+        batch_xty = a_mtx.T @ b_vec
+
+        return cls(xtx=batch_xtx, xty=batch_xty)
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def create(
-        # pylint: disable=arguments-differ
+    @override
+    def update(  # pylint: disable=arguments-differ
         self,
-        type_counts: jt.Int[Array, "batch_size ..."],
+        type_counts: jt.Int[Array, "batch_size n_types"] | jt.Float[Array, "batch_size n_types"],
         values: jt.Float[Array, "batch_size ..."],
-        mask: jt.Bool[Array, "batch_size ..."] | None = None,
+        mask: jt.Bool[Array, "batch_size"] | None = None,
+        /,
     ) -> "TypeContributionLstsq":
-        return TypeContributionLstsq(type_counts, values, mask)
+        # Calculate stats for the incoming batch
+        batch_metric = self.create(type_counts, values, mask)
 
-    @jt.jaxtyped(typechecker=beartype.beartype)
-    def update(
-        # pylint: disable=arguments-differ
-        self,
-        type_counts: jt.Int[Array, "batch_size ..."],
-        values: jt.Float[Array, "batch_size ..."],
-        mask: jt.Bool[Array, "batch_size ..."] | None = None,
-    ) -> "TypeContributionLstsq":
         if self.is_empty:
-            return self.create(type_counts, values)  # pylint: disable=not-callable
+            return batch_metric
 
+        # Accumulate: Simple element-wise addition of the matrices
         return TypeContributionLstsq(
-            type_counts=jnp.stack((self.type_counts, values)),
-            values=jnp.stack((self.values, values)),
-            mask=jnp.concatenate((self.mask, mask)),
+            xtx=self.xtx + batch_metric.xtx, xty=self.xty + batch_metric.xty
         )
 
+    @override
     def merge(self, other: "TypeContributionLstsq") -> "TypeContributionLstsq":
         if self.is_empty:
             return other
         if other.is_empty:
             return self
 
-        return TypeContributionLstsq(
-            type_counts=jnp.vstack((self.type_counts, other.type_counts)),
-            values=jnp.vstack((self.values, other.values)),
-            mask=jnp.concatenate((self.mask, other.mask)),
-        )
+        # Merging is just adding the sufficient statistics
+        return TypeContributionLstsq(xtx=self.xtx + other.xtx, xty=self.xty + other.xty)
 
-    def compute(self):
+    @override
+    def compute(self, regularization: float = 1e-6):
         if self.is_empty:
             raise RuntimeError("This metric is empty, cannot compute!")
 
-        # Check if we should mask off unused values
-        if self.mask is None:
-            type_counts = self.type_counts
-            values = self.values
-        else:
-            type_counts = self.type_counts[self.mask]  # pylint: disable=unsubscriptable-object
-            values = self.values[self.mask]  # pylint: disable=unsubscriptable-object
+        np_ = utils.infer_backend(self.xtx)
 
-        return jnp.linalg.lstsq(type_counts, values)[0]
+        # Solve Normal Equation: (A.T A) x = A.T b
+        # We solve for x in: xtx @ x = xty
+
+        # Add small ridge regularization for numerical stability
+        # (prevents crash if matrix is singular or data was empty)
+        eye = np_.eye(self.xtx.shape[0])
+        safe_xtx = self.xtx + (eye * regularization)
+
+        return np_.linalg.solve(safe_xtx, self.xty)
 
 
 class EnergyContributionLstsq(reax.Metric):
-    _type_map: jt.ArrayLike
+    _type_map: jt.Array
     _metric: TypeContributionLstsq | None = None
 
-    def __init__(self, type_map: Sequence, metric: TypeContributionLstsq = None):
+    def __init__(self, type_map: Sequence | Array, metric: TypeContributionLstsq = None):
         if type_map is None:
             raise ValueError("Must supply a value type_map")
         self._type_map = jnp.asarray(type_map)
         self._metric = metric
 
+    @override
     def empty(self) -> "EnergyContributionLstsq":
         if self._metric is None:
             return self
 
         return EnergyContributionLstsq(self._type_map)
 
+    @override
     def merge(self, other: "EnergyContributionLstsq") -> "EnergyContributionLstsq":
         if other._metric is None:  # pylint: disable=protected-access
             return self
         if self._metric is None:
             return other
 
-        return EnergyContributionLstsq(
+        return type(self)(
             type_map=self._type_map,
             metric=self._metric.merge(other._metric),  # pylint: disable=protected-access
         )
@@ -176,7 +229,7 @@ class EnergyContributionLstsq(reax.Metric):
         self, graphs: jraph.GraphsTuple, *_
     ) -> "EnergyContributionLstsq":
         val = self._fun(graphs)  # pylint: disable=not-callable
-        return type(self)(type_map=self._type_map, metric=TypeContributionLstsq(*val))
+        return type(self)(type_map=self._type_map, metric=TypeContributionLstsq.create(*val))
 
     @override
     def update(  # pylint: disable=arguments-differ
