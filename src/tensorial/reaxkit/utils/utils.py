@@ -56,12 +56,12 @@ def task_wrapper(task_func: Callable) -> Callable:
         - etc. (adjust depending on your needs)
 
     Example:
-    ```
-    @utils.task_wrapper
-    def train(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
-        ...
-        return metric_dict, object_dict
-    ```
+    .. code-block:: python
+
+        @utils.task_wrapper
+        def train(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
+            # ...
+            return metric_dict, object_dict
 
     Args:
         task_func: The task function to be wrapped.

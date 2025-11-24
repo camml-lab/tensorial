@@ -198,7 +198,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         return loss_fn(predictions, inputs), metrics
 
     @override
-    def on_before_optimizer_step(self, optimizer: "reax.Optimizer", grad: dict[str, Any], /):
+    def on_before_optimizer_step(self, optimizer: reax.Optimizer, grad: dict[str, Any], /):
         # Compute the 2-norm for each layer
         # If using mixed precision, the gradients are already unscaled here
         if self.debug and self.trainer.current_epoch % 25 == 0:

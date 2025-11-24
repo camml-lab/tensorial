@@ -10,6 +10,10 @@ tensorial
     :target: https://github.com/muhrin/tensorial/actions/workflows/ci.yml
     :alt: Tests
 
+.. image:: https://readthedocs.org/projects/tensorial/badge/
+    :target: https://tensorial.readthedocs.io/
+    :alt: Documentation
+
 .. image:: https://img.shields.io/pypi/v/tensorial.svg
     :target: https://pypi.python.org/pypi/tensorial/
     :alt: Latest Version

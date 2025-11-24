@@ -4,3 +4,5 @@ autodoc
 ipykernel
 myst_nb
 pydata_sphinx_theme
+sphinx-paramlinks
+sphinx-autodoc-typehints

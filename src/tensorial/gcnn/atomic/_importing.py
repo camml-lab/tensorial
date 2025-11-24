@@ -13,6 +13,11 @@ from ... import base
 
 if TYPE_CHECKING:
     try:
+        import ase
+    except ImportError:
+        pass
+
+    try:
         import pymatgen
     except ImportError:
         pass
