@@ -39,14 +39,16 @@ def atleast_1d(arr, np_=jnp) -> jax.Array | np.ndarray:
 
 
 def as_array(arr: jt.ArrayLike | e3j.IrrepsArray) -> jax.Array:
-    """
-    Get a standard JAX array given either:
+    """Get a standard JAX array given either:
         1. a numpy.ndarray
         2. an e3nn_jax.IrrepsArray, or
         3. a jax.Array (in which case it is returned unmodified)
 
-    :param arr: the array to get the value for
-    :return: the JAX array
+    Args:
+        arr: the array to get the value for
+
+    Returns:
+        the JAX array
     """
     if isinstance(arr, e3j.IrrepsArray):
         return arr.array

@@ -20,8 +20,7 @@ A025582 = [0, 1, 3, 7, 12, 20, 30, 44, 65, 80, 96, 122, 147, 181, 203, 251, 289]
 
 
 class SymmetricContraction(linen.Module):
-    """
-    Symmetric tensor contraction up to a given correlation order.
+    """Symmetric tensor contraction up to a given correlation order.
 
     Based on implementation from:
 
@@ -79,21 +78,21 @@ class SymmetricContraction(linen.Module):
         inputs: IrrepsArrayShape["num_features irreps_in"],
         input_type: IndexArray[""],
     ) -> IrrepsArrayShape["num_features irreps_out"]:
-        """
-        This operation is parallel on the feature dimension (but each feature has its own
+        """This operation is parallel on the feature dimension (but each feature has its own
         parameters)
         Efficient implementation of:
-
 
             vmap(lambda w, x: FunctionalLinear(irreps_out)(
                 w, concatenate([x, tensor_product(x, x), tensor_product(x, x, x), ...])))(w, x)
 
-
         up to x power ``self.correlation_order``
 
-        :param inputs: the contraction inputs
-        :param input_type: the contraction index
-        :return: the contraction outputs
+        Args:
+            inputs: the contraction inputs
+            input_type: the contraction index
+
+        Returns:
+            the contraction outputs
         """
         outputs: dict[e3j.Irrep, jt.Array] = dict()
         for order in range(self.correlation_order, 0, -1):  # correlation_order, ..., 1
@@ -265,12 +264,11 @@ class NonLinearReadoutBlock(linen.Module):
 
 
 class MaceLayer(linen.Module):
-    """
-    A MACE layer composed of:
-        * Interaction block
-        * Normalisation
-        * Product basis
-        * (optional) self connection
+    """A MACE layer composed of:
+    * Interaction block
+    * Normalisation
+    * Product basis
+    * (optional) self connection
     """
 
     irreps_out: IntoIrreps

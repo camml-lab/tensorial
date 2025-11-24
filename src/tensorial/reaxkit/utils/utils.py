@@ -20,7 +20,8 @@ def extras(cfg: DictConfig) -> None:
         - Setting tags from command line
         - Rich config printing
 
-    :param cfg: A DictConfig object containing the config tree.
+    Args:
+        cfg: A DictConfig object containing the config tree.
     """
     # return if no `extras` config
     if not cfg.get("extras"):
@@ -62,9 +63,11 @@ def task_wrapper(task_func: Callable) -> Callable:
         return metric_dict, object_dict
     ```
 
-    :param task_func: The task function to be wrapped.
+    Args:
+        task_func: The task function to be wrapped.
 
-    :return: The wrapped task function.
+    Returns:
+        The wrapped task function.
     """
 
     def wrap(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -103,9 +106,12 @@ def task_wrapper(task_func: Callable) -> Callable:
 def get_metric_value(metric_dict: dict[str, Any], metric_name: str | None) -> float | None:
     """Safely retrieves value of the metric logged in reax.Module.
 
-    :param metric_dict: A dict containing metric values.
-    :param metric_name: If provided, the name of the metric to retrieve.
-    :return: If a metric name was provided, the value of the metric.
+    Args:
+        metric_dict: A dict containing metric values.
+        metric_name: If provided, the name of the metric to retrieve.
+
+    Returns:
+        If a metric name was provided, the value of the metric.
     """
     if not metric_name:
         _LOGGER.info("Metric name is None! Skipping metric value retrieval...")

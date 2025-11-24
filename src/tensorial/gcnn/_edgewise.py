@@ -64,8 +64,7 @@ class EdgewiseEmbedding(linen.Module):
 
 
 class EdgewiseDecoding(linen.Module):
-    """
-    Decode the direct sum of irreps stored in the in_field and store each tensor as a node value
+    """Decode the direct sum of irreps stored in the in_field and store each tensor as a node value
     with key coming from the attrs.
     """
 
@@ -127,8 +126,7 @@ class RadialBasisEdgeEmbedding(linen.Module):
 
 
 class EdgeVectors(linen.Module):
-    """
-    Create edge vectors from atomic positions.  This will take into account the unit cell
+    """Create edge vectors from atomic positions.  This will take into account the unit cell
     (if present)
     """
 

@@ -33,17 +33,19 @@ class FromData(reax.stages.Stage):
         dataloader_name: str | None = "train",
         ignore_missing: bool = True,
     ):
-        """
-        Populate a hydra configurations dictionary using calculated stats
+        """Populate a hydra configurations dictionary using calculated stats
 
-        :param cfg: the configuration dictionary
-        :param engine: the trainer strategy
-        :param rngs: the random number generator
-        :param dataloader: the dataloader to use
-        :param datamodule: if no dataloader is specified, a data module can be used instead
-        :param dataloader_name: the datamodule dataloader name
-        :param ignore_missing: if `True`, any data that is needed to calculate a metric but is
-            missing will be ignored, and that metric will not be calculated
+        Args:
+            cfg: the configuration dictionary
+            engine: the trainer strategy
+            rngs: the random number generator
+            dataloader: the dataloader to use
+            datamodule: if no dataloader is specified, a data module can
+                be used instead
+            dataloader_name: the datamodule dataloader name
+            ignore_missing: if `True`, any data that is needed to
+                calculate a metric but is missing will be ignored, and
+                that metric will not be calculated
         """
         super().__init__(
             "from_data",

@@ -5,8 +5,7 @@ from flax import linen
 
 
 class Sequential(linen.Module):
-    """
-    Applies a sequential chain of modules just like :class:`flax.linen.Sequential` _except_ that
+    """Applies a sequential chain of modules just like :class:`flax.linen.Sequential` _except_ that
     flax's version will expand any tuples that it receives when calling the next layer.  This
     doesn't play nice with types that subclass `tuple`, for example, :class:`jraph.GraphsTuple`,
     because the layers expect to get a `GraphsTuple`, not the individual values that make it up.

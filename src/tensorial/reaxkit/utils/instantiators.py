@@ -15,8 +15,12 @@ def instantiate_listeners(
 ) -> list[reax.TrainerListener]:
     """Instantiates listeners from config.
 
-    :param listeners_cfg: A DictConfig object containing listener configurations.
-    :return: A list of instantiated listeners.
+    Args:
+        listeners_cfg: A DictConfig object containing listener
+            configurations.
+
+    Returns:
+        A list of instantiated listeners.
     """
     listeners: list[reax.TrainerListener] = []
 
@@ -41,8 +45,12 @@ def instantiate_listeners(
 def instantiate_loggers(logger_cfg: omegaconf.DictConfig) -> list[reax.Logger]:
     """Instantiates loggers from config.
 
-    :param logger_cfg: A DictConfig object containing logger configurations.
-    :return: A list of instantiated loggers.
+    Args:
+        logger_cfg: A DictConfig object containing logger
+            configurations.
+
+    Returns:
+        A list of instantiated loggers.
     """
     logger: list[reax.Logger] = []
 

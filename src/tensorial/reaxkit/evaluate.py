@@ -21,7 +21,8 @@ def evaluate(cfg: omegaconf.DictConfig) -> None:
     This method is wrapped in optional @task_wrapper decorator, that controls the behavior during
     failure. Useful for multiruns, saving info about the crash, etc.
 
-    :param cfg: DictConfig configuration composed by Hydra.
+    Args:
+        cfg: DictConfig configuration composed by Hydra.
     """
     _LOGGER.info(
         "Instantiating datamodule <%s>",
@@ -76,7 +77,8 @@ def evaluate(cfg: omegaconf.DictConfig) -> None:
 def main(cfg: omegaconf.DictConfig) -> None:
     """Main entry point for evaluation.
 
-    :param cfg: DictConfig configuration composed by Hydra.
+    Args:
+        cfg: DictConfig configuration composed by Hydra.
     """
     # apply extra utilities
     # (e.g. ask for tags if none are provided in cfg, print cfg tree, etc.)

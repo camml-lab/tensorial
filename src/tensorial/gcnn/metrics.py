@@ -140,8 +140,7 @@ class GraphMetric(reax.Metric):
 
 
 class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
-    """
-    Get the average number of node neighbours grouped by node type where the type is an integer
+    """Get the average number of node neighbours grouped by node type where the type is an integer
     found in G.nodes[type_field].
     """
 

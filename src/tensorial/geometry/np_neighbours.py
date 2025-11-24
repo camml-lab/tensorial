@@ -128,12 +128,16 @@ class PeriodicBoundary(distances.NeighbourFinder):
         include_images=True,
     ):
         """
-        :param cell: the unit cell
-        :param cutoff: the cutoff radius that defines if an atom is a neighbour or not
-        :param pbc: specifies which unit cell vectors are to be considered periodic
-        :param include_self: include an atom as its own neighbour within the central unit cell
-        :param include_images: include images of an atom in periodic repetitions of the central
-            unit cell as neighbours
+        Args:
+            cell: the unit cell
+            cutoff: the cutoff radius that defines if an atom is a
+                neighbour or not
+            pbc: specifies which unit cell vectors are to be considered
+                periodic
+            include_self: include an atom as its own neighbour within
+                the central unit cell
+            include_images: include images of an atom in periodic
+                repetitions of the central unit cell as neighbours
         """
         self._cell = cell
         self._cutoff = cutoff

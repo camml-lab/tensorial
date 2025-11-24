@@ -53,9 +53,8 @@ def _create_grad_shim(
     wrt: "Sequence[gcnn.typing.TreePathLike]",
     sum_axis: bool | int | None = None,
 ) -> "Callable[[jraph.GraphsTuple, ...], tuple[tensorial.typing.ArrayType, jraph.GraphsTuple]]":
-    """
-    Create a function that takes the values of the quantities we want to take the derivatives with
-    respect to
+    """Create a function that takes the values of the quantities we want to take the derivatives
+    with respect to
     """
     if of is not None and len(of) < 2:
         raise ValueError(f"of must be of at least length two e.g. ('globals', 'entry'), got: {of}")
@@ -123,10 +122,13 @@ def grad(
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
-    """
-    Build a partially initialised Grad function whose only
-    :param kwargs: accepts any arguments that `Grad` does
-    :return: the partially initialized Grad function
+    """Build a partially initialised Grad function whose only
+
+    Args:
+        kwargs: accepts any arguments that `Grad` does
+
+    Returns:
+        the partially initialized Grad function
     """
     return functools.partial(_graph_autodiff, jax.grad, of=of, wrt=wrt, sign=sign, has_aux=has_aux)
 
@@ -137,10 +139,13 @@ def jacrev(
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
-    """
-    Build a partially initialised Grad function whose only
-    :param kwargs: accepts any arguments that `Grad` does
-    :return: the partially initialized Grad function
+    """Build a partially initialised Grad function whose only
+
+    Args:
+        kwargs: accepts any arguments that `Grad` does
+
+    Returns:
+        the partially initialized Grad function
     """
     return functools.partial(
         _graph_autodiff, jax.jacrev, of=of, wrt=wrt, sign=sign, sum_axis=0, has_aux=has_aux
@@ -153,10 +158,13 @@ def jacfwd(
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
-    """
-    Build a partially initialised Grad function whose only
-    :param kwargs: accepts any arguments that `Grad` does
-    :return: the partially initialized Grad function
+    """Build a partially initialised Grad function whose only
+
+    Args:
+        kwargs: accepts any arguments that `Grad` does
+
+    Returns:
+        the partially initialized Grad function
     """
     return functools.partial(
         _graph_autodiff, jax.jacfwd, of=of, wrt=wrt, sign=sign, sum_axis=0, has_aux=has_aux
@@ -172,10 +180,13 @@ def hessian(
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
-    """
-    Build a partially initialised Grad function whose only
-    :param kwargs: accepts any arguments that `Grad` does
-    :return: the partially initialized Grad function
+    """Build a partially initialised Grad function whose only
+
+    Args:
+        kwargs: accepts any arguments that `Grad` does
+
+    Returns:
+        the partially initialized Grad function
     """
     return functools.partial(
         _graph_autodiff, jax.hessian, of=of, wrt=wrt, sign=sign, sum_axis=None, has_aux=has_aux

@@ -28,12 +28,16 @@ class InteractionBlock(linen.Module):
     and
         https://github.com/mariogeiger/nequip-jax/blob/main/nequip_jax/nequip.py
 
-    :param irreps_out: the irreps of the output node features
-    :param radial_num_layers: the number of layers in the radial MLP
-    :param radial_num_neurons: the number of neurons per layer in the radial MLP
-    :param radial_activation: activation function used by radial MLP
-    :param avg_num_neighbours: average number of neighbours of each node, used for normalisation
-    :param skip_connection: If True, skip connection will be applied at end of interaction
+    Args:
+        irreps_out: the irreps of the output node features
+        radial_num_layers: the number of layers in the radial MLP
+        radial_num_neurons: the number of neurons per layer in the
+            radial MLP
+        radial_activation: activation function used by radial MLP
+        avg_num_neighbours: average number of neighbours of each node,
+            used for normalisation
+        skip_connection: If True, skip connection will be applied at end
+            of interaction
     """
 
     irreps_out: IntoIrreps = 4 * e3j.Irreps("0e + 1o + 2e")
@@ -81,8 +85,7 @@ class InteractionBlock(linen.Module):
         node_mask: jt.Bool[Array, "n_nodes"] | None = None,
         edge_mask: jt.Bool[Array, "n_edges"] | None = None,
     ) -> e3j.IrrepsArray:
-        """
-        A NequIP interaction made up of the following steps:
+        """A NequIP interaction made up of the following steps:
 
         - linear on nodes
         - tensor product + aggregate
@@ -134,8 +137,7 @@ class InteractionBlock(linen.Module):
 
 
 class NequipLayer(linen.Module):
-    """
-    NequIP convolution layer.
+    """NequIP convolution layer.
 
     Implementation based on:
     https://github.com/mir-group/nequip/blob/main/nequip/nn/_convnetlayer.py
@@ -181,11 +183,13 @@ class NequipLayer(linen.Module):
     def __call__(
         self, graph: jraph.GraphsTuple
     ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
-        """
-        Apply a standard NequIP layer followed by an optional resnet step
+        """Apply a standard NequIP layer followed by an optional resnet step
 
-        :param graph: the input graph
-        :return: the output graph with node features updated
+        Args:
+            graph: the input graph
+
+        Returns:
+            the output graph with node features updated
         """
         node_features = self._interaction_block(
             graph.nodes[keys.FEATURES],

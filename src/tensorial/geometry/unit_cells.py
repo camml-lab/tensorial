@@ -25,8 +25,7 @@ def get_cell_multiple_ranges(
 
 
 def get_max_cell_vector_repetitions(cell: CellType, cell_vector: int, cutoff: float) -> float:
-    """
-    Given a unit cell defined by three vectors this will return the number of multiples of the
+    """Given a unit cell defined by three vectors this will return the number of multiples of the
     vector indexed by `cell_vector` that are needed to reach the edge of a sphere with radius
     ``cutoff``. This tells you what multiple of cell vectors you need to go up to (when rounded up
     to the nearest integer) in order to fully cover all points in the sphere, in teh given cell

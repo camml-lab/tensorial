@@ -123,8 +123,7 @@ def _do_extract(archive_path, entry) -> MoleculeDict:
 
 
 def read_qm9(file_handle) -> MoleculeDict:
-    """
-    Format description can be found here:
+    """Format description can be found here:
     https://springernature.figshare.com/articles/dataset/Readme_file_Data_description_for_Quantum_chemistry_structures_and_properties_of_134_kilo_molecules_/1057641?backTo=%2Fcollections%2FQuantum_chemistry_structures_and_properties_of_134_kilo_molecules%2F978904&file=3195392
     """
     if isinstance(file_handle, io.BytesIO):

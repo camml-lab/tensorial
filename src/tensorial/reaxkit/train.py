@@ -116,8 +116,11 @@ def train(cfg: omegaconf.DictConfig | dict):
 def main(cfg: omegaconf.DictConfig) -> float | None:
     """Main entry point for training.
 
-    :param cfg: DictConfig configuration composed by Hydra.
-    :return: Optional[float] with optimized metric value.
+    Args:
+        cfg: DictConfig configuration composed by Hydra.
+
+    Returns:
+        Optional[float] with optimized metric value.
     """
     # apply extra utilities
     # (e.g. ask for tags if none are provided in cfg, print cfg tree, etc.)

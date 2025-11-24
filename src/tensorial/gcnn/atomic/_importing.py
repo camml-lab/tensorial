@@ -41,16 +41,21 @@ def graph_from_pymatgen(
     SiteCollection.atomic_numbers.
     All other keys are used to retrieve site properties using SiteCollection.site_properties.
 
-    :param pymatgen_structure: the SiteCollection object
-    :param r_max: the maximum neighbour distance to use when considering two atoms to be neighbours
-    :param key_mapping:
-    :param atom_include_keys:
-    :param global_include_keys:
-    :param cell: an optional unit cell (otherwise will be taken from Structure.lattice.matrix if
-        it exists)
-    :param pbc: an optional periodic boundary conditions array [bool, bool, bool] (otherwise will be
-        taken from Structure.lattice.pbc if it exists)
-    :return: the atomic graph
+    Args:
+        pymatgen_structure: the SiteCollection object
+        r_max: the maximum neighbour distance to use when considering
+            two atoms to be neighbours
+        key_mapping
+        atom_include_keys
+        global_include_keys
+        cell: an optional unit cell (otherwise will be taken from
+            Structure.lattice.matrix if it exists)
+        pbc: an optional periodic boundary conditions array [bool, bool,
+            bool] (otherwise will be taken from Structure.lattice.pbc if
+            it exists)
+
+    Returns:
+        the atomic graph
     """
     # pylint: disable=too-many-branches
     key_mapping = key_mapping or {}
@@ -110,20 +115,24 @@ def graph_from_ase(
     use_calculator: bool = True,
     **kwargs,
 ) -> jraph.GraphsTuple:
-    """
-    Create a jraph Graph from an ase.Atoms object
+    """Create a jraph Graph from an ase.Atoms object
 
-    :param ase_atoms: the Atoms object
-    :param r_max: the maximum neighbour distance to use when considering two atoms to be neighbours
-    :param key_mapping:
-    :param atom_include_keys:
-    :param global_include_keys:
-    :param cell: an optional unit cell (otherwise will be taken from ase.cell)
-    :param pbc: an optional periodic boundary conditions array [bool, bool, bool] (otherwise will be
-        taken from ase.pbc)
-    :param use_calculator: if `True`, will try to use an attached calculator get additional
-        properties
-    :return: the atomic graph
+    Args:
+        ase_atoms: the Atoms object
+        r_max: the maximum neighbour distance to use when considering
+            two atoms to be neighbours
+        key_mapping
+        atom_include_keys
+        global_include_keys
+        cell: an optional unit cell (otherwise will be taken from
+            ase.cell)
+        pbc: an optional periodic boundary conditions array [bool, bool,
+            bool] (otherwise will be taken from ase.pbc)
+        use_calculator: if `True`, will try to use an attached
+            calculator get additional properties
+
+    Returns:
+        the atomic graph
     """
     # pylint: disable=too-many-branches
     from ase.calculators import singlepoint

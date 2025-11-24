@@ -24,8 +24,7 @@ def load_module(
     checkpointing: reax.training.Checkpointing = None,
     return_config: bool = False,
 ) -> "reaxkit.ReaxModule | tuple[reaxkit.ReaxModule, omegaconf.DictConfig]":
-    """
-    Load a REAX module from a YAML configuration file, optionally restoring parameters
+    """Load a REAX module from a YAML configuration file, optionally restoring parameters
     from a checkpoint.
 
     This function uses Hydra to instantiate a module from a config file and optionally

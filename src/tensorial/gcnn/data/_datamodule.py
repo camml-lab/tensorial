@@ -16,9 +16,7 @@ Dataset = Sequence[jraph.GraphsTuple]
 
 
 class GraphDataModule(reax.DataModule):
-    """
-    A data module that serves jraph.GraphsTuples
-    """
+    """A data module that serves jraph.GraphsTuples"""
 
     def __init__(
         self,
@@ -28,9 +26,10 @@ class GraphDataModule(reax.DataModule):
     ):
         """Initialize the module
 
-        :param dataset: The data loader of all the graphs to use
-        :param train_val_test_split: The train, validation, and test split.
-        :param batch_size: The batch size. Defaults to `32`.
+        Args:
+            dataset: The data loader of all the graphs to use
+            train_val_test_split: The train, validation, and test split.
+            batch_size: The batch size. Defaults to `32`.
         """
         super().__init__()
         # Params
@@ -55,7 +54,9 @@ class GraphDataModule(reax.DataModule):
         between which ensures that all the processes proceed to `self.setup()` once the data is
         prepared and available for use.
 
-        :param stage: The stage to setup. Either `"fit"`, `"validate"`, `"test"`, or `"predict"`.
+        Args:
+            stage: The stage to setup. Either `"fit"`, `"validate"`,
+                `"test"`, or `"predict"`.
         Defaults to ``None``.
         """
         # load and split datasets only if not loaded already
@@ -85,7 +86,8 @@ class GraphDataModule(reax.DataModule):
     def train_dataloader(self) -> reax.DataLoader:
         """Create and return the train dataloader.
 
-        :return: The train dataloader.
+        Returns:
+            The train dataloader.
         """
         if self.data_train is None:
             raise reax.exceptions.MisconfigurationException(
@@ -103,7 +105,8 @@ class GraphDataModule(reax.DataModule):
     def val_dataloader(self) -> reax.DataLoader:
         """Create and return the validation dataloader.
 
-        :return: The validation dataloader.
+        Returns:
+            The validation dataloader.
         """
         if self.data_val is None:
             raise reax.exceptions.MisconfigurationException(
@@ -122,7 +125,8 @@ class GraphDataModule(reax.DataModule):
     def test_dataloader(self) -> reax.DataLoader:
         """Create and return the test dataloader.
 
-        :return: The test dataloader.
+        Returns:
+            The test dataloader.
         """
         if self.data_test is None:
             raise reax.exceptions.MisconfigurationException(

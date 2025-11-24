@@ -20,8 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def shape_check(func: "gcnn.typing.GraphFunction") -> "gcnn.typing.GraphFunction":
-    """
-    Decorator that will print to the logger any differences in either the keys present in
+    """Decorator that will print to the logger any differences in either the keys present in
     the graph before and after the call, or any differences in their shapes.
 
     This is super useful for diagnosing jax re-compilation issues.
@@ -76,18 +75,21 @@ def adapt(
     return_graphs: bool = False,
     **keywords: "gcnn.TreePathLike",
 ) -> TransformedGraphFunction:
-    """
-    Given a graph function, this will return a function that takes a graph as the first argument
+    """Given a graph function, this will return a function that takes a graph as the first argument
     followed by positional arguments that will be mapped to the fields given by ``ins``.
     Output paths can optionally be specified with ``outs`` which, if supplied, will make the
     function return one or more values from the graph as returned by ``fn``.
 
-    :param fn: the graph function
-    :param args: the input paths
-    :param outs: the output paths
-    :param return_graphs: if `True` and ``outs`` is specified, this will return a tuple containing
-        the output graph followed by the values at ``outs``
-    :return: a function that wraps ``fn`` with the above properties
+    Args:
+        fn: the graph function
+        *args: the input paths
+        outs: the output paths
+        return_graphs: if `True` and ``outs`` is specified, this will
+            return a tuple containing the output graph followed by the
+            values at ``outs``
+
+    Returns:
+        a function that wraps ``fn`` with the above properties
     """
     args = tuple(_tree.path_from_str(path) for path in args)
     kwarg_paths = {name: _tree.path_to_str(path) for name, path in keywords.items()}

@@ -22,8 +22,7 @@ __all__ = "Rescale", "IndexedLinear", "IndexedRescale"
 
 
 class Rescale(linen.Module):
-    """
-    Applies constant rescaling and/or shifting to fields in a `jraph.GraphsTuple`.
+    """Applies constant rescaling and/or shifting to fields in a `jraph.GraphsTuple`.
 
     This module modifies specified fields in the graph — which may be located in the
     `nodes`, `edges`, or `globals` — by multiplying them with a scalar factor (`scale`)
@@ -116,8 +115,7 @@ class Rescale(linen.Module):
 
 
 class IndexedRescale(linen.Module):
-    """
-    Applies a per-type affine transformation (scale and shift) to a specified field in a graph.
+    """Applies a per-type affine transformation (scale and shift) to a specified field in a graph.
 
     Each input is scaled and shifted based on an associated index (e.g. atomic or node type).
     The transformation is of the form: `output = input * scale + shift`, where both `scale` and
@@ -221,8 +219,7 @@ class IndexedRescale(linen.Module):
 
 
 class IndexedLinear(linen.Module):
-    """
-    Applies an indexed linear transformation to a field in a `GraphsTuple`.
+    """Applies an indexed linear transformation to a field in a `GraphsTuple`.
 
     This module performs a linear transformation on a per-element basis, where each element is
     routed through a specific linear layer determined by an associated index array. A separate

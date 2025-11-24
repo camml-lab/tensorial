@@ -9,10 +9,9 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class UpdateDict(collections.abc.MutableMapping):
-    """
-    This class can be used to make updates to a dictionary without modifying the passed dictionary.
-    Once all the updates are made, a new dictionary that is the result of the modifications can be
-    retrieved using the `_asdict()` method.
+    """This class can be used to make updates to a dictionary without modifying the passed
+    dictionary. Once all the updates are made, a new dictionary that is the result of the
+    modifications can be retrieved using the `_asdict()` method.
     """
 
     DELETED = tuple()  # Just a token we use to indicate a deleted value

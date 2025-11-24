@@ -1,6 +1,4 @@
-"""
-Common utility functions that operate on graphs
-"""
+"""Common utility functions that operate on graphs"""
 
 from typing import TYPE_CHECKING
 

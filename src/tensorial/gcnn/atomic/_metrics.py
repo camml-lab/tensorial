@@ -75,8 +75,7 @@ class EnergyPerAtomLstsq(reax.metrics.FromFun):
 
 
 class TypeContributionLstsq(reax.metrics.Metric[Array]):
-    """
-    Online Least Squares Metric.
+    """Online Least Squares Metric.
 
     Uses 'Sufficient Statistics' (XtX, Xty) to perform linear regression
     without storing the entire dataset history.

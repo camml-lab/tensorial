@@ -33,7 +33,8 @@ __all__ = (
 
 def max_padding(*padding: "tensorial.gcnn.data.GraphPadding") -> "tensorial.gcnn.data.GraphPadding":
     """Get a padding that contains the maximum number of nodes, edges and graphs over all the
-    provided paddings"""
+    provided paddings
+    """
     n_node = 0
     n_edge = 0
     n_graph = 0
@@ -51,8 +52,7 @@ def generated_padded_graphs(
     num_edges=None,
     num_graphs=None,
 ) -> "Iterator[tensorial.gcnn.data.GraphBatch]":
-    """
-    Provides an iterator over graphs tuple batches that are padded to make the number of nodes,
+    """Provides an iterator over graphs tuple batches that are padded to make the number of nodes,
     edges and graphs in each batch equal to the maximum found in the dataset
     """
     if None in (num_nodes, num_edges, num_graphs):
@@ -90,9 +90,8 @@ def add_padding_mask(
     overwrite=False,
     np_=None,
 ) -> jraph.GraphsTuple:
-    """
-    Add a mask array to the ``mask_field`` of ``graph`` for either nodes, edges and/or globals which
-    can be used to determine which entries are there just for padding (and therefore should be
+    """Add a mask array to the ``mask_field`` of ``graph`` for either nodes, edges and/or globals
+    which can be used to determine which entries are there just for padding (and therefore should be
     ignored in any computations).
 
     If ``overwrite`` is ``True`` then any mask already found in the mask field will be overwritten
@@ -152,9 +151,7 @@ def pad_with_graphs(
 
 
 class GraphBatcher(Iterable[jraph.GraphsTuple]):
-    """
-    Take an iterable of graphs tuples and break it up into batches
-    """
+    """Take an iterable of graphs tuples and break it up into batches"""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
@@ -329,7 +326,8 @@ def _dummy_graph_like(graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
 
 def stack_graphs_tuple(graph_list: list[jraph.GraphsTuple], np_=None) -> jraph.GraphsTuple:
     """Stacks a list of GraphsTuples with array or PyTree fields (e.g. dicts) into one batched
-    GraphsTuple."""
+    GraphsTuple.
+    """
     if np_ is None:
         np_ = tensorial_utils.infer_backend(graph_list)
 

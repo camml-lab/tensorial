@@ -48,8 +48,7 @@ class GraphLoss(equinox.Module):
 
 
 class Loss(GraphLoss):
-    """
-    Simple loss function that passes values from the graph to a function taking numerical values
+    """Simple loss function that passes values from the graph to a function taking numerical values
     such as optax losses
     """
 

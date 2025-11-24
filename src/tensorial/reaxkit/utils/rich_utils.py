@@ -56,11 +56,15 @@ def print_config_tree(
 ) -> None:
     """Prints the contents of a DictConfig as a tree structure using the Rich library.
 
-    :param cfg: A DictConfig composed by Hydra.
-    :param print_order: Determines in what order config components are printed. Default is
-        ``("data", "model", "listeners", "logger", "trainer", "paths", "extras")``.
-    :param resolve: Whether to resolve reference fields of DictConfig. Default is ``False``.
-    :param save_to_file: Whether to export config to the hydra output folder. Default is ``False``.
+    Args:
+        cfg: A DictConfig composed by Hydra.
+        print_order: Determines in what order config components are
+            printed. Default is ``("data", "model", "listeners",
+            "logger", "trainer", "paths", "extras")``.
+        resolve: Whether to resolve reference fields of DictConfig.
+            Default is ``False``.
+        save_to_file: Whether to export config to the hydra output
+            folder. Default is ``False``.
     """
     style = "dim"
     tree = rich.tree.Tree("CONFIG", style=style, guide_style=style)
@@ -106,8 +110,10 @@ def print_config_tree(
 def enforce_tags(cfg: omegaconf.DictConfig, save_to_file: bool = False) -> None:
     """Prompts user to input tags from command line if no tags are provided in config.
 
-    :param cfg: A DictConfig composed by Hydra.
-    :param save_to_file: Whether to export tags to the hydra output folder. Default is ``False``.
+    Args:
+        cfg: A DictConfig composed by Hydra.
+        save_to_file: Whether to export tags to the hydra output folder.
+            Default is ``False``.
     """
     if not cfg.get("tags"):
         if "id" in HydraConfig().cfg.hydra.job:

@@ -60,12 +60,14 @@ def path_to_str(path: "gcnn.typing.TreePathLike", delimiter: str = DEFAULT_DELIM
 def get(
     graph: jraph.GraphsTuple, *path: "gcnn.typing.TreePathLike"
 ) -> jax.Array | tuple[jax.Array, ...]:
-    """
-    Given a graph, this will extract the values as the passed path(s) and return them directly
+    """Given a graph, this will extract the values as the passed path(s) and return them directly
 
-    :param graph: the graph to get values from
-    :param path: the path(s)
-    :return: the values at those paths
+    Args:
+        graph: the graph to get values from
+        *path: the path(s)
+
+    Returns:
+        the values at those paths
     """
     path = tuple(map(path_from_str, path))
     graph_dict = graph._asdict()

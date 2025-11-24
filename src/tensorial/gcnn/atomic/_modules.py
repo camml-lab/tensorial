@@ -19,8 +19,7 @@ __all__ = "SpeciesTransform", "per_species_rescale"
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 class SpeciesTransform(equinox.Module):
-    """
-    Take an ordered list of species and transform them into an integer corresponding to their
+    """Take an ordered list of species and transform them into an integer corresponding to their
     position in the list
     """
 

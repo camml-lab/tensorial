@@ -68,8 +68,7 @@ class NodewiseLinear(linen.Module):
 
 
 class NodewiseReduce(linen.Module):
-    """
-    Applies a reduction operation over node features and stores the result in the graph globals.
+    """Applies a reduction operation over node features and stores the result in the graph globals.
 
     This module reduces a specified field in the graph's node features across all nodes
     (within each graph if batched) using a specified reduction operation (`sum`, `mean`,
@@ -129,8 +128,7 @@ class NodewiseReduce(linen.Module):
 
 
 class NodewiseEmbedding(linen.Module):
-    """
-    Take the attributes in the nodes dictionary given by attrs, embed them, and store the results
+    """Take the attributes in the nodes dictionary given by attrs, embed them, and store the results
     as a direct sum of irreps in the out_field.
     """
 
@@ -187,8 +185,7 @@ class NodewiseEmbedding(linen.Module):
 
 
 class NodewiseDecoding(linen.Module):
-    """
-    Decode the direct sum of irreps stored in the in_field and store each tensor as a node value
+    """Decode the direct sum of irreps stored in the in_field and store each tensor as a node value
     with key coming from the attrs.
     """
 

@@ -9,11 +9,13 @@ ActivationFunction = Callable[[jax.Array], jax.Array]
 
 
 def get_jaxnn_activation(func: ActivationFunction) -> ActivationFunction:
-    """
-    Returns the activation function with `name` form the jax.nn module
+    """Returns the activation function with `name` form the jax.nn module
 
-    :param func: the name of the function (as used in ``jax.nn``)
-    :return: the activation function
+    Args:
+        func: the name of the function (as used in ``jax.nn``)
+
+    Returns:
+        the activation function
     """
     if isinstance(func, Callable):
         return func
@@ -27,18 +29,22 @@ def get_jaxnn_activation(func: ActivationFunction) -> ActivationFunction:
 def prepare_mask(
     mask: jt.Bool[jax.Array, "n_elements"], array: jt.Float[jax.Array, "..."]
 ) -> jt.Float[jax.Array, "n_elements ..."]:
-    """
-    Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure the
-    mask is of the right shape to be compatible with such an operation.  The other alternative is
+    """Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure
+    the mask is of the right shape to be compatible with such an operation.  The other alternative
+    is
 
         ``jnp.where(mask, array.T, ...).T``
 
     but this sometimes leads to creating a copy when doing one or both of the transposes.  I'm not
     sure why, but this approach seems to avoid the problem.
 
-    :param mask: the mask to prepare
-    :param array: the array the mask will be applied to
-    :return: the prepared mask, typically this is just padded with extra dimensions (or reduced)
+    Args:
+        mask: the mask to prepare
+        array: the array the mask will be applied to
+
+    Returns:
+        the prepared mask, typically this is just padded with extra
+        dimensions (or reduced)
     """
     return mask.reshape(-1, *(1,) * len(array.shape[1:]))
 

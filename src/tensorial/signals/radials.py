@@ -48,7 +48,8 @@ class RadialBasis(tensorial.Attr):
 class E3nnRadial(RadialBasis):
     """Select a radial function from the one-hot linspace built into e3nn-jax
 
-    see: https://e3nn-jax.readthedocs.io/en/latest/api/radial.html"""
+    see: https://e3nn-jax.readthedocs.io/en/latest/api/radial.html
+    """
 
     _basis: Callable[[float], jnp.array]
     _cutoff: float
@@ -78,9 +79,8 @@ class E3nnRadial(RadialBasis):
 
 
 class E3nnPolyEnvelope(RadialBasis):
-    """
-    Polynomial envelope that can be used to make a radial basis smoothly approach zero at the cutoff
-    """
+    """Polynomial envelope that can be used to make a radial basis smoothly approach zero at the
+    cutoff"""
 
     _radials: RadialBasis
     _smoothing_start: float

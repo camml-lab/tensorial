@@ -56,7 +56,8 @@ class NeighbourList(equinox.Module, distances.NeighbourList):
     @property
     def did_overflow(self) -> bool:
         """Returns `True` if the list could not accommodate all the neighbours.  The actual number
-        needed is stored in `actual_max_neighbours`"""
+        needed is stored in `actual_max_neighbours`
+        """
         return self.actual_max_neighbours > self.max_neighbours
 
     def get_edges(self) -> distances.Edges:
@@ -253,8 +254,7 @@ def get_cell_list(
 def neighbours_mask_aabb(
     centre: jt.ArrayLike, neighbours: jt.ArrayLike, cutoff: float
 ) -> jax.Array:
-    """
-    Get the indices of all points that are within a cutoff sphere centred on `centre` with a
+    """Get the indices of all points that are within a cutoff sphere centred on `centre` with a
     radius `cutoff` using the Axis Aligned Bounding Box method
     """
     diag = cutoff / jnp.sqrt(3.0)
@@ -277,8 +277,7 @@ def neighbours_mask_aabb(
 def neighbours_mask_direct(
     centre: jt.ArrayLike, neighbours: jt.ArrayLike, cutoff: float
 ) -> jax.Array:
-    """
-    Get the indices of all points that are within a cutoff sphere centred on ``centre`` with a
+    """Get the indices of all points that are within a cutoff sphere centred on ``centre`` with a
     radius ``cutoff`` by calculating all distance vector norms and masking those within the cutoff
     """
     centred = neighbours - centre

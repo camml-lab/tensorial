@@ -122,12 +122,14 @@ class CartesianTensor(base.Attr):
         self,
         tensor: IrrepsArrayShape["irreps"] | IrrepsArrayShape["batch irreps"],
     ) -> jt.Float[jax.Array, "..."] | jt.Float[jax.Array, "batch ..."]:
-        """
-        Take an irrep tensor and perform the change of basis transformation back to a Cartesian
+        """Take an irrep tensor and perform the change of basis transformation back to a Cartesian
         tensor
 
-        :param tensor: the irrep tensor
-        :return: the Cartesian tensor
+        Args:
+            tensor: the irrep tensor
+
+        Returns:
+            the Cartesian tensor
         """
         rot = self.change_of_basis.reshape(-1, self.change_of_basis.shape[-1])
         cartesian = base.as_array(tensor) @ rot.T
