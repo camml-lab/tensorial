@@ -120,7 +120,9 @@ class GraphMetric(reax.Metric):
 
             args.append(targ)
 
-        kwargs = {} if mask is None else {"mask": mask}
+        kwargs = {} 
+        if mask is not None:
+            args.append(mask)
 
         return type(self)(self.parent.create(*args, **kwargs))
 
