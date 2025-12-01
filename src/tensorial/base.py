@@ -77,7 +77,7 @@ class IrrepsObj:
 
 
 Tensorial = Attr | IrrepsObj | type(IrrepsObj) | dict | linen.FrozenDict | e3j.Irreps
-IrrepsTree = IrrepsObj | dict
+IrrepsTree = IrrepsObj | dict[str, Tensorial]
 ValueType = Any | list["ValueType"] | dict[str, "ValueType"]
 
 

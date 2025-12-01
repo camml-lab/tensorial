@@ -137,8 +137,8 @@ class NodewiseEmbedding(linen.Module):
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         if isinstance(self.attrs, (dict, linen.FrozenDict)):
-            values = {}
-            for key in self.attrs.keys():
+            values = []
+            for key, attr in self.attrs.items():
                 path = _tree.path_from_str(key)
                 if len(path) > 1:
                     if not path[0] in ("nodes", "globals"):
@@ -148,6 +148,8 @@ class NodewiseEmbedding(linen.Module):
                     path = ("nodes",) + path
 
                 value = _tree.get(graph, path)
+                value: e3j.IrrepsArray = base.create_tensor(attr, value)
+
                 if path[0] == "globals":
                     if self.node_shape_from is None:
                         # This will not have a static shape, so will cause recompilation
@@ -155,16 +157,25 @@ class NodewiseEmbedding(linen.Module):
                     else:
                         total_repeat_length = graph.nodes[self.node_shape_from].shape[0]
 
-                    value = jnp.repeat(
-                        value, graph.n_node, axis=0, total_repeat_length=total_repeat_length
-                    )
+                    if len(value.shape) < 2:
+                        value = value.broadcast_to((total_repeat_length, *value.shape))
+                    else:
+                        array = jnp.repeat(
+                            value.array,
+                            graph.n_node,
+                            axis=0,
+                            total_repeat_length=total_repeat_length,
+                        )
+                        value = e3j.IrrepsArray(value.irreps, array)
 
-                values[key] = value
+                values.append(value)
+
+            encoded: e3j.IrrepsArray = e3j.concatenate(values)
         else:
             values = graph.nodes
+            # Create the embedding
+            encoded: e3j.IrrepsArray = base.create_tensor(self.attrs, values)
 
-        # Create the embedding
-        encoded = base.create_tensor(self.attrs, values)
         # Store in output field
         nodes = graph.nodes
         nodes[self.out_field] = encoded
