@@ -41,8 +41,8 @@ def test_single_derivative_basic(jit):
         diff = jax.jit(diff)
 
     # Evaluate the derivative with respect to new node positions
-    new_positions = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
-    result = diff(graph, **{"nodes.positions": new_positions})
+    new_pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
+    result = diff(graph, **{"nodes.positions": new_pos})
 
     # Check the shape and value (e.g., gradient magnitude)
     assert result.shape == (2, 3)  # Two nodes, 3 coordinates
@@ -52,7 +52,7 @@ def test_single_derivative_basic(jit):
     diff = gcnn.diff(energy_fn, "globals.energy", wrt="nodes.positions:Iα", out=":Iα", scale=scale)
     if jit:
         diff = jax.jit(diff)
-    result_2 = diff(graph, **{"nodes.positions": new_positions})
+    result_2 = diff(graph, **{"nodes.positions": new_pos})
     assert jnp.allclose(
         result_2, scale * result, atol=1e-5
     ), f"Unexpected derivative result: {result}"
@@ -60,7 +60,7 @@ def test_single_derivative_basic(jit):
     diff = gcnn.diff(
         energy_fn, "globals.energy", wrt="nodes.positions:Iα", out=":Iα", return_graph=True
     )
-    result_3, _ = diff(graph, **{"nodes.positions": new_positions})
+    result_3, _ = diff(graph, **{"nodes.positions": new_pos})
     assert jnp.allclose(result, result_3)
 
 
@@ -70,14 +70,14 @@ def test_single_derivative_at(jit):
     graph = gcnn.graph_from_points(jnp.array([[0.0, 0.0, 0.0], [-1.0, -1.0, -1.0]]), r_max=2.0)
 
     # Evaluate the derivative with respect to new node positions
-    new_positions = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
+    new_pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
 
     # Define the derivative: d(energy) / d(positions)
     diff = gcnn.diff(
         energy_fn,
         "globals.energy",
         wrt="nodes.positions:Iα",
-        at={"nodes.positions": new_positions},
+        at={"nodes.positions": new_pos},
         out=":Iα",
     )
     if jit:

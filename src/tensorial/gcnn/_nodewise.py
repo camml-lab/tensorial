@@ -96,6 +96,7 @@ class NodewiseReduce(linen.Module):
     out_field: str | None = None
     reduce: str = "sum"
     average_num_atoms: float = None
+    as_array: bool = False
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
@@ -121,6 +122,9 @@ class NodewiseReduce(linen.Module):
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         reduced = self.constant * _common.reduce(graph, self._field, self._reduce)
+        if self.as_array and isinstance(reduced, e3j.IrrepsArray):
+            reduced = reduced.array
+
         return exp_utils.update_graph(graph).set(self._out_field, reduced).get()
 
 
