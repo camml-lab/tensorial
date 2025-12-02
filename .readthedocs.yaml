@@ -1,0 +1,20 @@
+# .readthedocs.yaml
+# Required
+version: 2
+
+# Set the version of python and other tools you might need
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.13"
+
+# Build documentation in the docs/ directory with Sphinx
+sphinx:
+  configuration: docs/source/conf.py
+
+# Install your project and the documentation requirements
+python:
+  install:
+  - requirements: docs/requirements.txt # If you made one
+  - method: pip
+    path: . # Installs your package via pip install .
