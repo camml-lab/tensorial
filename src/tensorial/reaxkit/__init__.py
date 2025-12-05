@@ -2,8 +2,11 @@
 training application using tensorial and REAX.
 """
 
-from . import _module, config, evaluate, from_data, train
+from . import _metrics_printer, _module, config, evaluate, from_data, train
+from ._metrics_printer import *
 from ._module import *
 from .from_data import *
 
-__all__ = _module.__all__ + from_data.__all__ + ("config", "evaluate", "train")
+__all__ = (
+    _metrics_printer.__all__ + _module.__all__ + from_data.__all__ + ("config", "evaluate", "train")
+)
