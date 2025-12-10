@@ -61,17 +61,17 @@ class Loss(GraphLoss):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        field: str,
-        target_field: str = None,
-        loss_fn: str | PureLossFn = optax.squared_error,
+        loss_fn: str | PureLossFn,
+        predictions: str,
+        targets: str = None,
         *,
         reduction: Literal["sum", "mean"] | None = "mean",
         label: str = None,
         mask_field: str | None = None,
     ):
         self._loss_fn = _get_pure_loss_fn(loss_fn)
-        self._prediction_field = utils.path_from_str(field)
-        self._target_field = utils.path_from_str(target_field or field)
+        self._prediction_field = utils.path_from_str(predictions)
+        self._target_field = utils.path_from_str(targets or predictions)
         if mask_field is not None:
             self._mask_field = utils.path_from_str(mask_field)
         else:

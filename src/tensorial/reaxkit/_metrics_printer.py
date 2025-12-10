@@ -5,13 +5,16 @@ import sys
 from typing import Final
 
 import jax
+from lightning_utilities.core import rank_zero
 import reax
 import tqdm
 from typing_extensions import override
 
+from .utils import pylogger
+
 __all__ = ("MetricsPrinter",)
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = pylogger.RankedLogger(__name__, rank_zero_only=True)
 
 
 MAX_PRE_DECIMAL_DIGITS: Final[int] = 4
@@ -49,6 +52,14 @@ class MetricsPrinter(reax.listeners.ProgressBar):
         self._enabled = True
         self._header_printed = False
 
+    @property
+    def is_enabled(self) -> bool:
+        return self._enabled
+
+    @property
+    def is_disabled(self) -> bool:
+        return not self.is_enabled
+
     @override
     def enable(self) -> None:
         self._enabled = True
@@ -62,6 +73,7 @@ class MetricsPrinter(reax.listeners.ProgressBar):
         """Override this to customize the tqdm bar for training."""
         return tqdm.tqdm(
             desc=stage.name,
+            disable=self.is_disabled,
             leave=False,
             dynamic_ncols=True,
             file=sys.stdout,
@@ -91,11 +103,11 @@ class MetricsPrinter(reax.listeners.ProgressBar):
                 # Print header using the robust logging method
                 if not self._header_printed:
                     # Log the header as a format string with its values
-                    _LOGGER.log(self._log_level, self._header_format, self._header_values)
+                    self.do_log(self._header_format, self._header_values)
                     self._header_printed = True
 
                 msg, values = self._get_metrics(trainer)
-                _LOGGER.log(self._log_level, msg, values)
+                self.do_log(msg, values)
 
     @override
     def on_stage_iter_start(
@@ -205,6 +217,11 @@ class MetricsPrinter(reax.listeners.ProgressBar):
                 )  # Add the placeholder string to the metrics dictionary
 
         return " ".join(line), metrics
+
+    @rank_zero.rank_zero_only
+    def do_log(self, *args, **kwargs):
+        if self.is_enabled:
+            _LOGGER.log(self._log_level, *args, **kwargs)
 
 
 # Helper to check if a value is a scalar (for logging)

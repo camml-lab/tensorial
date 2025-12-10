@@ -6,6 +6,14 @@ from lightning_utilities.core import rank_zero
 __all__ = ("RankedLogger",)
 
 
+def rank_prefixed_message(message: str, rank: int | None) -> str:
+    """Add a prefix with the rank to a message."""
+    if rank is not None:
+        # specify the rank of the process being logged
+        return f"[rank: {rank}] {message}"
+    return message
+
+
 class RankedLogger(logging.LoggerAdapter):
     """A multi-GPU-friendly python command line logger."""
 
@@ -29,6 +37,13 @@ class RankedLogger(logging.LoggerAdapter):
         super().__init__(logger=logger, extra=extra)
         self.rank_zero_only = rank_zero_only
 
+    def isEnabledFor(self, level):
+        current_rank = getattr(rank_zero.rank_zero_only, "rank", None)
+        if self.rank_zero_only and current_rank != 0:
+            return False
+
+        return super().isEnabledFor(level)
+
     def log(self, level: int, msg: str, *args, rank: int | None = None, **kwargs) -> None:
         """Delegate a log call to the underlying logger, after prefixing its message with the rank
         of the process it's being logged from. If `'rank'` is provided, then the log will only
@@ -49,7 +64,7 @@ class RankedLogger(logging.LoggerAdapter):
             current_rank = getattr(rank_zero.rank_zero_only, "rank", None)
             if current_rank is None:
                 raise RuntimeError("The `rank_zero_only.rank` needs to be set before use")
-            msg = rank_zero.rank_prefixed_message(msg, current_rank)
+            msg = rank_prefixed_message(msg, current_rank)
             if self.rank_zero_only:
                 if current_rank == 0:
                     self.logger.log(level, msg, *args, **kwargs)

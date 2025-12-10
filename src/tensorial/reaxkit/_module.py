@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, Final, cast
 
 import beartype
@@ -39,15 +39,20 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         metrics: MetricsDict | None = None,
         jit=True,
         donate_graph=False,
+        output: Sequence[str] | None = None,
     ):
         super().__init__()
+        # Params
+        self._metrics: Final[reax.metrics.MetricCollection | None] = (
+            metrics if metrics is None else reax.metrics.build_collection(metrics)
+        )
+        self._output: Final[tuple[str, ...]] = self._init_output(output)
+
+        # State
         self._model = model
         self._loss_fn = loss_fn
         self._optimizer = optimizer
         self._scheduler = scheduler
-        self._metrics: Final[reax.metrics.MetricCollection | None] = (
-            metrics if metrics is None else reax.metrics.build_collection(metrics)
-        )
         self._debug = False
         if jit:
             if donate_graph:
@@ -57,6 +62,19 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
 
             self.calculate_metrics = eqx.filter_jit(donate="all")(self.calculate_metrics)
             self._forward = eqx.filter_jit(donate="all")(self._forward)
+
+    @staticmethod
+    def _init_output(output) -> tuple[str]:
+        if output is None:
+            return tuple()
+
+        if isinstance(output, str):
+            return (output,)
+
+        if isinstance(output, Sequence):
+            return tuple(output)
+
+        raise TypeError(f"Unsupported output type: {type(output).__name__}")
 
     @property
     def debug(self) -> bool:
@@ -96,17 +114,23 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
     @override
     def training_step(
         self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int, /
-    ) -> tuple[jax.Array, jax.Array]:
-        inputs, outputs = self._prep_batch(batch)
-        (loss, metrics), grads = jax.value_and_grad(self.step, argnums=0, has_aux=True)(
-            self.parameters(), inputs, outputs, self._model.apply, self._loss_fn, self._metrics
+    ) -> dict[str, Any]:
+        inputs, targets = self._prep_batch(batch)
+        (loss, outs), grads = jax.value_and_grad(self.step, argnums=0, has_aux=True)(
+            self.parameters(),
+            inputs,
+            None,
+            self._model.apply,
+            self._loss_fn,
+            self._metrics,
+            self._output,
         )
-        have_metrics = metrics is not None
+        metrics = outs.get("metrics")
         self.log(
-            "train/loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=not have_metrics
+            "train/loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=metrics is None
         )
 
-        if metrics:
+        if metrics is not None:
             metrics = cast(dict[str, reax.Metric], metrics)
             for name, metric in metrics.items():
                 self.log(
@@ -118,22 +142,34 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
                     prog_bar=True,
                 )
 
-        return loss, grads
+        step_out = {"loss": loss, "grad": grads}
+        if "targets" in self._output:
+            step_out["targets"] = targets
+        if "predictions" in outs:
+            step_out["predictions"] = outs["predictions"]
+
+        return step_out
 
     @override
     def validation_step(
         self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int, /
-    ):
-        inputs, outputs = self._prep_batch(batch)
-        loss, metrics = self.step(
-            self.parameters(), inputs, outputs, self._model.apply, self._loss_fn, self._metrics
+    ) -> dict[str, Any] | None:
+        inputs, targets = self._prep_batch(batch)
+        loss, outs = self.step(
+            self.parameters(),
+            inputs,
+            None,
+            self._model.apply,
+            self._loss_fn,
+            self._metrics,
+            self._output,
         )
-        have_metrics = metrics is not None
+        metrics = outs.get("metrics")
         self.log(
-            "val/loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=not have_metrics
+            "val/loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=metrics is None
         )
 
-        if have_metrics:
+        if metrics is not None:
             metrics = cast(reax.metrics.MetricCollection, metrics)
             for name, metric in metrics.items():
                 self.log(
@@ -145,18 +181,35 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
                     prog_bar=True,
                 )
 
+        if not self._output:
+            return None  # No outputs
+
+        step_out = {}
+        if "targets" in self._output:
+            step_out["targets"] = targets
+        if "predictions" in self._output:
+            step_out["predictions"] = outs["predictions"]
+
+        return step_out
+
     @override
     def test_step(self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int, /):
-        inputs, outputs = self._prep_batch(batch)
-        loss, metrics = self.step(
-            self.parameters(), inputs, outputs, self._model.apply, self._loss_fn, self._metrics
+        inputs, targets = self._prep_batch(batch)
+        loss, outs = self.step(
+            self.parameters(),
+            inputs,
+            None,
+            self._model.apply,
+            self._loss_fn,
+            self._metrics,
+            self._output,
         )
-        have_metrics = metrics is not None
+        metrics = outs.get("metrics")
         self.log(
-            "test/loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=not have_metrics
+            "test/loss", loss, on_step=False, on_epoch=True, logger=True, prog_bar=metrics is None
         )
 
-        if have_metrics:
+        if metrics is not None:
             metrics = cast(reax.metrics.MetricCollection, metrics)
             for name, metric in metrics.items():
                 self.log(
@@ -167,6 +220,17 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
                     logger=True,
                     prog_bar=True,
                 )
+
+        if not self._output:
+            return None  # No outputs
+
+        step_out = {}
+        if "targets" in self._output:
+            step_out["targets"] = targets
+        if "predictions" in self._output:
+            step_out["predictions"] = outs["predictions"]
+
+        return step_out
 
     @override
     def predict_step(self, batch: jraph.GraphsTuple, batch_idx: int, /) -> jraph.GraphsTuple:
@@ -189,13 +253,19 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         model: Callable[[jt.PyTree, jraph.GraphsTuple], jraph.GraphsTuple],
         loss_fn: Callable,
         metrics: reax.metrics.MetricCollection | None = None,
-    ) -> tuple[jax.Array, reax.metrics.MetricCollection | None]:
+        output: tuple[str, ...] | None = None,
+    ) -> tuple[jax.Array, dict]:
         """Calculate loss and, optionally metrics."""
+        outs = {}
         predictions = model(params, inputs)
+        if output and "predictions" in output:
+            outs["predictions"] = predictions
+
         if metrics:
             metrics = metrics.create(predictions, inputs)
+            outs["metrics"] = metrics
 
-        return loss_fn(predictions, inputs), metrics
+        return loss_fn(predictions, inputs), outs
 
     @override
     def on_before_optimizer_step(self, optimizer: reax.Optimizer, grad: dict[str, Any], /):

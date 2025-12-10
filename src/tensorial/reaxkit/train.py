@@ -1,4 +1,3 @@
-import logging
 import pathlib
 
 import hydra
@@ -7,8 +6,9 @@ import omegaconf
 import reax.utils
 
 from . import config, from_data, keys, utils
+from .utils import pylogger
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = pylogger.RankedLogger(__name__, rank_zero_only=True)
 
 DEFAULT_TRAIN_FILE = "train.yaml"
 
