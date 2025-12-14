@@ -225,13 +225,13 @@ class ParityPlotter(reax.TrainerListener):
 class GraphParityPlotter(ParityPlotter):
     def __init__(
         self,
-        target: gcnn.typing.TreePathLike,
-        prediction: gcnn.typing.TreePathLike | None = None,
+        targets: gcnn.typing.TreePathLike,
+        predictions: gcnn.typing.TreePathLike | None = None,
         save_dir: str | pathlib.Path = "plots/",
     ):
         super().__init__(save_dir)
-        self._target_path = gcnn.utils.path_from_str(target)
-        self._prediction_path = self._init_prediction_path(prediction, self._target_path)
+        self._target_path = gcnn.utils.path_from_str(targets)
+        self._prediction_path = self._init_prediction_path(predictions, self._target_path)
 
     @staticmethod
     def _init_prediction_path(
@@ -256,12 +256,12 @@ class GraphParityPlotter(ParityPlotter):
         mask_path = self._target_path[:-1] + ("mask",)
         try:
             mask = np.array(_tree.get(targets_graph, mask_path))
+        except KeyError:
+            pass
+        else:
             targets = np.array(base.as_array(targets))
             predictions = np.array(base.as_array(predictions))
             targets = targets[mask]
             predictions = predictions[mask]
-
-        except KeyError:
-            pass
 
         return targets, predictions

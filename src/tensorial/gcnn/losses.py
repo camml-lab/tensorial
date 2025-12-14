@@ -1,6 +1,6 @@
 import abc
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Final, Literal, Optional
 
 import beartype
 import equinox
@@ -12,7 +12,7 @@ import optax.losses
 from pytray import tree
 import reax
 
-from . import keys, utils
+from . import _tree, keys, segment, typing, utils
 from .. import base
 
 if TYPE_CHECKING:
@@ -53,25 +53,25 @@ class Loss(GraphLoss):
     """
 
     _loss_fn: PureLossFn
-    _prediction_field: "gcnn.typing.TreePath"
     _target_field: "gcnn.typing.TreePath"
+    _prediction_field: "gcnn.typing.TreePath"
     _mask_field: "Optional[gcnn.typing.TreePath]"
-    _reduction: Literal["sum", "mean"] | None
+    _reduction: Literal["sum", "mean"]
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         loss_fn: str | PureLossFn,
-        predictions: str,
-        targets: str = None,
+        targets: str,
+        predictions: str | None = None,
         *,
-        reduction: Literal["sum", "mean"] | None = "mean",
+        reduction: Literal["sum", "mean"] = "mean",
         label: str = None,
         mask_field: str | None = None,
     ):
         self._loss_fn = _get_pure_loss_fn(loss_fn)
-        self._prediction_field = utils.path_from_str(predictions)
-        self._target_field = utils.path_from_str(targets or predictions)
+        self._target_field: Final[typing.TreePath] = utils.path_from_str(targets)
+        self._prediction_field: Final[typing.TreePath] = utils.path_from_str(predictions or targets)
         if mask_field is not None:
             self._mask_field = utils.path_from_str(mask_field)
         else:
@@ -82,14 +82,15 @@ class Loss(GraphLoss):
     def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> jax.Array:
         predictions_dict = predictions._asdict()
 
-        _predictions = base.as_array(tree.get_by_path(predictions_dict, self._prediction_field))
-        _targets = base.as_array(tree.get_by_path(targets._asdict(), self._target_field))
+        pred_values = base.as_array(tree.get_by_path(predictions_dict, self._prediction_field))
+        target_values = base.as_array(tree.get_by_path(targets._asdict(), self._target_field))
 
-        loss = self._loss_fn(_predictions, _targets)
+        loss = self._loss_fn(pred_values, target_values)
 
         # If there is a mask in the graph, then use it by default
-        mask = predictions_dict[self._prediction_field[0]].get(keys.MASK)
-        mask = reax.metrics.utils.prepare_mask(loss, mask)
+        mask = _tree.get_mask(targets, self._target_field)
+        if mask is not None:
+            mask = reax.metrics.utils.prepare_mask(loss, mask)
 
         # Now, check for the presence of a user-defined mask
         if self._mask_field:
@@ -100,14 +101,21 @@ class Loss(GraphLoss):
             else:
                 mask = mask & user_mask
 
-        # Now calculate the number of elements that were masked so that we get the correct mean
-        num_entries = loss.size if mask is None else jnp.array([mask.sum(), *loss.shape[1:]]).prod()
+        root: str = self._target_field[0]
+        if root in ("nodes", "edges"):
+            segments: jt.Int[jax.Array, "n_graph"] = (
+                targets.n_node if root == "nodes" else targets.n_edge
+            )
 
+            loss: jt.Float[jax.Array, "n_graph ..."] = segment.reduce_masked(
+                loss, segments, reduction=self._reduction, mask=mask
+            )
+
+        graph_mask: jt.Bool[jax.Array, "n_graph ..."] | None = targets.globals.get(keys.MASK)
         if self._reduction == "mean":
-            loss = loss / num_entries
-            # loss = loss.sum(where=mask) / num_entries
-        # elif self._reduction == "sum":
-        loss = loss.sum(where=mask)
+            loss = loss.mean(where=graph_mask)
+        else:
+            loss = loss.sum(where=graph_mask)
 
         return loss
 

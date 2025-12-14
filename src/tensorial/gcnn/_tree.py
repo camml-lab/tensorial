@@ -6,6 +6,8 @@ import jax
 import jraph
 from pytray import tree
 
+from . import keys
+
 if TYPE_CHECKING:
     from tensorial import gcnn
 
@@ -89,3 +91,22 @@ def to_paths(
         return tuple(map(path_from_str, wrt))
 
     raise ValueError(f"wrt must be str or list or tuple thereof, got {type(wrt).__name__}")
+
+
+def path_root(
+    path: "gcnn.typing.TreePathLike",
+    delimiter=DEFAULT_DELIMITER,
+) -> "gcnn.typing.TreePath":
+    return path_from_str(path, delimiter=delimiter)[:1]
+
+
+def get_mask(
+    graph: jraph.GraphsTuple,
+    path: "gcnn.typing.TreePathLike",
+    delimiter=DEFAULT_DELIMITER,
+) -> jax.Array | None:
+    path = path_root(path, delimiter) + (keys.MASK,)
+    try:
+        return tree.get_by_path(graph._asdict(), path)
+    except KeyError:
+        return None

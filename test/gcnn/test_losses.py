@@ -1,5 +1,8 @@
+from typing import Literal
+
 import jax
 import jax.numpy as jnp
+import jaxtyping as jt
 import jraph
 import numpy as np
 import optax
@@ -65,19 +68,24 @@ def test_loss(jit, graph_batch: jraph.GraphsTuple):
 def test_masked_loss(jit, mask_field, graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
     loss_fn = losses.Loss(
-        optax_loss, "nodes.force_predictions", "nodes.forces", mask_field=mask_field
+        optax_loss, "nodes.forces", "nodes.force_predictions", mask_field=mask_field
     )
     if jit:
         loss_fn = jax.jit(loss_fn)
 
     loss = loss_fn(graph_batch)
-    assert jnp.isclose(
-        loss,
-        optax_loss(
-            graph_batch.nodes["force_predictions"][graph_batch.nodes["mask"]],
-            graph_batch.nodes["forces"][graph_batch.nodes["mask"]],
-        ).mean(),
+
+    forces = graph_batch.nodes["forces"]
+    pred_forces = graph_batch.nodes["force_predictions"]
+
+    forces_loss = gcnn.segment.reduce_masked(
+        optax_loss(forces, pred_forces),
+        graph_batch.n_node,
+        reduction="mean",
+        mask=graph_batch.nodes["mask"],
     )
+
+    assert jnp.isclose(loss, forces_loss.mean())
 
 
 @pytest.mark.parametrize("jit", [True, False])
@@ -85,8 +93,8 @@ def test_masked_loss(jit, mask_field, graph_batch: jraph.GraphsTuple):
 def test_weighted_loss(jit, weights, graph_batch: jraph.GraphsTuple):
     optax_loss = optax.squared_error
     loss_fns = [
-        losses.Loss(optax_loss, "globals.energy_prediction", "globals.energy"),
-        losses.Loss(optax_loss, "nodes.force_predictions", "nodes.forces"),
+        losses.Loss(optax_loss, "globals.energy", "globals.energy_prediction"),
+        losses.Loss(optax_loss, "nodes.forces", "nodes.force_predictions"),
     ]
 
     loss_fn = losses.WeightedLoss(loss_fns, weights)
@@ -118,7 +126,7 @@ def test_loss_with_padding(jit, graph_batch: jraph.GraphsTuple):
     padded = gcnn.data.add_padding_mask(padded)
 
     optax_loss = optax.squared_error
-    loss_fn = losses.Loss(optax_loss, "globals.energy_prediction", "globals.energy")
+    loss_fn = losses.Loss(optax_loss, "globals.energy", "globals.energy_prediction")
     if jit:
         loss_fn = jax.jit(loss_fn)
 

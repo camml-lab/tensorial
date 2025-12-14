@@ -16,6 +16,7 @@ from . import (
     losses,
     metrics,
     random,
+    segment,
     typing,
     utils,
 )
