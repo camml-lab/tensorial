@@ -12,7 +12,7 @@ from typing_extensions import override
 from tensorial.typing import Array
 
 from . import keys
-from .. import _common
+from .. import graph_ops
 from .. import keys as graph_keys
 from .. import metrics
 from ... import nn_utils, utils
@@ -275,7 +275,9 @@ class EnergyContributionLstsq(reax.Metric):
         # TODO: make it so we don't need to set the value in the graph
         one_hot_field = ("type_one_hot",)
         tree.set_by_path(graphs.nodes, one_hot_field, one_hots)
-        type_counts = _common.reduce(graphs, ("nodes",) + one_hot_field, reduction="sum")
+        type_counts = graph_ops.graph_segment_reduce(
+            graphs, ("nodes",) + one_hot_field, reduction="sum"
+        )
 
         # Predicting values
         try:

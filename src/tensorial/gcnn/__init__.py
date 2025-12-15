@@ -12,11 +12,11 @@ from . import (
     data,
     derivatives,
     experimental,
+    graph_ops,
     keys,
     losses,
     metrics,
     random,
-    segment,
     typing,
     utils,
 )

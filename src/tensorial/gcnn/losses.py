@@ -12,8 +12,8 @@ import optax.losses
 from pytray import tree
 import reax
 
-from . import _tree, keys, segment, typing, utils
-from .. import base
+from . import _tree, graph_ops, keys, typing, utils
+from .. import base, nn_utils
 
 if TYPE_CHECKING:
     from tensorial import gcnn
@@ -107,11 +107,13 @@ class Loss(GraphLoss):
                 targets.n_node if root == "nodes" else targets.n_edge
             )
 
-            loss: jt.Float[jax.Array, "n_graph ..."] = segment.reduce_masked(
+            loss: jt.Float[jax.Array, "n_graph ..."] = graph_ops.segment_reduce(
                 loss, segments, reduction=self._reduction, mask=mask
             )
 
         graph_mask: jt.Bool[jax.Array, "n_graph ..."] | None = targets.globals.get(keys.MASK)
+        if graph_mask is not None:
+            graph_mask = nn_utils.prepare_mask(graph_mask, loss)
         if self._reduction == "mean":
             loss = loss.mean(where=graph_mask)
         else:

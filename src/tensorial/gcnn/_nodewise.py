@@ -6,7 +6,7 @@ from flax import linen
 import jax.numpy as jnp
 import jraph
 
-from . import _base, _common, _tree, keys, utils
+from . import _base, _tree, graph_ops, keys, utils
 from .. import base
 from .experimental import utils as exp_utils
 
@@ -120,7 +120,7 @@ class NodewiseReduce(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
-        reduced = self.constant * _common.reduce(graph, self._field, self._reduce)
+        reduced = self.constant * graph_ops.graph_segment_reduce(graph, self._field, self._reduce)
         if self.as_array and isinstance(reduced, e3j.IrrepsArray):
             reduced = reduced.array
 

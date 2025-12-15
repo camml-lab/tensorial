@@ -1,8 +1,9 @@
-from typing import Literal
+# from typing import Literal
 
 import jax
 import jax.numpy as jnp
-import jaxtyping as jt
+
+# import jaxtyping as jt
 import jraph
 import numpy as np
 import optax
@@ -78,7 +79,7 @@ def test_masked_loss(jit, mask_field, graph_batch: jraph.GraphsTuple):
     forces = graph_batch.nodes["forces"]
     pred_forces = graph_batch.nodes["force_predictions"]
 
-    forces_loss = gcnn.segment.reduce_masked(
+    forces_loss = gcnn.graph_ops.segment_reduce(
         optax_loss(forces, pred_forces),
         graph_batch.n_node,
         reduction="mean",
