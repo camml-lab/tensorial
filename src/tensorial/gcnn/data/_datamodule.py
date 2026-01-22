@@ -5,7 +5,7 @@ import jraph
 import reax
 from typing_extensions import override
 
-from . import _batching, _dataloader
+from . import _batching, _dataloader, _common
 
 if TYPE_CHECKING:
     from tensorial import gcnn
@@ -23,6 +23,7 @@ class GraphDataModule(reax.DataModule):
         dataset: Sequence[jraph.GraphsTuple],
         train_val_test_split: Sequence[int | float] = (0.85, 0.05, 0.1),
         batch_size: int = 32,
+        batch_mode: "gcnn.data.BatchMode | str" = _common.BatchMode.IMPLICIT,
     ):
         """Initialize the module
 
@@ -43,6 +44,7 @@ class GraphDataModule(reax.DataModule):
         self.data_val: Dataset | None = None
         self.data_test: Dataset | None = None
         self._max_padding: "gcnn.data.GraphPadding | None" = None
+        self._batch_mode = batch_mode
 
     @override
     def setup(self, stage: "reax.Stage", /) -> None:
@@ -63,7 +65,7 @@ class GraphDataModule(reax.DataModule):
         if not self.data_train and not self.data_val and not self.data_test:
             # Split up the data
             train, val, test = reax.data.random_split(
-                stage.rngs,
+                self.rngs,
                 dataset=self._dataloader,
                 lengths=self._train_val_test_split,
             )
@@ -71,11 +73,16 @@ class GraphDataModule(reax.DataModule):
 
             # Calculate the maximum padding to use
             paddings: "list[gcnn.data.GraphPadding]" = []
-            for graphs in graph_datasets.values():
-                paddings.append(_batching.GraphBatcher.calculate_padding(graphs, self._batch_size))
+
+            if self._batch_mode == _common.BatchMode.IMPLICIT:
+                for graphs in graph_datasets.values():
+                    paddings.append(_batching.GraphBatcher.calculate_padding(graphs, self._batch_size))
+            
+            else:
+                for graphs in graph_datasets.values():
+                    paddings.append(_batching.GraphBatcher.calculate_padding(graphs, 1))
 
             self.data_train = graph_datasets["train"]
-            self.data_val = graph_datasets["val"]
             self.data_val = graph_datasets["val"]
             self.data_test = graph_datasets["test"]
 
@@ -99,6 +106,7 @@ class GraphDataModule(reax.DataModule):
             batch_size=self._batch_size,
             padding=self._max_padding,
             pad=True,
+            batch_mode = self._batch_mode
         )
 
     @override
@@ -119,6 +127,7 @@ class GraphDataModule(reax.DataModule):
             shuffle=False,
             padding=self._max_padding,
             pad=True,
+            batch_mode = self._batch_mode
         )
 
     @override
@@ -139,4 +148,5 @@ class GraphDataModule(reax.DataModule):
             shuffle=False,
             padding=self._max_padding,
             pad=True,
+            batch_mode = self._batch_mode
         )
