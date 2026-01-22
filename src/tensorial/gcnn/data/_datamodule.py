@@ -5,7 +5,7 @@ import jraph
 import reax
 from typing_extensions import override
 
-from . import _batching, _dataloader, _common
+from . import _batching, _common, _dataloader
 
 if TYPE_CHECKING:
     from tensorial import gcnn
@@ -74,12 +74,21 @@ class GraphDataModule(reax.DataModule):
             # Calculate the maximum padding to use
             paddings: "list[gcnn.data.GraphPadding]" = []
 
-            if self._batch_mode == _common.BatchMode.IMPLICIT:
-                for graphs in graph_datasets.values():
-                    paddings.append(_batching.GraphBatcher.calculate_padding(graphs, self._batch_size))
-            
-            else:
-                for graphs in graph_datasets.values():
+            # Padding is computed with _batching.max_padding(*paddings) -- few lines below.
+            # In explicit mode, if we used self._batch_size to compute the padding,
+            # the number of padding graphs would follow the implicit batching logic.
+            # Thus, in explicit mode we would obtain for the resulting batch:
+            #     batch.n_node.shape == (self._batch_size, self._batch_size + 1)
+            # With this condition, we instead enforce:
+            #     batch.n_node.shape == (self._batch_size, 2)
+            # which is the expected behavior for explicit batching.
+            for graphs in graph_datasets.values():
+                if self._batch_mode is _common.BatchMode.IMPLICIT:
+                    paddings.append(
+                        _batching.GraphBatcher.calculate_padding(graphs, self._batch_size)
+                    )
+
+                else:
                     paddings.append(_batching.GraphBatcher.calculate_padding(graphs, 1))
 
             self.data_train = graph_datasets["train"]
@@ -106,7 +115,7 @@ class GraphDataModule(reax.DataModule):
             batch_size=self._batch_size,
             padding=self._max_padding,
             pad=True,
-            batch_mode = self._batch_mode
+            batch_mode=self._batch_mode,
         )
 
     @override
@@ -127,7 +136,7 @@ class GraphDataModule(reax.DataModule):
             shuffle=False,
             padding=self._max_padding,
             pad=True,
-            batch_mode = self._batch_mode
+            batch_mode=self._batch_mode,
         )
 
     @override
@@ -148,5 +157,5 @@ class GraphDataModule(reax.DataModule):
             shuffle=False,
             padding=self._max_padding,
             pad=True,
-            batch_mode = self._batch_mode
+            batch_mode=self._batch_mode,
         )
