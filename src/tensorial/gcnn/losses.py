@@ -13,7 +13,7 @@ from pytray import tree
 import reax
 
 from . import _tree, graph_ops, keys, typing, utils
-from .. import base, nn_utils
+from .. import base
 
 if TYPE_CHECKING:
     from tensorial import gcnn
@@ -101,6 +101,8 @@ class Loss(GraphLoss):
             else:
                 mask = mask & user_mask
 
+        graph_mask: jt.Bool[jax.Array, "n_graph ..."] | None = targets.globals.get(keys.MASK)
+
         root: str = self._target_field[0]
         if root in ("nodes", "edges"):
             segments: jt.Int[jax.Array, "n_graph"] = (
@@ -108,16 +110,13 @@ class Loss(GraphLoss):
             )
 
             loss: jt.Float[jax.Array, "n_graph ..."] = graph_ops.segment_reduce(
-                loss, segments, reduction=self._reduction, mask=mask
+                loss, segments, reduction=self._reduction, mask=mask, segment_mask=graph_mask
             )
 
-        graph_mask: jt.Bool[jax.Array, "n_graph ..."] | None = targets.globals.get(keys.MASK)
-        if graph_mask is not None:
-            graph_mask = nn_utils.prepare_mask(graph_mask, loss)
-        if self._reduction == "mean":
-            loss = loss.mean(where=graph_mask)
-        else:
-            loss = loss.sum(where=graph_mask)
+        loss = graph_ops.segment_reduce(
+            loss, jnp.array([loss.shape[0]]), reduction=self._reduction, mask=graph_mask
+        )
+        loss = jnp.mean(loss)
 
         return loss
 
