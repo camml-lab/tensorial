@@ -20,7 +20,9 @@ __all__ = (
 )
 
 
-def _prepare_segments(segment_sizes, total_repeat_length: int):
+def _prepare_segments(
+    segment_sizes: jt.Int[jax.Array, "num_segments"], total_repeat_length: int
+) -> tuple[int, jt.Int[jax.Array, "total_repeat_length"]]:
     num_segments: int = segment_sizes.shape[0]
 
     # 1. Generate segment IDs (map each data point to its graph index)
@@ -38,7 +40,7 @@ def segment_sum(
     segment_sizes: jt.Int[jax.Array, "num_segments"],
     mask: jt.Bool[jax.Array, "N ..."] | None = None,
     segment_mask: jt.Bool[jax.Array, "num_segments"] | None = None,
-) -> jax.Array:
+) -> jt.Float[jax.Array, "num_segments ..."]:
     """Performs a masked segment sum reduction over batched graph data.
 
     This function is JAX-jittable and handles the logic for applying a mask
@@ -88,7 +90,7 @@ def segment_mean(
     segment_sizes: jt.Int[jax.Array, "num_segments"],
     mask: jt.Bool[jax.Array, "N ..."] | None = None,
     segment_mask: jt.Bool[jax.Array, "num_segments"] | None = None,
-) -> jax.Array:
+) -> jt.Float[jax.Array, "num_segments ..."]:
     """Performs a masked segment mean reduction over batched graph data.
 
     Args:
@@ -161,7 +163,7 @@ def segment_min(
     segment_sizes: jt.Int[jax.Array, "num_segments"],
     mask: jt.Bool[jax.Array, "N ..."] | None = None,
     segment_mask: jt.Bool[jax.Array, "num_segments"] | None = None,
-) -> jax.Array:
+) -> jt.Float[jax.Array, "num_segments ..."]:
     """Performs a masked segment minimum reduction over batched graph data.
 
     Args:
@@ -183,11 +185,11 @@ def segment_min(
     # 1. Handle Masking for MIN operation
     if mask is not None:
         # Prepare mask for broadcast (e.g., (N,) -> (N, 1))
-        prepared_mask = nn_utils.prepare_mask(mask, data)
+        mask = nn_utils.prepare_mask(mask, data)
 
         # Set invalid (masked-out) values to POSITIVE INFINITY.
         # This ensures they are ignored when finding the minimum.
-        data = jnp.where(prepared_mask, data, jnp.full(data.shape, jnp.inf, dtype=data.dtype))
+        data = jnp.where(mask, data, jnp.inf)
 
     # 2. Perform Segment Minimum Reduction
     data_min = _jraph_segment(
@@ -202,8 +204,8 @@ def segment_min(
     # If segment_mask is provided, invalid segments should be +inf.
     if segment_mask is not None:
         # Broadcast segment_mask
-        segment_mask_b = nn_utils.prepare_mask(segment_mask, data_min)
-        data_min = jnp.where(segment_mask_b, data_min, jnp.full_like(data_min, jnp.inf))
+        segment_mask = nn_utils.prepare_mask(segment_mask, data_min)
+        data_min = jnp.where(segment_mask, data_min, jnp.inf)
 
     return data_min
 
@@ -213,7 +215,7 @@ def segment_max(
     segment_sizes: jt.Int[jax.Array, "num_segments"],
     mask: jt.Bool[jax.Array, "N ..."] | None = None,
     segment_mask: jt.Bool[jax.Array, "num_segments"] | None = None,
-) -> jax.Array:
+) -> jt.Float[jax.Array, "num_segments ..."]:
     """Performs a masked segment maximum reduction over batched graph data.
 
     Args:
@@ -235,11 +237,11 @@ def segment_max(
     # 1. Handle Masking for MAX operation
     if mask is not None:
         # Prepare mask for broadcast (e.g., (N,) -> (N, 1))
-        prepared_mask = nn_utils.prepare_mask(mask, data)
+        mask = nn_utils.prepare_mask(mask, data)
 
         # Set invalid (masked-out) values to NEGATIVE INFINITY.
         # This ensures they are ignored when finding the maximum.
-        data = jnp.where(prepared_mask, data, jnp.full(data.shape, -jnp.inf, dtype=data.dtype))
+        data = jnp.where(mask, data, -jnp.inf)
 
     # 2. Perform Segment maximum Reduction
     data_max = _jraph_segment(
@@ -254,8 +256,8 @@ def segment_max(
     # If segment_mask is provided, invalid segments should be -inf.
     if segment_mask is not None:
         # Broadcast segment_mask
-        segment_mask_b = nn_utils.prepare_mask(segment_mask, data_max)
-        data_max = jnp.where(segment_mask_b, data_max, jnp.full_like(data_max, -jnp.inf))
+        segment_mask = nn_utils.prepare_mask(segment_mask, data_max)
+        data_max = jnp.where(segment_mask, data_max, -jnp.inf)
 
     return data_max
 
@@ -274,7 +276,7 @@ def segment_reduce(
     reduction: Literal["sum", "mean", "min", "max"],
     mask: jt.Bool[jax.Array, "N ..."] | None = None,
     segment_mask: jt.Bool[jax.Array, "num_segments"] | None = None,
-) -> jax.Array:
+) -> jt.Float[jax.Array, "num_segments ..."]:
     """Performs a masked segment reduction over batched graph data.
 
     This function is JAX-jittable and handles the logic for applying a mask
@@ -309,7 +311,7 @@ def graph_segment_reduce(
     graph: jraph.GraphsTuple | dict,
     path: "gcnn.typing.TreePathLike",
     reduction: str = "sum",
-) -> e3j.IrrepsArray | jax.Array:
+) -> jt.Float[jax.Array, "num_segments ..."] | e3j.IrrepsArray:
     if isinstance(graph, jraph.GraphsTuple):
         graph_dict = graph._asdict()
     else:
@@ -340,7 +342,7 @@ def _jraph_segment(
     indices_are_sorted: bool = False,
     unique_indices: bool = False,
     reduction: str = "sum",
-) -> e3j.IrrepsArray | jax.Array:
+) -> jt.Float[jax.Array, "num_segments ..."] | e3j.IrrepsArray:
     try:
         op = getattr(jraph, f"segment_{reduction}")
     except AttributeError:

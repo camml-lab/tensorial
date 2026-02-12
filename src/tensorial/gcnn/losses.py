@@ -113,17 +113,10 @@ class Loss(GraphLoss):
                 loss, segments, reduction=self._reduction, mask=mask, segment_mask=graph_mask
             )
 
-        if graph_mask is not None:
-            graph_mask = nn_utils.prepare_mask(graph_mask, loss)
-
-        mask_val = graph_mask if graph_mask is not None else jnp.ones_like(loss, dtype=bool)
-        loss_sum = jnp.sum(loss, where=mask_val)
-
-        if self._reduction == "mean":
-            count = jnp.sum(mask_val)
-            loss = jnp.where(count > 0, loss_sum / jnp.maximum(count, 1), 0.0)
-        else:
-            loss = loss_sum
+        loss = graph_ops.segment_reduce(
+            loss, jnp.array([loss.shape[0]]), reduction=self._reduction, mask=graph_mask
+        )
+        loss = jnp.mean(loss)
 
         return loss
 
