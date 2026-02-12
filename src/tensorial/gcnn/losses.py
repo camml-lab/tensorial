@@ -13,7 +13,7 @@ from pytray import tree
 import reax
 
 from . import _tree, graph_ops, keys, typing, utils
-from .. import base, nn_utils
+from .. import base
 
 if TYPE_CHECKING:
     from tensorial import gcnn
