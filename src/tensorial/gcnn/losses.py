@@ -101,6 +101,8 @@ class Loss(GraphLoss):
             else:
                 mask = mask & user_mask
 
+        graph_mask: jt.Bool[jax.Array, "n_graph ..."] | None = targets.globals.get(keys.MASK)
+
         root: str = self._target_field[0]
         if root in ("nodes", "edges"):
             segments: jt.Int[jax.Array, "n_graph"] = (
@@ -108,16 +110,20 @@ class Loss(GraphLoss):
             )
 
             loss: jt.Float[jax.Array, "n_graph ..."] = graph_ops.segment_reduce(
-                loss, segments, reduction=self._reduction, mask=mask
+                loss, segments, reduction=self._reduction, mask=mask, segment_mask=graph_mask
             )
 
-        graph_mask: jt.Bool[jax.Array, "n_graph ..."] | None = targets.globals.get(keys.MASK)
         if graph_mask is not None:
             graph_mask = nn_utils.prepare_mask(graph_mask, loss)
+
+        mask_val = graph_mask if graph_mask is not None else jnp.ones_like(loss, dtype=bool)
+        loss_sum = jnp.sum(loss, where=mask_val)
+
         if self._reduction == "mean":
-            loss = loss.mean(where=graph_mask)
+            count = jnp.sum(mask_val)
+            loss = jnp.where(count > 0, loss_sum / jnp.maximum(count, 1), 0.0)
         else:
-            loss = loss.sum(where=graph_mask)
+            loss = loss_sum
 
         return loss
 
