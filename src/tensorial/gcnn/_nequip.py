@@ -35,7 +35,7 @@ class InteractionBlock(linen.Module):
             radial MLP
         radial_activation: activation function used by radial MLP
         avg_num_neighbours: average number of neighbours of each node,
-            used for normalisation
+            used for normalization
         skip_connection: If True, skip connection will be applied at end
             of interaction
     """

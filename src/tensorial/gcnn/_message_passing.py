@@ -10,8 +10,6 @@ from tensorial.typing import Array, IndexArray, IntoIrreps, IrrepsArrayShape
 
 
 class MessagePassingConvolution(linen.Module):
-    """Equivariant message passing convolution operation."""
-
     irreps_out: IntoIrreps
     avg_num_neighbours: float | dict[int, float] = 1.0
 
@@ -40,6 +38,30 @@ class MessagePassingConvolution(linen.Module):
         edge_mask: jt.Bool[Array, "n_edges"] | None = None,
         node_types: jt.Int[Array, "n_nodes"] | None = None,
     ) -> IrrepsArrayShape["n_nodes node_irreps_out"]:
+        """
+        Performs graph convolution operations on node and edge features using tensor products and
+        radial embeddings.
+
+        This function implements a message passing mechanism where node features are updated based
+        on messages from neighbouring nodes and edge features. The messages are processed through a
+        tensor product operation and weighted by a radial MLP that depends on inter-atomic
+        distances.
+
+        Args:
+            node_feats: Node features with shape (n_nodes, node_irreps).
+            edge_features: Edge features with shape (n_edges, edge_irreps).
+            radial_embedding: Radial embeddings with shape (n_edges, radial_embedding_dim).
+            senders: Sender indices for each edge with shape (n_edges,).
+            receivers: Receiver indices for each edge with shape (n_edges,).
+            edge_mask: Optional boolean mask for edges with shape (n_edges,).
+            node_types: Optional node type indices with shape (n_nodes,).
+
+        Returns:
+            Updated node features with shape (n_nodes, node_irreps_out).
+
+        Raises:
+            ValueError: If the input shapes are inconsistent or invalid.
+        """
         irreps_out = e3j.Irreps(self.irreps_out)  # Recast, because flax converts to tuple
 
         # The irreps to use for the output node features

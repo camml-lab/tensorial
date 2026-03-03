@@ -69,6 +69,30 @@ class Loss(GraphLoss):
         label: str = None,
         mask_field: str | None = None,
     ):
+        """
+        Initializes the loss function wrapper with specified parameters.
+
+        This constructor sets up a loss function wrapper that can be used to compute
+        loss values based on target and prediction fields. It supports various loss
+        functions and provides options for reduction and masking.
+
+        Args:
+            loss_fn: The loss function to use, either as a string identifier or a
+                callable implementing the PureLossFn protocol.
+            targets: The path to the target field in the data structure.
+            predictions: The path to the prediction field in the data structure. If
+                None, the target field path will be used.
+            reduction: The reduction method to apply to the computed losses. Either
+                "sum" or "mean".
+            label: The label to use for the loss function. If None, the
+                prediction field path will be used as the label.
+            mask_field: The path to the mask field in the data structure. If None,
+                no masking will be applied.
+
+        Raises:
+            ValueError: If the reduction method is not "sum" or "mean".
+            TypeError: If the loss function is not a valid string or callable.
+        """
         self._loss_fn = _get_pure_loss_fn(loss_fn)
         self._target_field: Final[typing.TreePath] = utils.path_from_str(targets)
         self._prediction_field: Final[typing.TreePath] = utils.path_from_str(predictions or targets)
@@ -131,6 +155,23 @@ class WeightedLoss(GraphLoss):
         loss_fns: Sequence[GraphLoss],
         weights: Sequence[float] | None = None,
     ):
+        """
+        A weighted combination of multiple graph loss functions.
+
+        This class combines multiple graph loss functions with specified weights to
+        create a composite loss function. The weights determine the contribution of
+        each individual loss function to the final combined loss.
+
+        Args:
+            loss_fns: Sequence of graph loss functions to combine.
+            weights: Sequence of weights for each loss function. If None, all
+                weights are set to 1.0.
+
+        Raises:
+            ValueError: If any element in loss_fns is not a subclass of GraphLoss,
+                or if the number of weights does not match the number of loss
+                functions.
+        """
         super().__init__("weighted loss")
         for loss in loss_fns:
             if not isinstance(loss, GraphLoss):

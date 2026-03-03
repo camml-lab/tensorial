@@ -156,6 +156,21 @@ class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
         type_field: str = "type_id",
         state: Averages | None = None,
     ):
+        """
+        Initializes the AvgNumNeighboursByType class with node types, type field, and optional
+        state.
+
+        Args:
+            node_types: Sequence of integers representing the types of nodes or an array with shape
+                (n_types,).
+            type_field: String indicating the field name used to identify node types, defaults to
+                "type_id".
+            state: Optional Averages object containing precomputed state information.
+
+        Raises:
+            ValueError: If node_types is empty or contains invalid values.
+            TypeError: If type_field is not a string or state is not of type Averages or None.
+        """
         self._node_types = jnp.asarray(node_types)
         self._type_field = type_field
         self._state: AvgNumNeighboursByType.Averages | None = state

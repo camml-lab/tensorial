@@ -113,11 +113,11 @@ class ParityPlotter(reax.TrainerListener):
     @override
     def on_train_batch_end(
         self,
-        trainer: reax.Trainer,
-        stage: reax.stages.Train,
+        _trainer: reax.Trainer,
+        _stage: reax.stages.Train,
         outputs: Any,
         batch: Any,
-        batch_idx: int,
+        _batch_idx: int,
         /,
     ) -> None:
         self._collect_batch_data("train", outputs, batch)
@@ -125,11 +125,11 @@ class ParityPlotter(reax.TrainerListener):
     @override
     def on_validation_batch_end(
         self,
-        trainer: reax.Trainer,
-        stage: reax.stages.Validate,
+        _trainer: reax.Trainer,
+        _stage: reax.stages.Validate,
         outputs: Any,
         batch: Any,
-        batch_idx: int,
+        _batch_idx: int,
         /,
     ) -> None:
         self._collect_batch_data("validation", outputs, batch)
@@ -137,11 +137,11 @@ class ParityPlotter(reax.TrainerListener):
     @override
     def on_test_batch_end(
         self,
-        trainer: reax.Trainer,
-        stage: reax.stages.Test,
+        _trainer: reax.Trainer,
+        _stage: reax.stages.Test,
         outputs: Any,
         batch: Any,
-        batch_idx: int,
+        _batch_idx: int,
         /,
     ) -> None:
         self._collect_batch_data("test", outputs, batch)
@@ -149,11 +149,11 @@ class ParityPlotter(reax.TrainerListener):
     @override
     def on_predict_batch_end(
         self,
-        trainer: reax.Trainer,
-        stage: reax.stages.Predict,
+        _trainer: reax.Trainer,
+        _stage: reax.stages.Predict,
         outputs: Any,
         batch: Any,
-        batch_idx: int,
+        _batch_idx: int,
         /,
     ) -> None:
         self._collect_batch_data("predict", outputs, batch)
@@ -173,18 +173,18 @@ class ParityPlotter(reax.TrainerListener):
             self._plot_parity("validation", self._get_save_dir(trainer))
 
     @override
-    def on_fit_end(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
+    def on_fit_end(self, trainer: "reax.Trainer", _stage: "reax.stages.Fit", /) -> None:
         """Fit has ended, plot the collected training data."""
         self._plot_parity("train", self._get_save_dir(trainer))
         self._plot_parity("validation", self._get_save_dir(trainer))
 
     @override
-    def on_test_end(self, trainer: reax.Trainer, stage: reax.stages.Test, /) -> None:
+    def on_test_end(self, trainer: reax.Trainer, _stage: reax.stages.Test, /) -> None:
         """Test has ended, plot the collected test data."""
         self._plot_parity("test", self._get_save_dir(trainer))
 
     @override
-    def on_predict_end(self, trainer: reax.Trainer, stage: reax.stages.Predict, /) -> None:
+    def on_predict_end(self, trainer: reax.Trainer, _stage: reax.stages.Predict, /) -> None:
         """Predict is ending, plot the collected prediction data."""
         self._plot_parity("predict", self._get_save_dir(trainer))
 

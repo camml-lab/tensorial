@@ -85,7 +85,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         self._debug = value
 
     @override
-    def configure_model(self, stage: reax.Stage, batch, /):
+    def configure_model(self, _stage: reax.Stage, batch, /):
         if self.parameters() is None:
             inputs = batch
             if isinstance(batch, tuple):
@@ -113,7 +113,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
 
     @override
     def training_step(
-        self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int, /
+        self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], _batch_idx: int, /
     ) -> dict[str, Any]:
         inputs, targets = self._prep_batch(batch)
         (loss, outs), grads = jax.value_and_grad(self.step, argnums=0, has_aux=True)(
@@ -152,7 +152,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
 
     @override
     def validation_step(
-        self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int, /
+        self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], _batch_idx: int, /
     ) -> dict[str, Any] | None:
         inputs, targets = self._prep_batch(batch)
         loss, outs = self.step(
@@ -193,7 +193,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         return step_out
 
     @override
-    def test_step(self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], batch_idx: int, /):
+    def test_step(self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], _batch_idx: int, /):
         inputs, targets = self._prep_batch(batch)
         loss, outs = self.step(
             self.parameters(),
@@ -233,7 +233,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         return step_out
 
     @override
-    def predict_step(self, batch: jraph.GraphsTuple, batch_idx: int, /) -> jraph.GraphsTuple:
+    def predict_step(self, batch: jraph.GraphsTuple, _batch_idx: int, /) -> jraph.GraphsTuple:
         inputs, _outputs = self._prep_batch(batch)
         return self._forward(self.parameters(), inputs, self._model.apply)
 
@@ -268,7 +268,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         return loss_fn(predictions, inputs), outs
 
     @override
-    def on_before_optimizer_step(self, optimizer: reax.Optimizer, grad: dict[str, Any], /):
+    def on_before_optimizer_step(self, _optimizer: reax.Optimizer, grad: dict[str, Any], /):
         # Compute the 2-norm for each layer
         # If using mixed precision, the gradients are already unscaled here
         if self.debug and self.trainer.current_epoch % 25 == 0:

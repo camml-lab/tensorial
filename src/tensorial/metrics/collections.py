@@ -14,6 +14,12 @@ MetricType = Union[type[Metric], Metric]
 
 
 class MetricCollection(equinox.Module):
+    """A collection of metrics that can be managed and computed together.
+
+    This class provides a way to group multiple metrics and perform operations
+    such as updating, merging, and computing their values in a unified manner.
+    """
+
     _metrics: flax.core.FrozenDict[str, Metric]
 
     @jt.jaxtyped(typechecker=beartype.beartype)

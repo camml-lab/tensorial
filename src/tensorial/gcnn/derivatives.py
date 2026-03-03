@@ -194,6 +194,14 @@ def hessian(
 
 
 class Grad(linen.Module):
+    """
+    The `Grad` class computes gradients of graph-based functions with respect to specified graph
+    attributes. It enables automatic differentiation of operations defined on graph structures,
+    such as computing how changes in node positions affect edge lengths or other graph properties.
+    The class supports both scalar and vector-valued gradients and integrates with JAX for efficient
+    computation.
+    """
+
     func: "gcnn.typing.GraphFunction"
     of: "gcnn.typing.TreePathLike"  # Gradient of
     wrt: "gcnn.TreePathLike | list[gcnn.TreePathLike]"  # Gradient with respect to
