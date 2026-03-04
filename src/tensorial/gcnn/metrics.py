@@ -242,8 +242,24 @@ class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
         # Transform the type numbers from whatever they are to 0, 1, 2....
         types = nn_utils.vwhere(types, self._node_types)
 
-        counts = jnp.bincount(graphs.senders, length=jnp.sum(graphs.n_node).item())
-        mask = reax.metrics.utils.prepare_mask(counts, graphs.nodes.get(keys.MASK))
+        mask = graphs.nodes.get(keys.MASK)
+
+        if graphs.senders.ndim == 1:
+            # Implicit batching
+            num_nodes = mask.shape[0] if mask is not None else jnp.sum(graphs.n_node)
+            counts = jnp.bincount(graphs.senders, length=num_nodes)
+        else:
+            # Explicit batching
+            node_array = mask if mask is not None else jax.tree.leaves(graphs.nodes)[0]
+            num_nodes = node_array.shape[1]
+            counts = jax.vmap(lambda s: jnp.bincount(s, length=num_nodes))(graphs.senders)
+
+        # Flatten everything to be consistent for reax.metrics.Average
+        counts = counts.reshape(-1)
+        mask = mask.reshape(-1) if mask is not None else None
+        types = types.reshape(-1)
+
+        mask = reax.metrics.utils.prepare_mask(counts, mask)
         mask = mask if mask is not None else True
 
         num_classes = len(self._node_types)

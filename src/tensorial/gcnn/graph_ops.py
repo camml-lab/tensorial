@@ -294,7 +294,7 @@ def segment_reduce(
     Returns:
         The reduced array. Shape (num_segments, D) or (num_segments,).
     """
-    # 3Handle Reduction Type
+    # Handle Reduction Type
     try:
         fn = _REDUCTIONS[reduction]
         return fn(data, segment_sizes, mask=mask, segment_mask=segment_mask)
