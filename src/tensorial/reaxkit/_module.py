@@ -1,5 +1,5 @@
 from collections.abc import Callable, Sequence
-from typing import Any, Final, cast
+from typing import Any, Final, TypedDict, cast
 
 import beartype
 import equinox as eqx
@@ -10,13 +10,19 @@ import jraph
 import optax
 import reax
 import reax.utils
-from typing_extensions import override
+from typing_extensions import NotRequired, override
 
 __all__ = ("ReaxModule",)
 
 MetricsDict = dict[str, reax.Metric | str]
 LossFn = Callable[[jraph.GraphsTuple, jraph.GraphsTuple], jax.Array]
 Optimizer = optax.GradientTransformation | Callable[[], optax.GradientTransformation]
+
+
+class StepOutput(TypedDict):
+    loss: NotRequired[jt.Array]
+    targets: NotRequired[jraph.GraphsTuple]
+    predictions: NotRequired[jraph.GraphsTuple]
 
 
 class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
@@ -39,7 +45,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         metrics: MetricsDict | None = None,
         jit=True,
         donate_graph=False,
-        output: Sequence[str] | None = None,
+        output: Sequence[str] | None = ("predictions", "targets"),
     ):
         super().__init__()
         # Params
@@ -114,7 +120,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
     @override
     def training_step(
         self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], _batch_idx: int, /
-    ) -> dict[str, Any]:
+    ) -> StepOutput:
         inputs, targets = self._prep_batch(batch)
         (loss, outs), grads = jax.value_and_grad(self.step, argnums=0, has_aux=True)(
             self.parameters(),
@@ -153,7 +159,7 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
     @override
     def validation_step(
         self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], _batch_idx: int, /
-    ) -> dict[str, Any] | None:
+    ) -> StepOutput | None:
         inputs, targets = self._prep_batch(batch)
         loss, outs = self.step(
             self.parameters(),
@@ -193,7 +199,9 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         return step_out
 
     @override
-    def test_step(self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], _batch_idx: int, /):
+    def test_step(
+        self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple], _batch_idx: int, /
+    ) -> StepOutput | None:
         inputs, targets = self._prep_batch(batch)
         loss, outs = self.step(
             self.parameters(),
@@ -253,12 +261,12 @@ class ReaxModule(reax.Module[jraph.GraphsTuple, jraph.GraphsTuple]):
         model: Callable[[jt.PyTree, jraph.GraphsTuple], jraph.GraphsTuple],
         loss_fn: Callable,
         metrics: reax.metrics.MetricCollection | None = None,
-        output: tuple[str, ...] | None = None,
+        output: tuple[str, ...] = tuple(),
     ) -> tuple[jax.Array, dict]:
         """Calculate loss and, optionally metrics."""
         outs = {}
         predictions = model(params, inputs)
-        if output and "predictions" in output:
+        if "predictions" in output:
             outs["predictions"] = predictions
 
         if metrics:

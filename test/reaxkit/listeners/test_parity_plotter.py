@@ -32,8 +32,8 @@ def test_parity_plotter(tmp_path):
     dataset = np.random.rand(2, 10)
     trainer.fit(module, train_dataloaders=dataset, val_dataloaders=dataset)
 
-    assert (pathlib.Path(trainer.log_dir) / "plots" / "train.pdf").exists()
-    assert (pathlib.Path(trainer.log_dir) / "plots" / "validation.pdf").exists()
+    assert (pathlib.Path(trainer.log_dir) / "plots" / "train_epoch_0.pdf").exists()
+    assert (pathlib.Path(trainer.log_dir) / "plots" / "validation_epoch_0.pdf").exists()
 
 
 def test_graph_parity_plotter(cube_graph: jraph.GraphsTuple, tmp_path):
@@ -49,7 +49,7 @@ def test_graph_parity_plotter(cube_graph: jraph.GraphsTuple, tmp_path):
             globals[keys.predicted(atomic_keys.TOTAL_ENERGY)] = energy.reshape(1, -1)
             return graph._replace(globals=globals)
 
-    plotter = reaxkit.GraphParityPlotter("globals.energy")
+    plotter = reaxkit.GraphParityPlotter("globals.energy", fit_plot_every=5)
     trainer = reax.Trainer(default_root_dir=tmp_path, listeners=plotter)
 
     loss_fn = gcnn.losses.Loss(optax.losses.l2_loss, "globals.predicted_energy", "globals.energy")
@@ -61,7 +61,7 @@ def test_graph_parity_plotter(cube_graph: jraph.GraphsTuple, tmp_path):
         optimizer=optax.adamw(learning_rate=0.01),
         output=["predictions", "targets"],
     )
-    trainer.fit(module, train_dataloaders=dataset, val_dataloaders=dataset)
+    trainer.fit(module, train_dataloaders=dataset, val_dataloaders=dataset, max_epochs=10)
 
-    assert (pathlib.Path(trainer.log_dir) / "plots" / "train.pdf").exists()
-    assert (pathlib.Path(trainer.log_dir) / "plots" / "validation.pdf").exists()
+    assert (pathlib.Path(trainer.log_dir) / "plots" / "train_epoch_9.pdf").exists()
+    assert (pathlib.Path(trainer.log_dir) / "plots" / "validation_epoch_9.pdf").exists()

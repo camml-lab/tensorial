@@ -22,12 +22,22 @@ class ParityPlotter(reax.TrainerListener):
     parity plot at the end of each stage (Train, Validate, Test, Predict).
     """
 
-    def __init__(self, save_dir: str | pathlib.Path = "plots/", fit_plot_every: int = 100):
+    def __init__(
+        self,
+        save_dir: str | pathlib.Path = "plots/",
+        fit_plot_every: int = 10,
+        x_label: str = "True Values (y)",
+        y_label: str = "Predicted Values (y')",
+    ):
         # Params
         self._save_dir: Final[pathlib.Path] = pathlib.Path(save_dir)
         self._plot_every: Final[int] = fit_plot_every
+        self._x_label: Final[str] = x_label
+        self._y_label: Final[str] = y_label
 
         # State
+        self._last_plotted_epoch: dict[str, int] = {}
+
         # Stores data for each stage: {'stage_name': (list of true y's, list of predicted y's)}
         self.data_store: dict[str, tuple[list[np.ndarray], list[np.ndarray]]] = {
             "train": ([], []),
@@ -36,10 +46,21 @@ class ParityPlotter(reax.TrainerListener):
             "predict": ([], []),
         }
 
-    def _collect_batch_data(self, stage_name: str, outputs: Any, batch: Any) -> None:
+    def _should_collect(self, stage_name: str, epoch: int) -> bool:
+        if stage_name in ("test", "predict"):
+            return True
+        if epoch == 0 or (epoch + 1) % self._plot_every == 0:
+            return True
+        last = self._last_plotted_epoch.get(stage_name, 0)
+        return (epoch - last) >= self._plot_every
+
+    def _collect_batch_data(self, stage_name: str, outputs: Any | None, batch: Any) -> bool:
         """Helper to collect true (y) and predicted (y') values."""
         # Assuming batch is a tuple (x, y) and outputs is y' (the prediction).
         # We take the second element of the batch tuple for the true value (y).
+        if outputs is None:
+            return False
+
         y_true, y_pred = self.get_target_predicted(batch, outputs)
 
         # Flatten y_true and y_pred if they are multi-dimensional (e.g., shape (batch_size, 1))
@@ -49,13 +70,18 @@ class ParityPlotter(reax.TrainerListener):
         self.data_store[stage_name][0].append(y_true)
         self.data_store[stage_name][1].append(y_pred)
 
-    def _plot_parity(self, stage_name: str, save_dir: pathlib.Path):
+        return True
+
+    def _plot_parity(self, stage_name: str, save_dir: pathlib.Path, epoch: int | None = None):
         """Helper to create and display the parity plot for the current data."""
         true_y_list, pred_y_list = self.data_store[stage_name]
 
         if not true_y_list:
             _LOGGER.debug("Skipping parity plot for %s: No data collected.", stage_name)
             return
+
+        if epoch is not None:
+            self._last_plotted_epoch[stage_name] = epoch
 
         # 1. Combine all batches into one large numpy array
         # The user requested one large output array which is passed to matplotlib.
@@ -68,7 +94,7 @@ class ParityPlotter(reax.TrainerListener):
         # 3. Create the Parity Plot
         _LOGGER.debug("Generating Parity Plot for %s stage...", stage_name)
 
-        plt.figure(figsize=(8, 8))
+        fig = plt.figure(figsize=(8, 8))
 
         # Determine the range for the ideal line (y=x)
         min_val = min(y_true_all.min(), y_pred_all.min())
@@ -88,14 +114,17 @@ class ParityPlotter(reax.TrainerListener):
             plot_range, plot_range, color="red", linestyle="--", label="Ideal Parity Line (y=x)"
         )
 
-        plt.xlabel("True Values (y)")
-        plt.ylabel("Predicted Values (y')")
+        plt.xlabel(self._x_label)
+        plt.ylabel(self._y_label)
         plt.title(f"Parity Plot: True vs. Predicted ({stage_name.capitalize()} Stage)")
         plt.legend()
         plt.grid(True)
 
         save_dir.mkdir(parents=True, exist_ok=True)
-        plt.savefig(str(save_dir / f"{stage_name}.pdf"), bbox_inches="tight")
+        filename = f"{stage_name}_epoch_{epoch}.pdf" if epoch is not None else f"{stage_name}.pdf"
+        plt.savefig(str(save_dir / filename), bbox_inches="tight")
+
+        plt.close(fig)
 
         # Triggering an image for context/illustration
         _LOGGER.debug("Parity Plot for %s generated.", stage_name)
@@ -107,6 +136,7 @@ class ParityPlotter(reax.TrainerListener):
             "test": ([], []),
             "predict": ([], []),
         }
+        self._last_plotted_epoch.clear()
 
     # --- Implement Batch End Hooks to Collect Data ---
 
@@ -114,79 +144,81 @@ class ParityPlotter(reax.TrainerListener):
     def on_train_batch_end(
         self,
         _trainer: reax.Trainer,
-        _stage: reax.stages.Train,
+        stage: reax.stages.Train,
         outputs: Any,
         batch: Any,
         _batch_idx: int,
         /,
     ) -> None:
-        self._collect_batch_data("train", outputs, batch)
+        if self._should_collect("train", stage.epoch):
+            self._collect_batch_data("train", outputs, batch)
 
     @override
     def on_validation_batch_end(
         self,
         _trainer: reax.Trainer,
-        _stage: reax.stages.Validate,
+        stage: reax.stages.Validate,
         outputs: Any,
         batch: Any,
         _batch_idx: int,
         /,
     ) -> None:
-        self._collect_batch_data("validation", outputs, batch)
+        if self._should_collect("validation", stage.epoch):
+            self._collect_batch_data("validation", outputs, batch)
 
     @override
     def on_test_batch_end(
         self,
         _trainer: reax.Trainer,
-        _stage: reax.stages.Test,
+        stage: reax.stages.Test,
         outputs: Any,
         batch: Any,
         _batch_idx: int,
         /,
     ) -> None:
-        self._collect_batch_data("test", outputs, batch)
+        if self._should_collect("test", stage.epoch):
+            self._collect_batch_data("test", outputs, batch)
 
     @override
     def on_predict_batch_end(
         self,
         _trainer: reax.Trainer,
-        _stage: reax.stages.Predict,
+        stage: reax.stages.Predict,
         outputs: Any,
         batch: Any,
         _batch_idx: int,
         /,
     ) -> None:
-        self._collect_batch_data("predict", outputs, batch)
+        if self._should_collect("predict", stage.epoch):
+            self._collect_batch_data("predict", outputs, batch)
 
         # --- Implement Stage End Hooks to Trigger Plotting ---
 
     @override
     def on_train_end(self, trainer: reax.Trainer, stage: reax.stages.Train, /):
         """Training is ending, plot the collected training data."""
-        if (stage.epoch - 1) % self._plot_every == 0:
-            self._plot_parity("train", self._get_save_dir(trainer))
+        self._plot_parity("train", self._get_save_dir(trainer), stage.epoch - 1)
 
     @override
     def on_validation_end(self, trainer: reax.Trainer, stage: reax.stages.Validate, /) -> None:
         """Validation has ended, plot the collected validation data."""
-        if (stage.epoch - 1) % self._plot_every == 0:
-            self._plot_parity("validation", self._get_save_dir(trainer))
+        self._plot_parity("validation", self._get_save_dir(trainer), stage.epoch)
 
     @override
-    def on_fit_end(self, trainer: "reax.Trainer", _stage: "reax.stages.Fit", /) -> None:
+    def on_fit_end(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
         """Fit has ended, plot the collected training data."""
-        self._plot_parity("train", self._get_save_dir(trainer))
-        self._plot_parity("validation", self._get_save_dir(trainer))
+        self._plot_parity("train", self._get_save_dir(trainer), stage.epoch - 1)
+        self._plot_parity("validation", self._get_save_dir(trainer), stage.epoch - 1)
 
     @override
-    def on_test_end(self, trainer: reax.Trainer, _stage: reax.stages.Test, /) -> None:
+    def on_test_end(self, trainer: reax.Trainer, stage: reax.stages.Test, /) -> None:
         """Test has ended, plot the collected test data."""
-        self._plot_parity("test", self._get_save_dir(trainer))
+        self._plot_parity("test", self._get_save_dir(trainer), stage.epoch)
 
     @override
-    def on_predict_end(self, trainer: reax.Trainer, _stage: reax.stages.Predict, /) -> None:
+    def on_predict_end(self, trainer: reax.Trainer, stage: reax.stages.Predict, /) -> None:
         """Predict is ending, plot the collected prediction data."""
-        self._plot_parity("predict", self._get_save_dir(trainer))
+        self._plot_parity("predict", self._get_save_dir(trainer), stage.epoch)
 
     def get_target_predicted(self, batch, outputs) -> tuple[np.ndarray, np.ndarray]:
         targets, predictions = self._get_target_predicted(batch, outputs)
@@ -202,7 +234,7 @@ class ParityPlotter(reax.TrainerListener):
 
             return targets, predictions
 
-        targets = batch[1] if batch[1] is not None else batch[0]
+        targets = batch[1] if len(batch) > 1 and batch[1] is not None else batch[0]
         predictions = outputs
         return targets, predictions
 
@@ -228,10 +260,24 @@ class GraphParityPlotter(ParityPlotter):
         targets: gcnn.typing.TreePathLike,
         predictions: gcnn.typing.TreePathLike | None = None,
         save_dir: str | pathlib.Path = "plots/",
+        fit_plot_every: int = 100,
+        x_label: str | None = None,
+        y_label: str | None = None,
     ):
-        super().__init__(save_dir)
-        self._target_path = gcnn.utils.path_from_str(targets)
-        self._prediction_path = self._init_prediction_path(predictions, self._target_path)
+        target_path = gcnn.utils.path_from_str(targets)
+        prediction_path = self._init_prediction_path(predictions, target_path)
+
+        x_label = x_label or f"True Values ({target_path[-1]})"
+        y_label = y_label or f"Predicted Values ({prediction_path[-1]})"
+
+        super().__init__(
+            save_dir=save_dir,
+            fit_plot_every=fit_plot_every,
+            x_label=x_label,
+            y_label=y_label,
+        )
+        self._target_path = target_path
+        self._prediction_path = prediction_path
 
     @staticmethod
     def _init_prediction_path(
