@@ -93,7 +93,28 @@ class Qm9(collections.abc.Sequence):
 
         out_file = os.path.join(self._data_dir, filename)
         if not os.path.isfile(out_file):
-            urllib.request.urlretrieve(url, out_file)  # nosec
+            local_file, headers = urllib.request.urlretrieve(url, out_file)  # nosec
+
+            # 1. Check for AWS WAF Challenge specifically
+            waf_action = headers.get("x-amzn-waf-action")
+            if waf_action == "challenge":
+                os.remove(local_file)  # Clean up the empty/useless file
+                raise ConnectionRefusedError(
+                    f"Blocked by AWS WAF: {waf_action}. The server requires a browser challenge. "
+                    f"Could not download {filename}, please try download it in your browser and "
+                    f"saving to {out_file}."
+                )
+
+            # 2. Check Content-Length (since you're getting 0 bytes)
+            content_length = int(headers.get("Content-Length", -1))
+            if content_length == 0:
+                os.remove(local_file)
+                raise ValueError(
+                    "Download failed: Server returned 0 bytes of data. "
+                    f"Could not download {filename}, please try download it in your browser and "
+                    f"saving to {out_file}."
+                )
+
             _LOGGER.info("downloaded %s to %s", url, self._data_dir)
 
     def _extract_tarball(self, archive_path, limit=None) -> list[MoleculeDict]:
