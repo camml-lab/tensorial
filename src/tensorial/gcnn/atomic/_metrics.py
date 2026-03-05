@@ -53,12 +53,26 @@ ForceStd = reax.metrics.Std.from_fun(
 )
 
 
-AvgNumNeighbours = reax.metrics.Average.from_fun(
-    lambda graph, *_: (
-        jnp.bincount(graph.senders, length=jnp.sum(graph.n_node)),
-        graph.nodes.get(graph_keys.MASK),
-    )
-)
+def _bincount_neighbours(graph: jraph.GraphsTuple, *_):
+    """Helper to count neighbours for both implicit and explicit batching."""
+    node_mask = graph.nodes.get(graph_keys.MASK)
+    if graph.senders.ndim == 1:
+        # Implicit batching (standard jraph)
+        # Use shape which is static even for tracers if available
+        num_nodes = node_mask.shape[0] if node_mask is not None else jnp.sum(graph.n_node)
+        counts = jnp.bincount(graph.senders, length=num_nodes)
+    else:
+        # Explicit batching (stacked graphs)
+        # We use .shape[1] which is a static Python int for stacked arrays.
+        node_array = node_mask if node_mask is not None else jax.tree.leaves(graph.nodes)[0]
+        num_nodes = node_array.shape[1]
+        counts = jax.vmap(lambda s: jnp.bincount(s, length=num_nodes))(graph.senders)
+
+    # Flatten to make it sample-wise for all nodes across the batch
+    return counts.reshape(-1), node_mask.reshape(-1) if node_mask is not None else None
+
+
+AvgNumNeighbours = reax.metrics.Average.from_fun(_bincount_neighbours)
 
 
 class EnergyPerAtomLstsq(reax.metrics.FromFun):
