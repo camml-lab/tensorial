@@ -1,15 +1,19 @@
 from collections.abc import Mapping
 import functools
+import logging
 from typing import Any
 
 import beartype
 from flax import nnx
 import hydra
 import jaxtyping as jt
+import jraph
 import omegaconf
 import reax
 import reax.utils
 from typing_extensions import override
+
+_LOGGER = logging.getLogger(__name__)
 
 DONE_KEY = "done"
 
@@ -65,6 +69,7 @@ class FromData(reax.stages.Stage):
         self._dataloader = dataloader
         self._calculated = {}
         self._to_calculate: dict[str, Any] = self._update_stats(self._cfg)
+        self._metric_evaluator = None
 
     @property
     def dataloader(self) -> reax.DataLoader | None:
@@ -102,6 +107,11 @@ class FromData(reax.stages.Stage):
         )
 
     @override
+    def _on_started(self):
+        super()._on_started()
+        self._metric_evaluator = self._get_metric_evaluator()
+
+    @override
     def _step(self) -> None:
         eval_stats = reax.stages.EvaluateStats(
             self._to_calculate,
@@ -110,6 +120,7 @@ class FromData(reax.stages.Stage):
             rngs=self._engine.rngs,
             dataset_name=self._dataset_name,
             ignore_missing=True,
+            evaluator=self._metric_evaluator,
         )
         calculated: dict = self._run_child(eval_stats).logged_metrics
         # Convert to types that can be used by omegaconf and update the configuration with the
@@ -157,6 +168,21 @@ class FromData(reax.stages.Stage):
             to_calculate[label] = stat
 
         return to_calculate
+
+    def _get_metric_evaluator(self) -> reax.metrics.MetricEvaluator:
+        batch = next(iter(self.dataloader))
+        example_data = batch
+        if isinstance(batch, tuple):
+            example_data = batch[0]
+        if isinstance(example_data, jraph.GraphsTuple) and len(example_data.n_node.shape) > 1:
+            # We have batched graphs
+            _LOGGER.debug(
+                "FromData staging using vmap metric evaluator as len(example_data.n_node.shape)=%d",
+                len(example_data.n_node.shape),
+            )
+            return reax.metrics.VmapEvaluator()
+
+        return reax.metrics.DefaultEvaluator()
 
 
 @functools.singledispatch

@@ -129,8 +129,11 @@ def test_metrics(molecule_dataset: Sequence[jraph.GraphsTuple]):
 
     for name in metrics:
         metric = reax.metrics.get(name)
+
         # Compute using the data loader
-        res = tensorial.metrics.Evaluator(metric).evaluate(batcher)
+        eval = reax.Trainer().eval_stats(metric, dataloaders=batcher)
+        res = list(eval.logged_metrics.values())[0]
+
         # Compute directly
         value = metric.create(all_molecules).compute()
 
