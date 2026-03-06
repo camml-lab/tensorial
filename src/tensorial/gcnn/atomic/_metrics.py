@@ -13,6 +13,7 @@ from tensorial.typing import Array
 
 from . import keys
 from .. import graph_ops
+from .. import keys as _keys
 from .. import keys as graph_keys
 from .. import metrics
 from ... import nn_utils, utils
@@ -55,7 +56,7 @@ ForceStd = reax.metrics.Std.from_fun(
 
 AvgNumNeighbours = reax.metrics.Average.from_fun(
     lambda graph, *_: (
-        jnp.bincount(graph.senders, length=jnp.sum(graph.n_node)),
+        jnp.bincount(graph.senders, length=graph.nodes[_keys.POSITIONS].shape[0]),
         graph.nodes.get(graph_keys.MASK),
     )
 )

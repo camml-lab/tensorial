@@ -9,6 +9,7 @@ import jaxtyping as jt
 import jraph
 from pytray import tree
 import reax
+from typing_extensions import override
 
 from tensorial import nn_utils
 from tensorial.typing import Array
@@ -83,6 +84,7 @@ class GraphMetric(reax.Metric):
     def is_empty(self) -> bool:
         return self._state is None
 
+    @override
     def create(
         # pylint: disable=arguments-differ
         self,
@@ -124,6 +126,7 @@ class GraphMetric(reax.Metric):
 
         return type(self)(self.parent.create(*args, **kwargs))
 
+    @override
     def merge(self, other: "GraphMetric") -> "GraphMetric":
         if other.is_empty:
             return self
@@ -132,11 +135,19 @@ class GraphMetric(reax.Metric):
 
         return type(self)(self._state.merge(other._state))  # pylint: disable=protected-access
 
+    @override
     def compute(self) -> OutT:
         if self.is_empty:
             raise RuntimeError("Cannot compute, metric is empty")
 
         return self._state.compute()
+
+    @override
+    def reduce(self, axis: int = 0) -> "Metric[_OutT]":
+        if self.is_empty:
+            raise RuntimeError("Cannot compute, metric is empty")
+
+        return type(self)(self._state.reduce(axis=axis))
 
 
 class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
