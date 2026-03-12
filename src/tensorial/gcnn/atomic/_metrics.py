@@ -179,20 +179,42 @@ class TypeContributionLstsq(reax.metrics.Metric[Array]):
 
     @override
     def compute(self, regularization: float = 1e-6):
+        """Computes the fit using the Moore-Penrose pseudo-inverse approach.
+
+        This naturally handles rank-deficient cases (like fixed 50:50 ratios)
+        by producing the minimum-norm solution, which assigns equal
+        contributions to indistinguishable types.
+        """
         if self.is_empty:
             raise RuntimeError("This metric is empty, cannot compute!")
+
+        # Allow more mathsy names
+        # pylint: disable=invalid-name
 
         np_ = utils.infer_backend(self.xtx)
 
         # Solve Normal Equation: (A.T A) x = A.T b
         # We solve for x in: xtx @ x = xty
 
-        # Add small ridge regularization for numerical stability
-        # (prevents crash if matrix is singular or data was empty)
-        eye = np_.eye(self.xtx.shape[0])
-        safe_xtx = self.xtx + (eye * regularization)
+        # 1. Since XtX is symmetric, eigh is more efficient and stable than SVD
+        # s: eigenvalues, V: eigenvectors
+        s, V = np_.linalg.eigh(self.xtx)
 
-        return np_.linalg.solve(safe_xtx, self.xty)
+        # 2. Determine the threshold for 'zero' eigenvalues
+        # Standard practice is a fraction of the largest eigenvalue
+        max_s = np_.max(s)
+        threshold = regularization * max_s
+
+        # 3. Compute the pseudo-inverse of the eigenvalues
+        # We only invert values above the threshold, others become 0.0
+        s_inv = np_.where(s > threshold, 1.0 / s, 0.0)
+
+        # 4. Reconstruct the solution: x = V @ diag(s_inv) @ V.T @ xty
+        # This is the Moore-Penrose solution (minimum L2 norm)
+        # Equivalent to: x = pinv(xtx) @ xty
+        weights = V @ (s_inv[:, None] * (V.T @ self.xty))
+
+        return weights
 
 
 class EnergyContributionLstsq(reax.Metric):
@@ -242,11 +264,11 @@ class EnergyContributionLstsq(reax.Metric):
         return EnergyContributionLstsq(type_map=self._type_map, metric=self._metric.update(*val))
 
     @override
-    def compute(self):
+    def compute(self, regularization: float = 1e-6):
         if self._metric is None:
             raise RuntimeError("Nothing to compute, metric is empty!")
 
-        return self._metric.compute()
+        return self._metric.compute(regularization=regularization)
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def _fun(self, graphs: jraph.GraphsTuple, *_) -> tuple[
