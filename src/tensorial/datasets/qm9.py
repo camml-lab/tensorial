@@ -61,6 +61,8 @@ class Qm9(collections.abc.Sequence):
         download: bool = True,
         limit: int | None = None,
         as_graphs: dict | None = None,
+        shuffle: bool = False,
+        rng_seed: int | None = None,
     ):
         # Params
         self._data_dir: Final[str] = data_dir
@@ -68,11 +70,18 @@ class Qm9(collections.abc.Sequence):
         self._to_graphs: Final[dict] = as_graphs
 
         # State
+        if rng_seed is not None and not shuffle:
+            _LOGGER.warning(
+                "rng_seed is provided but shuffle is False. The seed will have no effect."
+            )
+
+        self._rng = np.random.default_rng(seed=rng_seed)
+
         if download:
             self._do_download("/".join([self.URL, self.FILENAME]), self.FILENAME)
 
         archive_path = pathlib.Path(self._data_dir) / self.FILENAME
-        self._data = self._extract_tarball(archive_path, limit)
+        self._data = self._extract_tarball(archive_path, limit, shuffle)
 
     def __getitem__(self, item):
         entry = self._data[item]
@@ -117,17 +126,36 @@ class Qm9(collections.abc.Sequence):
 
             _LOGGER.info("downloaded %s to %s", url, self._data_dir)
 
-    def _extract_tarball(self, archive_path, limit=None) -> list[MoleculeDict]:
+    def _extract_tarball(self, archive_path, limit=None, shuffle=False) -> list[MoleculeDict]:
         molecules = []
         with tarfile.open(archive_path) as file:
-            members = file.getmembers()
-            if limit:
-                members = members[:limit]
+            all_members = file.getmembers()
+            n_members = len(all_members)
+
+            if limit is not None:
+                if shuffle:
+                    # Sort indices for efficient sequential tar access. Accessing a
+                    # compressed tarball out of order causes massive performance
+                    # overhead as it must decompress and seek from the start for each file.
+                    indices = self._rng.choice(n_members, size=limit, replace=False)
+                    indices.sort()
+                else:
+                    # First N files as they appear in the archive
+                    indices = np.arange(limit)
+
+                members = [all_members[i] for i in indices]
+            else:
+                members = all_members
+
             for entry in tqdm.tqdm(members):
                 file_handle = file.extractfile(entry.name)
                 out = read_qm9(io.TextIOWrapper(file_handle, encoding="utf-8"))
                 out["filename"] = entry.name
                 molecules.append(out)
+
+            # Final shuffle to ensure labels/data aren't ordered by tarball position
+            if shuffle:
+                self._rng.shuffle(molecules)
 
         return molecules
 
