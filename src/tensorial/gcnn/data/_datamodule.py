@@ -24,6 +24,7 @@ class GraphDataModule(reax.DataModule):
         train_val_test_split: Sequence[int | float] = (0.85, 0.05, 0.1),
         batch_size: int = 32,
         batch_mode: "gcnn.data.BatchMode | str" = _common.BatchMode.IMPLICIT,
+        shuffle_every_epoch: bool = False,
     ):
         """Initialize the module
 
@@ -45,6 +46,7 @@ class GraphDataModule(reax.DataModule):
         self.data_test: Dataset | None = None
         self._max_padding: "gcnn.data.GraphPadding | None" = None
         self._batch_mode = batch_mode
+        self._shuffle_every_epoch = shuffle_every_epoch
 
     @override
     def setup(self, stage: "reax.Stage", /) -> None:
@@ -113,6 +115,7 @@ class GraphDataModule(reax.DataModule):
         return _dataloader.GraphLoader(
             self.data_train,
             batch_size=self._batch_size,
+            shuffle=self._shuffle_every_epoch,
             padding=self._max_padding,
             pad=True,
             batch_mode=self._batch_mode,
