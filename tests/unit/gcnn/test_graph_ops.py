@@ -1,8 +1,9 @@
+import e3nn_jax as e3j
 import jax
 import jax.numpy as jnp
 import pytest
 
-from tensorial.gcnn import graph_ops
+from tensorial.gcnn import graph_ops, keys
 
 
 @pytest.mark.parametrize("jit", [False, True])
@@ -220,3 +221,172 @@ def test_segment_reduce_with_explicit_inf(jit, reduction, expected_inf):
 
     res = op(data, segment_sizes, mask=mask, segment_mask=segment_mask)
     assert jnp.allclose(res, expected)
+
+
+@pytest.mark.parametrize("jit", [False, True])
+def test_segment_sum_irreps_array(jit):
+
+    op = jax.jit(graph_ops.segment_sum) if jit else graph_ops.segment_sum
+
+    x = e3j.IrrepsArray(
+        "2x0e",
+        jnp.array(
+            [
+                [1.0, 2.0],
+                [3.0, 4.0],
+                [5.0, 6.0],
+            ]
+        ),
+    )
+    segment_sizes = jnp.array([2, 1])
+    # Case 1: no segment_mask
+    res = op(x, segment_sizes)
+    assert isinstance(res, e3j.IrrepsArray)
+    assert res.irreps == x.irreps
+    expected = jnp.array(
+        [
+            [4.0, 6.0],
+            [5.0, 6.0],
+        ]
+    )
+    assert jnp.allclose(res.array, expected)
+
+    # Case 2: with segment_mask
+    segment_mask = jnp.array([True, False])
+    res_masked = op(x, segment_sizes, segment_mask=segment_mask)
+    assert isinstance(res_masked, e3j.IrrepsArray)
+    expected_masked = jnp.array(
+        [
+            [4.0, 6.0],
+            [0.0, 0.0],
+        ]
+    )
+    assert jnp.allclose(res_masked.array, expected_masked)
+
+
+@pytest.mark.parametrize("jit", [False, True])
+def test_segment_mean_irreps_array(jit):
+
+    op = jax.jit(graph_ops.segment_mean) if jit else graph_ops.segment_mean
+
+    x = e3j.IrrepsArray(
+        "2x0e",
+        jnp.array(
+            [
+                [1.0, 2.0],
+                [3.0, 4.0],
+                [5.0, 6.0],
+            ]
+        ),
+    )
+    segment_sizes = jnp.array([2, 1])
+
+    # Case 1: no segment_mask
+    res = op(x, segment_sizes)
+    assert isinstance(res, e3j.IrrepsArray)
+    assert res.irreps == x.irreps
+    expected = jnp.array(
+        [
+            [2.0, 3.0],
+            [5.0, 6.0],
+        ]
+    )
+    assert jnp.allclose(res.array, expected)
+
+    # Case 2: with segment_mask and data mask
+    mask = jnp.array([True, False, True])
+    segment_mask = jnp.array([True, False])
+    res_masked = op(x, segment_sizes, mask=mask, segment_mask=segment_mask)
+    assert isinstance(res_masked, e3j.IrrepsArray)
+    expected_masked = jnp.array(
+        [
+            [1.0, 2.0],
+            [0.0, 0.0],
+        ]
+    )
+    assert jnp.allclose(res_masked.array, expected_masked)
+
+
+@pytest.mark.parametrize("jit", [False, True])
+def test_segment_min_max_irreps_array(jit):
+
+    op_min = jax.jit(graph_ops.segment_min) if jit else graph_ops.segment_min
+    op_max = jax.jit(graph_ops.segment_max) if jit else graph_ops.segment_max
+
+    x = e3j.IrrepsArray(
+        "2x0e",
+        jnp.array(
+            [
+                [1.0, 2.0],
+                [3.0, 4.0],
+                [5.0, 6.0],
+            ]
+        ),
+    )
+    segment_sizes = jnp.array([2, 1])
+    mask = jnp.array([True, False, True])
+    segment_mask = jnp.array([True, False])
+
+    # Min test
+    res_min = op_min(x, segment_sizes, mask=mask, segment_mask=segment_mask)
+    assert isinstance(res_min, e3j.IrrepsArray)
+    expected_min = jnp.array(
+        [
+            [1.0, 2.0],
+            [jnp.inf, jnp.inf],
+        ]
+    )
+    assert jnp.allclose(res_min.array, expected_min)
+
+    # Max test
+    res_max = op_max(x, segment_sizes, mask=mask, segment_mask=segment_mask)
+    assert isinstance(res_max, e3j.IrrepsArray)
+    expected_max = jnp.array(
+        [
+            [1.0, 2.0],
+            [-jnp.inf, -jnp.inf],
+        ]
+    )
+    assert jnp.allclose(res_max.array, expected_max)
+
+
+@pytest.mark.parametrize("jit", [False, True])
+def test_graph_segment_reduce_irreps_array_with_node_mask(jit):
+
+    op = (
+        jax.jit(graph_ops.graph_segment_reduce, static_argnums=(1, 2))
+        if jit
+        else graph_ops.graph_segment_reduce
+    )
+
+    x = e3j.IrrepsArray(
+        "2x0e",
+        jnp.array(
+            [
+                [1.0, 2.0],
+                [3.0, 4.0],
+                [5.0, 6.0],
+            ]
+        ),
+    )
+
+    graph = {
+        "nodes": {
+            "features": x,
+            keys.MASK: jnp.array([True, False, True]),
+        },
+        "n_node": jnp.array([2, 1]),
+    }
+
+    res = op(graph, "nodes.features", "mean")
+
+    assert isinstance(res, e3j.IrrepsArray)
+    assert res.irreps == x.irreps
+
+    expected = jnp.array(
+        [
+            [1.0, 2.0],
+            [5.0, 6.0],
+        ]
+    )
+    assert jnp.allclose(res.array, expected)

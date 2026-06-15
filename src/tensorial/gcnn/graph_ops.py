@@ -1,3 +1,4 @@
+from functools import singledispatch
 from typing import Literal
 
 import e3nn_jax as e3j
@@ -35,6 +36,7 @@ def _prepare_segments(
     return num_segments, segment_ids
 
 
+@singledispatch
 def segment_sum(
     data: Float[jax.Array, "N ..."],
     segment_sizes: Int[jax.Array, "num_segments"],
@@ -85,6 +87,23 @@ def segment_sum(
     return result
 
 
+@segment_sum.register
+def _(
+    data: e3j.IrrepsArray,
+    segment_sizes: Int[jax.Array, "num_segments"],
+    mask: Bool[jax.Array, "N ..."] | None = None,
+    segment_mask: Bool[jax.Array, "num_segments"] | None = None,
+) -> e3j.IrrepsArray:
+    result = segment_sum(
+        data.array,
+        segment_sizes,
+        mask=mask,
+        segment_mask=segment_mask,
+    )
+    return e3j.IrrepsArray(data.irreps, result)
+
+
+@singledispatch
 def segment_mean(
     data: Float[jax.Array, "N ..."],
     segment_sizes: Int[jax.Array, "num_segments"],
@@ -158,6 +177,23 @@ def segment_mean(
     return jnp.where(segment_mask, mean, jnp.zeros_like(mean))
 
 
+@segment_mean.register
+def _(
+    data: e3j.IrrepsArray,
+    segment_sizes: Int[jax.Array, "num_segments"],
+    mask: Bool[jax.Array, "N ..."] | None = None,
+    segment_mask: Bool[jax.Array, "num_segments"] | None = None,
+) -> e3j.IrrepsArray:
+    result = segment_mean(
+        data.array,
+        segment_sizes,
+        mask=mask,
+        segment_mask=segment_mask,
+    )
+    return e3j.IrrepsArray(data.irreps, result)
+
+
+@singledispatch
 def segment_min(
     data: Float[jax.Array, "N ..."],
     segment_sizes: Int[jax.Array, "num_segments"],
@@ -210,6 +246,23 @@ def segment_min(
     return data_min
 
 
+@segment_min.register
+def _(
+    data: e3j.IrrepsArray,
+    segment_sizes: Int[jax.Array, "num_segments"],
+    mask: Bool[jax.Array, "N ..."] | None = None,
+    segment_mask: Bool[jax.Array, "num_segments"] | None = None,
+) -> e3j.IrrepsArray:
+    result = segment_min(
+        data.array,
+        segment_sizes,
+        mask=mask,
+        segment_mask=segment_mask,
+    )
+    return e3j.IrrepsArray(data.irreps, result)
+
+
+@singledispatch
 def segment_max(
     data: Float[jax.Array, "N ..."],
     segment_sizes: Int[jax.Array, "num_segments"],
@@ -262,6 +315,22 @@ def segment_max(
     return data_max
 
 
+@segment_max.register
+def _(
+    data: e3j.IrrepsArray,
+    segment_sizes: Int[jax.Array, "num_segments"],
+    mask: Bool[jax.Array, "N ..."] | None = None,
+    segment_mask: Bool[jax.Array, "num_segments"] | None = None,
+) -> e3j.IrrepsArray:
+    result = segment_max(
+        data.array,
+        segment_sizes,
+        mask=mask,
+        segment_mask=segment_mask,
+    )
+    return e3j.IrrepsArray(data.irreps, result)
+
+
 _REDUCTIONS = {
     "mean": segment_mean,
     "sum": segment_sum,
@@ -276,7 +345,7 @@ def segment_reduce(
     reduction: Literal["sum", "mean", "min", "max"],
     mask: Bool[jax.Array, "N ..."] | None = None,
     segment_mask: Bool[jax.Array, "num_segments"] | None = None,
-) -> Float[jax.Array, "num_segments ..."]:
+) -> Float[jax.Array, "num_segments ..."] | e3j.IrrepsArray:
     """Performs a masked segment reduction over batched graph data.
 
     This function is JAX-jittable and handles the logic for applying a mask
@@ -348,6 +417,6 @@ def _jraph_segment(
     except AttributeError:
         raise ValueError(f"Unknown reduction operation: {reduction}") from None
 
-    return jax.tree_util.tree_map(
+    return jax.tree.map(
         lambda n: op(n, segment_ids, num_segments, indices_are_sorted, unique_indices), inputs
     )
