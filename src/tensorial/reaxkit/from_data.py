@@ -110,6 +110,7 @@ class FromData(reax.stages.Stage):
             rngs=self._engine.rngs,
             dataset_name=self._dataset_name,
             ignore_missing=True,
+            evaluator=self._engine.metric_evaluator,
         )
         calculated: dict = self._run_child(eval_stats).logged_metrics
         # Convert to types that can be used by omegaconf and update the configuration with the
