@@ -20,7 +20,6 @@ __all__ = ("diff",)
 DERIV_DELIMITER: Final[str] = ","
 ArgumentSpecifier = Union[int, "gcnn.typing.TreePath"]
 
-
 class DerivableGraphFunction(Protocol):
     def __call__(
         self, graph: jraph.GraphsTuple, *args: jt.PyTree
@@ -129,14 +128,15 @@ class Derivative(abc.ABC):
         argnum: int = 0,
         scale: float = 1.0,
         at: dict | None = None,
+        mode: str = "rev",
     ) -> "Evaluator":
         if at is not None:
             at = flax.core.FrozenDict(at)
-        return Evaluator(func, self, return_graph, argnum, scale=scale, at=at)
+        return Evaluator(func, self, return_graph, argnum, scale=scale, at=at, mode=mode)
 
     @abc.abstractmethod
     def build_derivative_fn(
-        self, func: DerivableGraphFunction, return_graph: bool, argnum: int
+        self, func: DerivableGraphFunction, return_graph: bool, argnum: int, mode: str = "rev"
     ) -> DerivableGraphFunction:
         """Get evaluate function from derivative"""
 
@@ -277,7 +277,7 @@ class SingleDerivative(Derivative):
         return MultiDerivative((self, SingleDerivative.create(self.out, wrt)))
 
     def build_derivative_fn(
-        self, func: DerivableGraphFunction, return_graph: bool, argnum: int
+        self, func: DerivableGraphFunction, return_graph: bool, argnum: int, mode: str = "rev"
     ) -> DerivableGraphFunction:
         if not argnum >= 0:
             raise ValueError(f"argnum must be >= 0, got: {argnum}")
@@ -286,16 +286,21 @@ class SingleDerivative(Derivative):
             # Scalar valued
             diff_fn = jax.grad
         else:
-            # Vector valued
-            # note: we could use forward mode in cases where dim inputs << outputs
-            # but the memory use is often exterme
-            diff_fn = jax.jacrev
+            # Vector valued; forward mode is more memory-efficient when dim(input) << dim(output)
+            diff_fn = jax.jacfwd if mode == "fwd" else jax.jacrev
 
         def _diff_and_pre_process(
             graph: jraph.GraphsTuple, *args: jt.PyTree
         ) -> tuple[jt.Array, jraph.GraphsTuple]:
             value, graph = func(graph, *args)
             value, graph = self._pre_process(value, graph)
+            if mode == "fwd": # TODO: workaround for e3nn IrrepsArray + jacfwd. Remove once upstream handles the appended tangent axis. 
+            # jacfwd appends the tangent axis to the output via out_axes=-1.
+            # When `value` is an e3nn IrrepsArray, this breaks its shape invariant
+            # (last dim must match the irreps dimension), raising in the IrrepsArray
+            # rewrap inside jacfwd's tree_unflatten. Differentiating the raw array
+            # avoids the issue; axis bookkeeping is handled downstream in _post_process.
+                value = base.as_array(value)  
             return value, graph
 
         do_diff = diff_fn(_diff_and_pre_process, argnums=1 + argnum, has_aux=True)
@@ -436,7 +441,7 @@ class MultiDerivative(Derivative):
         yield from self.parts.__iter__()
 
     def build_derivative_fn(
-        self, func: DerivableGraphFunction, return_graph: bool, argnum: int
+        self, func: DerivableGraphFunction, return_graph: bool, argnum: int, mode: str = "rev"
     ) -> DerivableGraphFunction:
         # Work our way from right to left creating the derivative evaluators
         argnums = []
@@ -447,9 +452,9 @@ class MultiDerivative(Derivative):
             else:
                 argnums.append(self.graph_tuple_paths[wrt_path])
 
-        func = self[0].build_derivative_fn(func, return_graph=return_graph, argnum=argnums[0])
+        func = self[0].build_derivative_fn(func, return_graph=return_graph, argnum=argnums[0], mode=mode)
         for part, argnum_ in zip(self[1:], argnums[1:]):
-            func = part.build_derivative_fn(func, return_graph=return_graph, argnum=argnum_)
+            func = part.build_derivative_fn(func, return_graph=return_graph, argnum=argnum_, mode=mode)
 
         return func
 
@@ -478,6 +483,7 @@ class Evaluator:
     argnum: int
     scale: float = 1.0
     at: flax.core.FrozenDict[str, jt.PyTree] | None = dataclasses.field(default=None, hash=False)
+    mode: str = "rev"
 
     # will be set in __post_init__
     _evaluate_at: DerivableGraphFunction = dataclasses.field(init=False)
@@ -486,7 +492,7 @@ class Evaluator:
         object.__setattr__(
             self,
             "_evaluate_at",
-            self.spec.build_derivative_fn(self.func, return_graph=True, argnum=self.argnum),
+            self.spec.build_derivative_fn(self.func, return_graph=True, argnum=self.argnum, mode=self.mode),
         )
 
     def __call__(
@@ -526,6 +532,7 @@ def diff(
     scale: float = 1.0,
     at: dict | None = None,
     return_graph=False,
+    mode: str = "rev",
 ) -> Evaluator:
     """
     Constructs a JAX-compatible evaluator for computing single or multiple derivatives
@@ -568,6 +575,9 @@ def diff(
             If True, the derivative tensor is packaged into a new Graph object under the
             name specified by the 'out' argument. If False, the function returns the
             raw derivative tensor. Defaults to False.
+        mode (str):
+            "rev" (default) uses reverse-mode AD (jax.jacrev). "fwd" uses forward-mode AD
+            (jax.jacfwd), which is more memory-efficient when dim(input) << dim(output).
 
     Returns:
         Evaluator: A callable object that takes a Graph and returns the computed
@@ -599,7 +609,7 @@ def diff(
     else:
         deriv = MultiDerivative.create(of, wrt, out)
 
-    return deriv.evaluator(deriv.adapt(func), return_graph, scale=scale, at=at)
+    return deriv.evaluator(deriv.adapt(func), return_graph, scale=scale, at=at, mode=mode)
 
 
 def ordered_unique_indices(lst):
