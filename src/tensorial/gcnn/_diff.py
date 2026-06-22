@@ -294,13 +294,7 @@ class SingleDerivative(Derivative):
         ) -> tuple[jt.Array, jraph.GraphsTuple]:
             value, graph = func(graph, *args)
             value, graph = self._pre_process(value, graph)
-            if mode == "fwd": # TODO: workaround for e3nn IrrepsArray + jacfwd. Remove once upstream handles the appended tangent axis. 
-            # jacfwd appends the tangent axis to the output via out_axes=-1.
-            # When `value` is an e3nn IrrepsArray, this breaks its shape invariant
-            # (last dim must match the irreps dimension), raising in the IrrepsArray
-            # rewrap inside jacfwd's tree_unflatten. Differentiating the raw array
-            # avoids the issue; axis bookkeeping is handled downstream in _post_process.
-                value = base.as_array(value)  
+            
             return value, graph
 
         do_diff = diff_fn(_diff_and_pre_process, argnums=1 + argnum, has_aux=True)

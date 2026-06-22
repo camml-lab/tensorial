@@ -33,7 +33,7 @@ dependencies = [
     'jraph',
     'orbax-checkpoint',
     'pytray',
-    'e3nn-jax',
+    'e3nn-jax>=0.21.1',
     "equinox>=0.12.0",
     "reax>=0.6.10,<0.7",
     "rich",
