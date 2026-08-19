@@ -28,12 +28,29 @@ class ParityPlotter(reax.TrainerListener):
         fit_plot_every: int = 10,
         x_label: str = "True Values (y)",
         y_label: str = "Predicted Values (y')",
+        plot_train_val: bool = True,
+        save_plot: bool = True,
     ):
+        """
+        Args:
+            plot_train_val: if False, never collect/plot data for the "train" and "validation"
+                stages (test/predict are unaffected) -- useful when the periodic in-training
+                snapshots aren't needed and would otherwise pile up one file every
+                `fit_plot_every` epochs for the whole run.
+            save_plot: if False, skip generating the matplotlib figure entirely (for every
+                stage, including test) -- the raw `test_predictions.npz` is still written for
+                the test stage regardless, since that's the data artifact consumers such as
+                `aggregate_kfold_parity.py` rely on. Useful when several parity plotters feed
+                into one combined figure drawn by a separate listener instead of each drawing
+                its own.
+        """
         # Params
         self._save_dir: Final[pathlib.Path] = pathlib.Path(save_dir)
         self._plot_every: Final[int] = fit_plot_every
         self._x_label: Final[str] = x_label
         self._y_label: Final[str] = y_label
+        self._plot_train_val: Final[bool] = plot_train_val
+        self._save_plot: Final[bool] = save_plot
 
         # State
         self._last_plotted_epoch: dict[str, int] = {}
@@ -49,6 +66,8 @@ class ParityPlotter(reax.TrainerListener):
     def _should_collect(self, stage_name: str, epoch: int) -> bool:
         if stage_name in ("test", "predict"):
             return True
+        if not self._plot_train_val:
+            return False
         if epoch == 0 or (epoch + 1) % self._plot_every == 0:
             return True
         last = self._last_plotted_epoch.get(stage_name, 0)
@@ -88,8 +107,23 @@ class ParityPlotter(reax.TrainerListener):
         y_true_all = np.concatenate(true_y_list)
         y_pred_all = np.concatenate(pred_y_list)
 
+        # --- NEW: persist raw (y_true, y_pred) arrays for the test stage only. ---
+        # This is what allows a separate script (aggregate_kfold_parity.py) to later
+        # combine the test predictions from several k-fold runs into a single,
+        # statistically meaningful parity plot -- the in-memory data_store here
+        # cannot be reused across runs, since each k-fold run is a separate process.
+        if stage_name == "test":
+            save_dir.mkdir(parents=True, exist_ok=True)
+            npz_path = save_dir / "test_predictions.npz"
+            np.savez(npz_path, y_true=y_true_all, y_pred=y_pred_all)
+            _LOGGER.info("Saved raw test predictions to: %s", npz_path)
+        # ---------------------------------------------------------------------------
+
         # 2. Clear the stage data for the next run (e.g., next 'fit' call)
         self.data_store[stage_name] = ([], [])
+
+        if not self._save_plot:
+            return
 
         # 3. Create the Parity Plot
         _LOGGER.debug("Generating Parity Plot for %s stage...", stage_name)
@@ -263,7 +297,21 @@ class GraphParityPlotter(ParityPlotter):
         fit_plot_every: int = 100,
         x_label: str | None = None,
         y_label: str | None = None,
+        target_from_predictions: bool = False,
+        plot_train_val: bool = True,
+        save_plot: bool = True,
     ):
+        """
+        Args:
+            target_from_predictions: if True, look up `targets` in the *predictions* graph
+                instead of the separate targets/inputs graph (which is never passed through the
+                model). Needed when the target field being plotted is itself computed as part of
+                the model's forward pass (e.g. a raw target tensor re-encoded into irreps via
+                `GraphwiseEmbedding` inside `model.layers`), so it only exists on the output
+                graph.
+            plot_train_val: see `ParityPlotter`.
+            save_plot: see `ParityPlotter`.
+        """
         target_path = gcnn.utils.path_from_str(targets)
         prediction_path = self._init_prediction_path(predictions, target_path)
 
@@ -275,9 +323,12 @@ class GraphParityPlotter(ParityPlotter):
             fit_plot_every=fit_plot_every,
             x_label=x_label,
             y_label=y_label,
+            plot_train_val=plot_train_val,
+            save_plot=save_plot,
         )
         self._target_path = target_path
         self._prediction_path = prediction_path
+        self._target_from_predictions = target_from_predictions
 
     @staticmethod
     def _init_prediction_path(
@@ -295,6 +346,8 @@ class GraphParityPlotter(ParityPlotter):
         self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple | None], outputs: jraph.GraphsTuple
     ) -> tuple[Any, Any]:
         targets_graph, predictions_graph = super()._get_target_predicted(batch, outputs)
+        if self._target_from_predictions:
+            targets_graph = predictions_graph
 
         targets = _tree.get(targets_graph, self._target_path)
         predictions = _tree.get(predictions_graph, self._prediction_path)

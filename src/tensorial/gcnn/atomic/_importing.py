@@ -148,7 +148,7 @@ def graph_from_ase(
 
     graph_globals = {}
     for key in global_include_keys:
-        get_attrs(graph_globals, ase_atoms.arrays, key, key_mapping)
+        get_attrs(graph_globals, ase_atoms.info, key, key_mapping)
 
     atoms = {}
     for key in atom_include_keys:
