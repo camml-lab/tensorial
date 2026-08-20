@@ -114,8 +114,13 @@ class CartesianTensor(base.Attr[jt.ArrayLike]):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def create_tensor(self, value: jt.ArrayLike) -> e3j.IrrepsArray:
+        # Was hardcoded to the 2-index case ("ij,ijz->z"), which silently broke for any
+        # formula with a different number of indices (e.g. the 3-index "ijk=jik" used for
+        # rank-3 tensors like Pockels). `self._indices` already holds the right subscript
+        # letters for the formula ("ij", "ijk", ...) so we just plug it into the einsum,
+        # with a leading "..." to also support a batch dimension.
         return super().create_tensor(  # pylint: disable=not-callable
-            jnp.einsum("ij,ijz->z", value, self.change_of_basis)
+            jnp.einsum(f"...{self._indices},{self._indices}z->...z", value, self.change_of_basis)
         )
 
     @jt.jaxtyped(typechecker=beartype.beartype)

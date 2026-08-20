@@ -19,6 +19,9 @@ __all__ = (
     "NodewiseEmbedding",
     "NodewiseEncoding",
     "NodewiseDecoding",
+    "GraphwiseDecoding",
+    "GraphwiseEmbedding",
+    "GraphwiseSplit",
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -216,6 +219,80 @@ class NodewiseDecoding(linen.Module):
 
         # All done, return the new graph
         return graph._replace(nodes=nodes_dict)
+
+
+class GraphwiseDecoding(linen.Module):
+    """Decode the direct sum of irreps stored in the in_field and store each tensor as a node value
+    with key coming from the attrs.
+    """
+
+    attrs: "tensorial.IrrepsTree"
+    in_field: str = keys.ATTRIBUTES
+
+    @_base.shape_check
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
+        # Here, we need to split up the direct sum of irreps in the in field, and save the values
+        # in the nodes dict corresponding to the attrs keys
+        idx = 0
+        globals_dict = graph.globals
+        irreps_tensor = globals_dict[self.in_field]
+        for key, value in base.tensorial_attrs(self.attrs).items():
+            irreps = base.irreps(value)
+            tensor_slice = irreps_tensor[..., idx : idx + irreps.dim]
+            globals_dict[key] = base.from_tensor(value, tensor_slice)
+            idx += irreps.dim
+
+        # All done, return the new graph
+        return graph._replace(globals=globals_dict)
+
+
+class GraphwiseEmbedding(linen.Module):
+    """Embed global (graph-level) attributes given by `attrs` and store the concatenated direct
+    sum of irreps in `out_field`.
+
+    This is the globals-level counterpart of `NodewiseEmbedding`, and the encoding-direction
+    counterpart of `GraphwiseDecoding`: e.g. it can turn a raw Cartesian tensor already present
+    in `graph.globals` (ground-truth data) into the same irreps representation a model readout
+    produces, so that the two can be compared block by block (e.g. per irrep) rather than only
+    after decoding back to a Cartesian tensor.
+    """
+
+    attrs: "tensorial.IrrepsTree"
+    out_field: str = keys.ATTRIBUTES
+
+    @_base.shape_check
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
+        globals_dict = graph.globals
+        values = [
+            base.create_tensor(attr, globals_dict[key])
+            for key, attr in base.tensorial_attrs(self.attrs).items()
+        ]
+        globals_dict[self.out_field] = e3j.concatenate(values)
+        return graph._replace(globals=globals_dict)
+
+
+class GraphwiseSplit(linen.Module):
+    """Split a globals-level direct sum of irreps stored in `in_field` into named plain-array
+    sub-blocks, in declaration order, with NO change of basis (unlike `GraphwiseDecoding`).
+
+    Useful e.g. to expose individual irrep blocks (say, the dipole/quadrupole/octupole parts of
+    a rank-3 tensor readout) as separate fields so per-block metrics can be attached to them
+    with `graph_metric`.
+    """
+
+    in_field: str
+    splits: "dict[str, str]"  # out_field -> irreps string for that slice, e.g. {"dipole": "2x1o"}
+
+    @_base.shape_check
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
+        globals_dict = graph.globals
+        irreps_tensor: e3j.IrrepsArray = globals_dict[self.in_field]
+        idx = 0
+        for out_key, irreps_str in self.splits.items():
+            block_irreps = e3j.Irreps(irreps_str)
+            globals_dict[out_key] = irreps_tensor[..., idx : idx + block_irreps.dim].array
+            idx += block_irreps.dim
+        return graph._replace(globals=globals_dict)
 
 
 # For legacy reasons

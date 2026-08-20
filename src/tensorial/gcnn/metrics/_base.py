@@ -30,11 +30,21 @@ def graph_metric(
     targets: "Optional[gcnn.TreePathLike]" = None,
     mask: "Optional[gcnn.TreePathLike | Literal['auto']]" = "auto",
     normalise_by: "Optional[gcnn.TreePathLike]" = None,
+    target_from_predictions: bool = False,
 ) -> "GraphMetric":
+    """
+    Args:
+        target_from_predictions: if True, look up `targets` in the *predictions* graph instead
+            of the (separate, never passed through the model) targets/inputs graph. Needed when
+            the target field being compared against is itself computed as part of the model's
+            forward pass (e.g. a raw target tensor re-encoded into irreps via
+            `GraphwiseEmbedding` inside `model.layers`, so it only exists on the output graph).
+    """
     predictions_from = _tree.path_from_str(predictions)
     targets_from = _tree.path_to_str(targets) if targets is not None else None
     mask_from = _tree.path_to_str(mask) if mask is not None else None
     norm_by = _tree.path_to_str(normalise_by) if normalise_by is not None else None
+    target_from_pred = target_from_predictions
 
     class _GraphMetric(GraphMetric):
         parent = reax.metrics.get(metric)
@@ -42,6 +52,7 @@ def graph_metric(
         target_key = targets_from
         mask_key = mask_from
         normalise_by = norm_by
+        target_from_predictions = target_from_pred
 
     return _GraphMetric()
 
@@ -68,6 +79,9 @@ class GraphMetric(reax.Metric):
     target_key: "ClassVar[Optional[gcnn.typing.TreePathLike]]" = None
     mask_key: "ClassVar[Optional[gcnn.typing.TreePathLike]]" = "auto"
     normalise_by: "ClassVar[Optional[gcnn.typing.TreePathLike]]" = None
+    # When True, `target_key` is looked up in the *predictions* graph instead of the separate
+    # targets/inputs graph (which is never passed through the model) -- see `graph_metric`.
+    target_from_predictions: ClassVar[bool] = False
 
     _state: reax.Metric[OutT] | None
 
@@ -90,7 +104,7 @@ class GraphMetric(reax.Metric):
         predictions: jraph.GraphsTuple,
         targets: jraph.GraphsTuple | None = None,
     ) -> "GraphMetric":
-        if targets is None:
+        if targets is None or self.target_from_predictions:
             # In this case, the user is typically using a different key in the same graph
             targets = predictions
 
