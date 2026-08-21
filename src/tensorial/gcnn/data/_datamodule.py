@@ -24,6 +24,9 @@ class GraphDataModule(reax.DataModule):
         train_val_test_split: Sequence[int | float] = (0.85, 0.05, 0.1),
         batch_size: int = 32,
         batch_mode: "gcnn.data.BatchMode | str" = _common.BatchMode.IMPLICIT,
+        kfold: int | None = None,
+        n_folds: int = 5,
+        seed: int | None = 42,
     ):
         """Initialize the module
 
@@ -31,12 +34,27 @@ class GraphDataModule(reax.DataModule):
             dataset: The data loader of all the graphs to use
             train_val_test_split: The train, validation, and test split.
             batch_size: The batch size. Defaults to `32`.
+            kfold: Index of the fold (in `[0, n_folds)`) to hold out as the test set for
+                this run. Required when `n_folds > 1`. Ignored when `n_folds == 1`.
+            n_folds: Number of folds to partition `dataset` into for k-fold cross-validation.
+                Defaults to `1`, which disables k-fold entirely and falls back to the original
+                single random train/val/test split behaviour.
+            seed: Fixed seed used ONLY to determine the k-fold partition (i.e. which
+                sample ends up in which fold). This is intentionally separate from the
+                trainer/experiment seed (`cfg.seed`) so that the fold assignment is stable and
+                reproducible across runs/experiments regardless of how the general training
+                seed is configured -- otherwise "fold 0" could silently refer to a different
+                subset of structures from one run to the next, which would break the
+                out-of-fold aggregation used to build a combined parity plot.
         """
         super().__init__()
         # Params
         self._train_val_test_split: Final[tuple[int | float, ...]] = tuple(train_val_test_split)
         self._batch_size: Final[int] = batch_size
         self._batch_mode: "Final[gcnn.data.BatchMode]" = _common.BatchMode(batch_mode)
+        self._kfold: Final[int | None] = kfold
+        self._n_folds: Final[int] = n_folds
+        self._seed: Final[int | None] = seed
 
         # State
         self._dataloader = dataset
@@ -63,12 +81,30 @@ class GraphDataModule(reax.DataModule):
         """
         # load and split datasets only if not loaded already
         if not self.data_train and not self.data_val and not self.data_test:
-            # Split up the data
-            train, val, test = reax.data.random_split(
-                self.rngs,
-                dataset=self._dataloader,
-                lengths=self._train_val_test_split,
-            )
+            if self._kfold is not None:
+                # Carve out test set
+                rest_frac = sum(self._train_val_test_split[:2])
+                test_frac = self._train_val_test_split[2]
+                rest, test = reax.data.random_split(
+                    self.rngs, dataset=self._dataloader, lengths=(rest_frac, test_frac)
+                )
+
+                # Split the rest into k folds
+                kfold_splitter = reax.data.KFold(
+                    n_splits=self._n_folds,
+                    shuffle=True,
+                    seed=self._seed,
+                    engine=stage.engine if hasattr(stage, "engine") else None,
+                )
+                train, val = kfold_splitter.get_fold(rest, self._kfold)
+            else:
+                # Split up the data
+                train, val, test = reax.data.random_split(
+                    self.rngs,
+                    dataset=self._dataloader,
+                    lengths=self._train_val_test_split,
+                )
+
             graph_datasets: dict[str, Dataset] = dict(train=train, val=val, test=test)
 
             # Calculate the maximum padding to use
