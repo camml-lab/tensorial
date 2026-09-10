@@ -68,23 +68,24 @@ def test_graph_parity_plotter(cube_graph: jraph.GraphsTuple, tmp_path):
 
 
 def test_irreps_graph_parity_plotter(tmp_path):
-    from tensorial.reaxkit.listeners.parity_plotter import IrrepsGraphParityPlotter
     import e3nn_jax as e3j
+
+    from tensorial.reaxkit.listeners.parity_plotter import IrrepsGraphParityPlotter
 
     # Mock IrrepsArray data
     irreps = e3j.Irreps("1x0e + 1x1o")
     tensor = e3j.IrrepsArray(irreps, jnp.array([[2.0, 1.0, 0.0, -1.0]]))
-    
+
     plotter = IrrepsGraphParityPlotter(
         targets="nodes.tensors",
     )
-    
+
     # Manually check decomposition
     decomposed = plotter._decompose_data(tensor)
-    
+
     assert "0e" in decomposed
     assert "1o" in decomposed
-    
+
     # Expected values
     np.testing.assert_allclose(decomposed["0e"], 2.0)
     np.testing.assert_allclose(decomposed["1o"], jnp.array([[1.0, 0.0, -1.0]]))

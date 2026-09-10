@@ -6,7 +6,6 @@ scattered parity plots (``y'`` vs ``y``) using Matplotlib, writing the result
 to a ``plots/`` directory inside the trainer's log directory.
 """
 
-import logging
 import pathlib
 from typing import Any, Final
 
@@ -14,12 +13,12 @@ import e3nn_jax as e3j
 import jraph
 import matplotlib.pyplot as plt
 import numpy as np
-import jax.numpy as jnp
 import reax
 from typing_extensions import override
 
 from ... import base, gcnn
 from ...gcnn import _tree
+from ..utils import pylogger
 
 __all__ = (
     "ParityPlotter",
@@ -27,7 +26,7 @@ __all__ = (
     "IrrepsGraphParityPlotter",
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = pylogger.RankedLogger(__name__, rank_zero_only=True)
 
 
 class ParityPlotter(reax.TrainerListener):
@@ -39,7 +38,7 @@ class ParityPlotter(reax.TrainerListener):
     COLOR_CFG: Final[list[tuple[str, str, str]]] = [
         ("train", "#b2df8a", "Train"),
         ("validation", "#1f78b4", "Validation"),
-        ("test", "#f19428", "Test")
+        ("test", "#f19428", "Test"),
     ]
 
     def __init__(
@@ -119,7 +118,9 @@ class ParityPlotter(reax.TrainerListener):
         range_buffer = (max_val - min_val) * 0.1
         plot_range = (min_val - range_buffer, max_val + range_buffer)
 
-        ax.plot(plot_range, plot_range, color="black", linestyle="--", label="Ideal Parity Line (y=x)")
+        ax.plot(
+            plot_range, plot_range, color="black", linestyle="--", label="Ideal Parity Line (y=x)"
+        )
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
         ax.set_title(title)
@@ -162,19 +163,17 @@ class ParityPlotter(reax.TrainerListener):
 
         _LOGGER.debug("Parity Plot for %s generated.", stage_name)
 
-
-
     def _plot_combined_all_stages(self, trainer: "reax.Trainer"):
         """Method to plot Train, Val e Test stages results in a single parity plot."""
         # Prepare data from self.data_store
         stage_data = {}
-        for stage, color, label in self.COLOR_CFG:
+        for stage, _color, _label in self.COLOR_CFG:
             true_list, pred_list = self.data_store[stage]
             if true_list:
                 y_true = np.concatenate([np.atleast_1d(x).flatten() for x in true_list])
                 y_pred = np.concatenate([np.atleast_1d(x).flatten() for x in pred_list])
                 stage_data[stage] = (y_true, y_pred)
-        
+
         if not stage_data:
             return
 
@@ -182,24 +181,26 @@ class ParityPlotter(reax.TrainerListener):
         self._plot_combined_data(stage_data, save_dir, "final_combined.pdf", "Global Parity")
 
     def _plot_combined_data(
-        self, 
-        stage_data: dict[str, tuple[np.ndarray, np.ndarray]], 
+        self,
+        stage_data: dict[str, tuple[np.ndarray, np.ndarray]],
         save_dir: pathlib.Path,
         filename: str,
         title: str,
-        label_prefix: str = ""
+        label_prefix: str = "",
     ):
         """Core tool to plot multiple stages with consistent colors."""
         save_dir.mkdir(parents=True, exist_ok=True)
         fig, ax = plt.subplots(figsize=(7, 6))
-        
+
         all_true, all_pred = [], []
-        
+
         # Follow the order and colors in COLOR_CFG
         for stage, color, label in self.COLOR_CFG:
             if stage in stage_data:
                 y_true, y_pred = stage_data[stage]
-                self._scatter_parity(ax, y_true, y_pred, label=f"{label_prefix}{label}", color=color, alpha=0.5, s=15)
+                self._scatter_parity(
+                    ax, y_true, y_pred, label=f"{label_prefix}{label}", color=color, alpha=0.5, s=15
+                )
                 all_true.append(y_true)
                 all_pred.append(y_pred)
 
@@ -273,20 +274,7 @@ class ParityPlotter(reax.TrainerListener):
         """Collect true and predicted values at the end of each predict batch."""
         self._collect_batch_data("predict", outputs, batch)
 
-    
     # --- Implement Stage End Hooks to Trigger Plotting ---
-
-    # @override
-    # def on_train_end(self, trainer: reax.Trainer, stage: reax.stages.Train, /):
-    #     """Training is ending, plot the collected training data."""
-    #     if self._should_plot("train", stage.epoch):
-    #         self._plot_parity("train", self._get_save_dir(trainer), stage.epoch - 1)
-
-    # @override
-    # def on_validation_end(self, trainer: reax.Trainer, stage: reax.stages.Validate, /) -> None:
-    #     """Validation has ended, plot the collected validation data."""
-    #     if self._should_plot("validation", stage.epoch):
-    #         self._plot_parity("validation", self._get_save_dir(trainer), stage.epoch - 1)
 
     @override
     def on_fit_end(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
@@ -304,7 +292,7 @@ class ParityPlotter(reax.TrainerListener):
         """Test has ended, plot the collected test data and the combined plot if requested."""
         if self._should_plot("test", stage.epoch):
             self._plot_parity("test", self._get_save_dir(trainer), stage.epoch)
-        
+
         if self.plot_final_combined:
             self._plot_combined_all_stages(trainer)
 
@@ -315,7 +303,7 @@ class ParityPlotter(reax.TrainerListener):
             self._plot_parity("predict", self._get_save_dir(trainer), stage.epoch)
 
     # --- Implement Stage End Hooks to clean stored stage data ---
-    
+
     @override
     def on_train_start(self, trainer, stage, /):
         # Clean train data
@@ -433,7 +421,7 @@ class GraphParityPlotter(ParityPlotter):
             fit_plot_every=fit_plot_every,
             x_label=x_label,
             y_label=y_label,
-            **kwargs, 
+            **kwargs,
         )
         self._target_path = target_path
         self._prediction_path = prediction_path
@@ -471,25 +459,27 @@ class GraphParityPlotter(ParityPlotter):
 
         return targets, predictions
 
+
 class IrrepsGraphParityPlotter(GraphParityPlotter):
     """
     Decomposes true/predicted data (e.g. IrrepsArrays or Cartesian tensors)
     into constituent properties and generates a parity plot for each.
     """
+
     def __init__(
         self,
         targets: gcnn.typing.TreePathLike,
         predictions: gcnn.typing.TreePathLike | None = None,
         save_dir: str | pathlib.Path = "parity_plots",
         fit_plot_every: int = 100,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
-            targets=targets, 
-            predictions=predictions, 
-            save_dir=save_dir, 
-            fit_plot_every=fit_plot_every, 
-            **kwargs
+            targets=targets,
+            predictions=predictions,
+            save_dir=save_dir,
+            fit_plot_every=fit_plot_every,
+            **kwargs,
         )
 
     def _decompose_data(self, data: Any) -> dict[str, np.ndarray]:
@@ -497,15 +487,15 @@ class IrrepsGraphParityPlotter(GraphParityPlotter):
         if isinstance(data, e3j.IrrepsArray):
             # Decompose IrrepsArray into its constituent irrep segments
             results = {}
-            for i, (mul, ir) in enumerate(data.irreps):
-                # We use the irrep string as the name. 
+            for i, (_mul, ir) in enumerate(data.irreps):
+                # We use the irrep string as the name.
                 # If multiple segments have same irrep, we append index.
                 name = str(ir)
                 if name in results:
                     name = f"{name}_{i}"
                 results[name] = np.array(data[..., ir].array)
             return results
-            
+
         return {"value": np.array(base.as_array(data))}
 
     @override
@@ -515,13 +505,13 @@ class IrrepsGraphParityPlotter(GraphParityPlotter):
             return False
 
         gt, pred = super()._get_target_predicted(batch, outputs)
-        
+
         gt_dict = self._decompose_data(gt)
         pred_dict = self._decompose_data(pred)
 
         self.data_store[stage_name][0].append(gt_dict)
         self.data_store[stage_name][1].append(pred_dict)
-        
+
         return True
 
     @override
@@ -539,14 +529,18 @@ class IrrepsGraphParityPlotter(GraphParityPlotter):
             fig, ax = plt.subplots(figsize=(8, 8))
             self._scatter_parity(ax, y_true, y_pred, label=f"{stage_name} {ir_name}")
             self._finalize_parity_ax(
-                ax, y_true, y_pred,
+                ax,
+                y_true,
+                y_pred,
                 x_label=f"True {ir_name}",
                 y_label=f"Predicted {ir_name}",
-                title=f"Parity Plot: {ir_name} ({stage_name.capitalize()})"
+                title=f"Parity Plot: {ir_name} ({stage_name.capitalize()})",
             )
 
             (save_dir / ir_name).mkdir(parents=True, exist_ok=True)
-            filename = f"{stage_name}_epoch_{epoch}.pdf" if epoch is not None else f"{stage_name}.pdf"
+            filename = (
+                f"{stage_name}_epoch_{epoch}.pdf" if epoch is not None else f"{stage_name}.pdf"
+            )
             plt.savefig(str(save_dir / ir_name / filename), bbox_inches="tight")
             plt.close(fig)
 
@@ -554,24 +548,28 @@ class IrrepsGraphParityPlotter(GraphParityPlotter):
     def _plot_combined_all_stages(self, trainer: reax.Trainer):
         """Handle multiple irrep components for combined plot by feeding data to base class."""
         available_ir_names = set()
-        for stage in self.data_store:
-            if self.data_store[stage][0]:
-                available_ir_names.update(self.data_store[stage][0][0].keys())
+        for true_list, _ in self.data_store.values():
+            if true_list:
+                available_ir_names.update(true_list[0].keys())
 
         for ir_name in available_ir_names:
             stage_data = {}
             for stage, _, _ in self.COLOR_CFG:
                 true_list, pred_list = self.data_store[stage]
                 if true_list:
-                    y_true = np.concatenate([np.atleast_1d(d[ir_name]).flatten() for d in true_list])
-                    y_pred = np.concatenate([np.atleast_1d(d[ir_name]).flatten() for d in pred_list])
+                    y_true = np.concatenate(
+                        [np.atleast_1d(d[ir_name]).flatten() for d in true_list]
+                    )
+                    y_pred = np.concatenate(
+                        [np.atleast_1d(d[ir_name]).flatten() for d in pred_list]
+                    )
                     stage_data[stage] = (y_true, y_pred)
-            
+
             if stage_data:
                 save_dir = self._get_save_dir(trainer) / "combined_final" / ir_name
                 self._plot_combined_data(
-                    stage_data, 
-                    save_dir, 
+                    stage_data,
+                    save_dir,
                     filename="final_combined.pdf",
-                    title=f"Global Parity: {ir_name}"
+                    title=f"Global Parity: {ir_name}",
                 )
