@@ -1,4 +1,3 @@
-import logging
 import pathlib
 from typing import Any, Final
 
@@ -12,6 +11,7 @@ from typing_extensions import override
 
 from ... import base, gcnn
 from ...gcnn import _tree
+from ..utils import pylogger
 
 __all__ = (
     "ParityPlotter",
@@ -19,7 +19,7 @@ __all__ = (
     "IrrepsGraphParityPlotter",
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = pylogger.RankedLogger(__name__, rank_zero_only=True)
 
 
 class ParityPlotter(reax.TrainerListener):
@@ -263,18 +263,6 @@ class ParityPlotter(reax.TrainerListener):
 
     
     # --- Implement Stage End Hooks to Trigger Plotting ---
-
-    # @override
-    # def on_train_end(self, trainer: reax.Trainer, stage: reax.stages.Train, /):
-    #     """Training is ending, plot the collected training data."""
-    #     if self._should_plot("train", stage.epoch):
-    #         self._plot_parity("train", self._get_save_dir(trainer), stage.epoch - 1)
-
-    # @override
-    # def on_validation_end(self, trainer: reax.Trainer, stage: reax.stages.Validate, /) -> None:
-    #     """Validation has ended, plot the collected validation data."""
-    #     if self._should_plot("validation", stage.epoch):
-    #         self._plot_parity("validation", self._get_save_dir(trainer), stage.epoch - 1)
 
     @override
     def on_fit_end(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
