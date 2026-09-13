@@ -22,10 +22,10 @@ def cube_graph() -> jraph.GraphsTuple:
                 pts.append([i, j, k])
 
     pts = jnp.array(pts)
-    node_species = jnp.array(random.choices([0, 1, 2], k=len(pts)))
+    node_species = jnp.array(random.choices([0, 1, 2], k=len(pts))).reshape(-1, 1)
     nodes = {
         gcnn.keys.SPECIES: node_species,
-        gcnn.keys.ATTRIBUTES: e3j.as_irreps_array(jax.nn.one_hot(node_species, len(pts))),
+        gcnn.keys.ATTRIBUTES: e3j.as_irreps_array(jax.nn.one_hot(node_species[:, 0], len(pts))),
     }
 
     graph = gcnn.graph_from_points(

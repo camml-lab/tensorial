@@ -248,7 +248,7 @@ class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
     def _calc_averages(self, graphs: jraph.GraphsTuple, *_) -> Averages:
         graph_dict = graphs._asdict()
 
-        types = tree.get_by_path(graph_dict, ("nodes", self._type_field))
+        types = tree.get_by_path(graph_dict, ("nodes", self._type_field))[:, 0]
         # Transform the type numbers from whatever they are to 0, 1, 2....
         types = nn_utils.vwhere(types, self._node_types)
 

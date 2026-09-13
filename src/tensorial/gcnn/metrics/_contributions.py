@@ -281,7 +281,7 @@ class PropertyContributionLstsq(reax.Metric):
             types = nn_utils.vwhere(types, self._type_map)
             num_classes = len(self._type_map)
 
-        one_hots = jax.nn.one_hot(types, num_classes)
+        one_hots = jax.nn.one_hot(types[:, 0], num_classes)
         segment_sizes = graphs.n_node if self._type_source == "nodes" else graphs.n_edge
         type_counts = graph_ops.segment_sum(one_hots, segment_sizes)
 

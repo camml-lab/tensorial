@@ -51,4 +51,4 @@ def prepare_mask(
 
 def vwhere(values: jax.Array, types: jax.Array) -> jax.Array:
     vectorized = jax.vmap(lambda num: jnp.argwhere(num == types, size=1)[0])
-    return vectorized(values)[:, 0]
+    return vectorized(values).reshape(*values.shape)

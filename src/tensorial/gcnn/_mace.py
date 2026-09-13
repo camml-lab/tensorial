@@ -276,7 +276,7 @@ class MaceLayer(linen.Module):
     num_types: int
 
     # Interaction
-    num_features: int
+    num_features: int | None
     interaction_irreps: IntoIrreps
     #   Radial
     radial_activation: Callable
@@ -481,7 +481,7 @@ class Mace(linen.Module):
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         # Embeddings
         node_feats: IrrepsArrayShape["n_node feature*irreps"] = graph.nodes[keys.FEATURES]
-        node_species = graph.nodes[keys.SPECIES]
+        node_species = graph.nodes[keys.SPECIES][:, 0]
 
         # Interactions
         outputs: list[IrrepsArrayShape["n_node output_irreps"]] = []

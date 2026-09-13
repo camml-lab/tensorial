@@ -158,7 +158,7 @@ class NequipLayer(linen.Module):
     skip_connection: bool = True
     num_species: int = 1
 
-    interaction_block: Callable = None
+    interaction_block: Callable | None = None
 
     resnet: bool = False
 
@@ -198,7 +198,7 @@ class NequipLayer(linen.Module):
             graph.edges[keys.RADIAL_EMBEDDINGS],
             graph.senders,
             graph.receivers,
-            graph.nodes.get(keys.SPECIES),
+            graph.nodes.get(keys.SPECIES)[:, 0],
             node_mask=graph.nodes.get(keys.MASK),
             edge_mask=graph.edges.get(keys.MASK),
         )

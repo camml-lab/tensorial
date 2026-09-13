@@ -85,19 +85,19 @@ def test_graph_metric_with_mask(mask_field):
 
 @pytest.mark.parametrize("batch_size", [1, 3, 100])
 def test_indexed_metrics(rng_key, batch_size: int):
-    NUM_GRAPHS: Final[int] = 13
-    NUM_NODES: Final[int] = 100
-    TYPE_FIELD: Final[str] = "type_id"
-    NUM_TYPES: Final[int] = 3
+    num_graphs: Final[int] = 13
+    num_nodes: Final[int] = 100
+    type_fields: Final[str] = "type_id"
+    num_types: Final[int] = 3
 
     random_graphs = gcnn.random.spatial_graph(
         rng_key,
         cutoff=0.2,
-        num_graphs=NUM_GRAPHS,
-        num_nodes=NUM_NODES,
+        num_graphs=num_graphs,
+        num_nodes=num_nodes,
         nodes={
-            TYPE_FIELD: lambda rng_key, num: jax.random.randint(
-                rng_key, shape=(num,), minval=0, maxval=NUM_TYPES
+            type_fields: lambda rng_key, num: jax.random.randint(
+                rng_key, shape=(num, 1), minval=0, maxval=num_types
             ),
             gcnn.keys.MASK: (
                 lambda rng_key, num: jax.random.randint(
@@ -107,10 +107,10 @@ def test_indexed_metrics(rng_key, batch_size: int):
         },
     )
 
-    node_types = list(range(NUM_TYPES))
+    node_types = list(range(num_types))
     # Shuffle to make sure this metric works with type list that isn't ordered
     random.shuffle(node_types)
-    avg_num_neighbours = gcnn.metrics.AvgNumNeighboursByType(node_types, type_field=TYPE_FIELD)
+    avg_num_neighbours = gcnn.metrics.AvgNumNeighboursByType(node_types, type_field=type_fields)
 
     loader = gcnn.data.GraphLoader(random_graphs, batch_size=batch_size)
 
@@ -123,9 +123,9 @@ def test_indexed_metrics(rng_key, batch_size: int):
     all_graphs = jraph.batch(random_graphs)
     counts = jnp.bincount(all_graphs.senders, length=all_graphs.n_node.sum().item())
 
-    for i in range(NUM_TYPES):
+    for i in range(num_types):
         # Get all valid nodes of the right type
-        mask = all_graphs.nodes[gcnn.keys.MASK] & (all_graphs.nodes[TYPE_FIELD] == i)
+        mask = all_graphs.nodes[gcnn.keys.MASK] & (all_graphs.nodes[type_fields][:, 0] == i)
         assert jnp.isclose(counts[mask].mean(), res[i])
 
 

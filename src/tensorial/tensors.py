@@ -76,7 +76,7 @@ class SphericalHarmonic(base.Attr[jax.Array | e3j.IrrepsArray]):
         )
 
 
-class OneHot(base.Attr[Int[Array, "n_vals"]]):
+class OneHot(base.Attr[Int[Array, "n_vals 1"]]):
     """One-hot encoding as a direct sum of even scalars"""
 
     def __init__(self, num_classes: int):
@@ -90,8 +90,10 @@ class OneHot(base.Attr[Int[Array, "n_vals"]]):
         raise ValueError("Expected self.irreps to contain a MulIrrep.")
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def create_tensor(self, value: Int[Array, "n_vals"]) -> IrrepsArrayShape["n_node num_classes"]:
-        return e3j.IrrepsArray(self.irreps, jax.nn.one_hot(value, self.num_classes))
+    def create_tensor(
+        self, value: Int[Array, "n_vals 1"]
+    ) -> IrrepsArrayShape["n_node num_classes"]:
+        return e3j.IrrepsArray(self.irreps, jax.nn.one_hot(value[:, 0], self.num_classes))
 
 
 class CartesianTensor(base.Attr[jt.ArrayLike]):

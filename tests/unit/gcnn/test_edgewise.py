@@ -49,7 +49,7 @@ def test_edgewise_encoding(rng_key):
 
     # Let's use a one-hot for testing
     one_hot = tensorial.tensors.OneHot(num_elements)
-    edge_attrs = random.randint(rng_key, (n_edges,), 0, num_elements)
+    edge_attrs = random.randint(rng_key, (n_edges, 1), 0, num_elements)
 
     graph = jraph.GraphsTuple(
         nodes=None,

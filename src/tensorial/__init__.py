@@ -1,12 +1,5 @@
 """Library for machine learning on physical tensors"""
 
-# flake8: noqa: F402
-# pylint: disable=wrong-import-position
-import os
-
-os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
-
-
 from . import (
     base,
     config,

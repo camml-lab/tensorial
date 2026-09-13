@@ -18,7 +18,7 @@ def test_nequip_interaction_block(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
         cube_graph_gcnn.edges[keys.RADIAL_EMBEDDINGS],
         cube_graph_gcnn.senders,
         cube_graph_gcnn.receivers,
-        cube_graph_gcnn.nodes[keys.SPECIES],
+        cube_graph_gcnn.nodes[keys.SPECIES][:, 0],
     )
     params = block.init(rng_key, *args)
     node_features = block.apply(params, *args)
@@ -42,7 +42,7 @@ def test_nequip_interaction_block_with_padding(
             graph.senders,
             graph.receivers,
         )
-        kwargs = {"node_species": graph.nodes[keys.SPECIES]}
+        kwargs = {"node_species": graph.nodes[keys.SPECIES][:, 0]}
         if "mask" in graph.nodes:
             kwargs["node_mask"] = graph.nodes["mask"]
         if "mask" in graph.edges:

@@ -66,6 +66,8 @@ def graph_from_points(
                 f"for {name}"
             )
 
+        nodes[name] = value[..., None] if value.ndim == 1 and name != keys.MASK else value
+
     if pbc is None:
         # there are no PBC if cell and pbc are not provided
         if cell is not None:

@@ -81,22 +81,15 @@ def test_species_transform(h2coh: ase.Atoms):  # pylint: disable=redefined-outer
     # out = transform.apply(params, graph)
     out = transform(graph)
 
-    transformed = jnp.array(
-        list(
-            map(
-                atomic_numbers.index,
-                h2coh.numbers,
-            )
-        )
-    )
-    assert out.nodes[transform.out_field].shape == (num_atoms,)
+    transformed = jnp.array(list(map(atomic_numbers.index, h2coh.numbers)))[:, None]
+    assert out.nodes[transform.out_field].shape == (num_atoms, 1)
     assert jnp.all(out.nodes[transform.out_field] == transformed)
 
 
 def test_per_species_rescale():
     molecule = ase.build.molecule("SiH4")
     types = np.unique(molecule.get_atomic_numbers())
-    energies = np.random.rand(len(molecule))
+    energies = np.random.rand(len(molecule), 1)
     molecule.arrays[atomic.keys.ENERGY_PER_ATOM] = energies
 
     molecule_graph = atomic.graph_from_ase(
@@ -151,7 +144,7 @@ def test_metrics(molecule_dataset: Sequence[jraph.GraphsTuple]):
 
 def test_energy_contrib_lstsq(molecule_dataset: Sequence[jraph.GraphsTuple]):
     all_molecules = jraph.batch(molecule_dataset)
-    atomic_numbers = all_molecules.nodes[keys.ATOMIC_NUMBERS]
+    atomic_numbers = all_molecules.nodes[keys.ATOMIC_NUMBERS][:, 0]
     energies = all_molecules.globals[keys.TOTAL_ENERGY]
 
     types = jnp.unique(atomic_numbers)
