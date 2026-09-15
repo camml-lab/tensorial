@@ -6,10 +6,11 @@ import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 from jaxtyping import Array, Float, Int
+import numpy as np
 
 from tensorial.typing import IrrepsArrayShape
 
-from . import base
+from . import base, nn_utils
 
 __all__ = "SphericalHarmonic", "CartesianTensor", "NoOp", "OneHot", "AsIrreps"
 
@@ -79,8 +80,22 @@ class SphericalHarmonic(base.Attr[jax.Array | e3j.IrrepsArray]):
 class OneHot(base.Attr[Int[Array, "n_vals 1"]]):
     """One-hot encoding as a direct sum of even scalars"""
 
-    def __init__(self, num_classes: int):
+    _types: np.ndarray
+
+    def __init__(self, num_classes: int = None, types: list[int] = None):
+        if num_classes is None:
+            if types is None:
+                raise ValueError(
+                    "Need to specify the number of one hot classes, or the list of types, "
+                    "got neither."
+                )
+            num_classes = len(types)
+            types = np.array(types)
+        else:
+            types = np.arange(num_classes)
+
         super().__init__(num_classes * e3j.Irrep(0, 1))
+        self._types = types
 
     @property
     def num_classes(self) -> int:
@@ -93,7 +108,8 @@ class OneHot(base.Attr[Int[Array, "n_vals 1"]]):
     def create_tensor(
         self, value: Int[Array, "n_vals 1"]
     ) -> IrrepsArrayShape["n_node num_classes"]:
-        return e3j.IrrepsArray(self.irreps, jax.nn.one_hot(value[:, 0], self.num_classes))
+        sequential = nn_utils.vwhere(value[:, 0], self._types)
+        return e3j.IrrepsArray(self.irreps, jax.nn.one_hot(sequential, self.num_classes))
 
 
 class CartesianTensor(base.Attr[jt.ArrayLike]):

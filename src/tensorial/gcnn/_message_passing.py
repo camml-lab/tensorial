@@ -1,6 +1,7 @@
 import beartype
 import e3nn_jax as e3j
 from flax import linen
+import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 from jaxtyping import Bool, Float, Int
@@ -12,7 +13,10 @@ from tensorial.typing import Array, IndexArray, IntoIrreps, IrrepsArrayShape
 
 class MessagePassingConvolution(linen.Module):
     irreps_out: IntoIrreps
-    avg_num_neighbours: float | dict[int, float] = 1.0
+
+    # Normalisation
+    avg_num_neighbours: float | dict[int, float] | linen.FrozenDict[int, float] = 1.0
+    epsilon: float | None = None
 
     # Radial
     radial_num_layers: int = 1
@@ -36,8 +40,8 @@ class MessagePassingConvolution(linen.Module):
         senders: IndexArray["n_edge"],
         receivers: IndexArray["n_edge"],
         *,
-        edge_mask: Bool[Array, "n_edge"] | None = None,
         node_types: Int[Array, "n_node"] | None = None,
+        edge_mask: Bool[Array, "n_edge"] | None = None,
     ) -> IrrepsArrayShape["n_node node_irreps_out"]:
         """
         Performs graph convolution operations on node and edge features using tensor products and
@@ -105,9 +109,12 @@ class MessagePassingConvolution(linen.Module):
         zeros = e3j.zeros(messages.irreps, node_feats.shape[:1], messages.dtype)
         node_feats = zeros.at[receivers].add(messages)
 
+        if self.epsilon is not None:
+            return node_feats * self.epsilon
+
         if isinstance(self.avg_num_neighbours, linen.FrozenDict):
             type_idxs = nn_utils.vwhere(node_types, self._types)
             avg_neighbours = self._avg_neighbours[type_idxs]
-            return node_feats / jnp.sqrt(avg_neighbours).reshape(-1, 1)
+            return jax.vmap(lambda a, b: a / b)(node_feats, jnp.sqrt(avg_neighbours))
 
         return node_feats / jnp.sqrt(self.avg_num_neighbours)

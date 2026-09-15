@@ -38,17 +38,17 @@ def test_message_passing(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
 
 
 def test_message_passing_normalize_by_type(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
-    NUM_TYPES: Final[int] = 3
-    IRREPS_OUT: Final[e3j.Irreps] = e3j.Irreps("0e + 1o + 2e")
+    num_types: Final[int] = 3
+    irreps_out: Final[e3j.Irreps] = e3j.Irreps("0e + 1o + 2e")
 
     rng_key, subkey = jax.random.split(rng_key)
-    types = list(range(NUM_TYPES))
-    avg_neighs = jax.random.uniform(subkey, (NUM_TYPES,)) + 10.0
+    types = list(range(num_types))
+    avg_neighs = jax.random.uniform(subkey, (num_types,)) + 10.0
     norms_dict = dict(zip(types, avg_neighs.tolist()))
 
-    conv = _message_passing.MessagePassingConvolution(IRREPS_OUT)
+    conv = _message_passing.MessagePassingConvolution(irreps_out)
     conv_with_normalization = _message_passing.MessagePassingConvolution(
-        IRREPS_OUT, avg_num_neighbours=norms_dict
+        irreps_out, avg_num_neighbours=norms_dict
     )
 
     # Initialise the module
@@ -60,7 +60,7 @@ def test_message_passing_normalize_by_type(cube_graph_gcnn: jraph.GraphsTuple, r
         cube_graph_gcnn.receivers,
     )
     node_types = jax.random.randint(
-        rng_key, (cube_graph_gcnn.n_node[0].item(),), minval=0, maxval=NUM_TYPES
+        rng_key, (cube_graph_gcnn.n_node[0].item(),), minval=0, maxval=num_types
     )
     params = conv.init(rng_key, *args)
     params_norm = conv_with_normalization.init(rng_key, *args, node_types=node_types)

@@ -56,7 +56,7 @@ class InteractionBlock(linen.Module):
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
         self._message_passing = _message_passing.MessagePassingConvolution(
-            irreps_out=self.irreps_out,
+            self.irreps_out,
             avg_num_neighbours=self.avg_num_neighbours,
             radial_num_layers=self.radial_num_layers,
             radial_num_neurons=self.radial_num_neurons,

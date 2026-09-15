@@ -75,10 +75,8 @@ class SymmetricContraction(linen.Module):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def _contract(
-        self,
-        inputs: IrrepsArrayShape["num_features irreps_in"],
-        input_type: IndexArray[""],
-    ) -> IrrepsArrayShape["num_features irreps_out"]:
+        self, inputs: IrrepsArrayShape["n_feats irreps_in"], input_type: IndexArray[""]
+    ) -> IrrepsArrayShape["n_feats irreps_out"]:
         """This operation is parallel on the feature dimension (but each feature has its own
         parameters)
         Efficient implementation of:
@@ -98,7 +96,7 @@ class SymmetricContraction(linen.Module):
         outputs: dict[e3j.Irrep, Array] = dict()
         for order in range(self.correlation_order, 0, -1):  # correlation_order, ..., 1
             if self.off_diagonal:
-                inp = jnp.roll(inputs.array, A025582[order - 1])
+                inp = jnp.roll(inputs.array, A025582[order - 1], axis=0)
             else:
                 inp = inputs.array
 
@@ -121,7 +119,7 @@ class SymmetricContraction(linen.Module):
                     inp.dtype
                 )
 
-                weights: Float[Array, "multiplicity num_features"] = self.param(
+                weights: Float[Array, "multiplicity n_feats"] = self.param(
                     f"w{order}_{ir_out}",
                     linen.initializers.normal(
                         stddev=(mul**-0.5) ** (1.0 - self._gradient_normalisation)
@@ -139,11 +137,11 @@ class SymmetricContraction(linen.Module):
                     outputs[ir_out] = (
                         "special",
                         jnp.einsum("...jki,kc,cj->c...i", basis_fn, weights, inp),
-                    )  # [num_features, (irreps_x.dim)^(oder-1), ir_out.dim]
+                    )  # [n_feats, (irreps_x.dim)^(oder-1), ir_out.dim]
                 else:
                     outputs[ir_out] += jnp.einsum(
                         "...ki,kc->c...i", basis_fn, weights
-                    )  # [num_features, (irreps_x.dim)^order, ir_out.dim]
+                    )  # [n_feats, (irreps_x.dim)^order, ir_out.dim]
 
             # ((w3 x + w2) x + w1) x
             #  \----------------/
@@ -154,7 +152,7 @@ class SymmetricContraction(linen.Module):
                     outputs[ir_out] = val[1]
                     continue  # already done (special case optimisation above)
 
-                value: Float[Array, "num_features irreps_in^(oder-1) irreps_out"] = jnp.einsum(
+                value: Float[Array, "n_feats irreps_in^(oder-1) irreps_out"] = jnp.einsum(
                     "c...ji,cj->c...i", outputs[ir_out], inp
                 )
                 outputs[ir_out] = value
@@ -164,7 +162,7 @@ class SymmetricContraction(linen.Module):
             #           out
 
         irreps_out = e3j.Irreps(sorted(outputs.keys()))
-        output: IrrepsArrayShape["num_features irreps_out"] = e3j.from_chunks(
+        output: IrrepsArrayShape["n_feats irreps_out"] = e3j.from_chunks(
             irreps_out,
             [outputs[ir][:, None, :] for (_, ir) in irreps_out],
             (inputs.shape[0],),
@@ -195,7 +193,7 @@ class EquivariantProductBasisBlock(linen.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
-        node_features: IrrepsArrayShape["n_node featuresXirreps"],
+        node_features: IrrepsArrayShape["n_node n_featsXirreps"],
         node_types: IndexArray["n_node"],
     ) -> IrrepsArrayShape["n_node irreps_out"]:
         node_features = node_features.mul_to_axis().remove_zero_chunks()
@@ -206,13 +204,20 @@ class EquivariantProductBasisBlock(linen.Module):
 
 class InteractionBlock(linen.Module):
     irreps_out: IntoIrreps
+
+    # Normalisation
     avg_num_neighbours: float | dict[int, float] = 1.0
+    epsilon: float | None = None
+
     radial_activation: str | nn_utils.ActivationFunction = "swish"
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
         self._message_passing = _message_passing.MessagePassingConvolution(
-            self.irreps_out, self.avg_num_neighbours, radial_activation=self.radial_activation
+            self.irreps_out,
+            avg_num_neighbours=self.avg_num_neighbours,
+            epsilon=self.epsilon,
+            radial_activation=self.radial_activation,
         )
         self._linear_down = e3j.flax.Linear(self.irreps_out, name="linear_down")
 
@@ -226,12 +231,19 @@ class InteractionBlock(linen.Module):
         senders: Int[Array, "n_edge"],
         receivers: Int[Array, "n_edge"],
         *,
+        node_types: Int[Array, "n_node"] | None = None,
         edge_mask: Bool[Array, "n_edge"] | None = None,
     ) -> IrrepsArrayShape["n_node target_irreps"]:
         node_features = e3j.flax.Linear(node_features.irreps, name="linear_up")(node_features)
 
         node_features = self._message_passing(
-            node_features, edge_features, radial_embedding, senders, receivers, edge_mask=edge_mask
+            node_features,
+            edge_features,
+            radial_embedding,
+            senders,
+            receivers,
+            edge_mask=edge_mask,
+            node_types=node_types,
         )
 
         node_features = self._linear_down(node_features)
@@ -283,7 +295,7 @@ class MaceLayer(linen.Module):
 
     # Normalisation
     epsilon: float | None
-    avg_num_neighbours: float
+    avg_num_neighbours: float | dict[int, float] | linen.FrozenDict[int, float]
 
     # Product basis
     hidden_irreps: IntoIrreps
@@ -306,8 +318,9 @@ class MaceLayer(linen.Module):
             num_features = self.num_features
 
         self._interaction_block = InteractionBlock(
-            irreps_out=num_features * interaction_irreps,
+            num_features * interaction_irreps,
             avg_num_neighbours=self.avg_num_neighbours,
+            epsilon=self.epsilon,
             radial_activation=self.radial_activation,
         )
         self._product_basis = EquivariantProductBasisBlock(
@@ -332,7 +345,7 @@ class MaceLayer(linen.Module):
         self,
         node_features: IrrepsArrayShape["n_node node_irreps"],
         edge_features: IrrepsArrayShape["n_edge edge_irreps"],
-        node_species: Int[Array, "n_node"],  # int between 0 and num_species - 1
+        node_types: Int[Array, "n_node"],
         radial_embedding: Float[Array, "n_edge radial_embedding"],
         senders: Int[Array, "n_edge"],
         receivers: Int[Array, "n_edge"],
@@ -341,23 +354,19 @@ class MaceLayer(linen.Module):
     ) -> IrrepsArrayShape["n_node node_irreps_out"]:
         skip_connection: IrrepsArrayShape["n_node feature*hidden_irreps"] | None = None
         if self._skip_connection is not None:
-            skip_connection = self._skip_connection(node_species, node_features)
+            skip_connection = self._skip_connection(node_types, node_features)
 
         node_features = self._interaction_block(
-            node_features=node_features,
-            edge_features=edge_features,
-            radial_embedding=radial_embedding,
-            receivers=receivers,
-            senders=senders,
+            node_features,
+            edge_features,
+            radial_embedding,
+            senders,
+            receivers,
             edge_mask=edge_mask,
+            node_types=node_types,
         )
 
-        if self.epsilon is not None:
-            node_features *= self.epsilon
-        else:
-            node_features /= jnp.sqrt(self.avg_num_neighbours)
-
-        node_features = self._product_basis(node_features=node_features, node_types=node_species)
+        node_features = self._product_basis(node_features=node_features, node_types=node_types)
 
         if self.soft_normalisation is not None:
             node_features = e3j.norm_activation(
@@ -382,13 +391,15 @@ class Mace(linen.Module):
     correlation_order: int = 3  # Correlation order at each layer (~ node_features^correlation)
     num_interactions: int = 2  # Number of interactions (layers)
     y0_values: list[float] | None = None
-    avg_num_neighbours: float | dict[int, float] = 1.0
     soft_normalisation: bool | None = None
     # Number of features per node, default gcd of hidden_irreps multiplicities
     num_features: int | None = None
     num_types: int = 1
     max_ell: int = 3  # Max spherical harmonic degree
     epsilon: float | None = None
+
+    # Normalistaion
+    avg_num_neighbours: float | dict[int, float] = 1.0
     off_diagonal: bool = False
 
     symmetric_tensor_product_basis: bool = True
@@ -402,19 +413,14 @@ class Mace(linen.Module):
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
-        hidden_irreps = e3j.Irreps(self.hidden_irreps)
-        irreps_out = e3j.Irreps(self.irreps_out)
-        if self.y0_values:
-            if len(self.y0_values) != self.num_types:
-                raise ValueError(f"len(y0) != num_types: {len(self.y0_values)} != {self.num_types}")
+        hidden_irreps, irreps_out, non_scalar_irreps_out = self._init_irreps(
+            self.hidden_irreps, self.irreps_out
+        )
+        self._y0 = self._init_y0(self.y0_values, irreps_out, num_types=self.num_types)
 
-            y0 = self.y0_values
-            if isinstance(self.y0_values, e3j.IrrepsArray):
-                y0 = self.y0_values.array
-            elif isinstance(self.y0_values, (list, tuple)):
-                y0 = jnp.array(self.y0_values)
-
-            self._y0 = e3j.IrrepsArray(irreps_out, jnp.atleast_2d(y0).T)
+        readout_mlp_irreps = (
+            e3j.Irreps(self.readout_mlp_irreps) + non_scalar_irreps_out
+        ).simplify()
 
         if self.num_features is None:
             num_features = functools.reduce(math.gcd, (mul for mul, _ in hidden_irreps))
@@ -446,8 +452,8 @@ class Mace(linen.Module):
                 # Radial
                 radial_activation=self.radial_activation,
                 # Normalisation
-                epsilon=self.epsilon,
                 avg_num_neighbours=self.avg_num_neighbours,
+                epsilon=self.epsilon,
                 # Product basis
                 hidden_irreps=hidden_irreps,
                 correlation_order=self.correlation_order,
@@ -464,9 +470,10 @@ class Mace(linen.Module):
             else:
                 # Nonlinear readout on last layer
                 readout = NonLinearReadoutBlock(
-                    e3j.Irreps(self.readout_mlp_irreps),
+                    readout_mlp_irreps,
                     irreps_out,
                     activation=self.radial_activation,
+                    gate=self.radial_activation,
                 )
 
             mace_layers.append(mace_layer)
@@ -481,13 +488,13 @@ class Mace(linen.Module):
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         # Embeddings
         node_feats: IrrepsArrayShape["n_node feature*irreps"] = graph.nodes[keys.FEATURES]
-        node_species = graph.nodes[keys.SPECIES][:, 0]
+        node_types = graph.nodes[keys.SPECIES][:, 0]
 
         # Interactions
-        outputs: list[IrrepsArrayShape["n_node output_irreps"]] = []
+        outputs: "list[IrrepsArrayShape['n_node output_irreps']]" = []
         # Deal with the y0 values of the expansion
-        if self.y0_values:
-            outputs.append(self._y0[node_species])
+        if self.y0_values is not None:
+            outputs.append(self._y0[node_types])
 
         # Now expand up to the maximum correlation order
         for layer, readout in zip(self._layers, self._readouts):
@@ -495,7 +502,7 @@ class Mace(linen.Module):
                 node_feats,
                 # Edge features are not mutated, so just take directly from graph
                 graph.edges[keys.ATTRIBUTES],
-                node_species,
+                node_types,
                 graph.edges[keys.RADIAL_EMBEDDINGS],
                 graph.senders,
                 graph.receivers,
@@ -512,3 +519,75 @@ class Mace(linen.Module):
             .update("nodes", {keys.FEATURES: node_feats, self.out_field: output})
             .get()
         )
+
+    @staticmethod
+    def _init_irreps(
+        hidden_irreps: IntoIrreps, irreps_out: IntoIrreps
+    ) -> tuple[e3j.Irreps, e3j.Irreps, e3j.Irreps]:
+        hidden_irreps = e3j.Irreps(hidden_irreps)
+        irreps_out = e3j.Irreps(irreps_out)
+        # The nonlinear readout's hidden representation needs a channel matching every
+        # non-scalar irrep in irreps_out, or NonLinearReadoutBlock's final Linear has no
+        # equivariant path to it and those output components are silently zero.
+        non_scalar_irreps_out = irreps_out.filter(drop=["0e", "0o"])
+
+        # Sanity check
+        missing = [
+            ir for _, ir in non_scalar_irreps_out if ir not in {ir for _, ir in hidden_irreps}
+        ]
+        if missing:
+            raise ValueError(
+                f"irreps_out requires {missing} but hidden_irreps={hidden_irreps} has no matching "
+                "channel — those output components would be identically zero."
+            )
+
+        return hidden_irreps, irreps_out, non_scalar_irreps_out
+
+    @staticmethod
+    def _init_y0(y0_values, irreps_out: e3j.Irreps, num_types: int):
+        """
+        Safely maps scalar 0-body baselines (y0) to arbitrary target irreps_out.
+        """
+        if y0_values is None:
+            return None
+
+        # 1. Extract raw array data cleanly
+        if isinstance(y0_values, e3j.IrrepsArray):
+            y0 = y0_values.array
+        else:
+            y0 = jnp.asarray(y0_values)
+
+        # 2. Promote 1D [num_types] -> 2D [num_types, 1] for scalar features
+        if y0.ndim == 1:
+            y0 = y0[:, None]
+
+        # 3. Validate leading dimension against num_types
+        if y0.shape[0] != num_types:
+            raise ValueError(
+                f"y0_values leading dimension ({y0.shape[0]}) does not match num_types "
+                f"({num_types})"
+            )
+
+        # 4. Embed into irreps_out (pad non-scalars with zero)
+        num_scalars = sum(mul for mul, ir in irreps_out if ir == e3j.Irrep("0e"))
+        if y0.shape[1] != num_scalars:
+            raise ValueError(
+                f"y0_values feature dimension ({y0.shape[1]}) does not match "
+                f"number of 0e components in irreps_out ({num_scalars})"
+            )
+
+        full_array = jnp.zeros((num_types, irreps_out.dim), dtype=y0.dtype)
+
+        # Place y0 into the 0e feature slots
+        scalar_offset = 0
+        array_offset = 0
+        for mul, ir in irreps_out:
+            dim = mul * ir.dim
+            if ir == e3j.Irrep("0e"):
+                full_array = full_array.at[:, array_offset : array_offset + dim].set(
+                    y0[:, scalar_offset : scalar_offset + dim]
+                )
+                scalar_offset += dim
+            array_offset += dim
+
+        return e3j.IrrepsArray(irreps_out, full_array)
