@@ -27,6 +27,7 @@ dependencies = [
     'beartype',
     "flax>=0.10.7",
     "hydra-core",
+    "hydra-colorlog",
     'jax<0.12.0', # Control the JAX version, as previous updates have broken things
     'jaxlib<0.12.0',
     'jaxtyping',
