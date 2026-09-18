@@ -1,5 +1,6 @@
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 import functools
+import logging
 import math
 from typing import Literal
 
@@ -12,194 +13,23 @@ import jaxtyping as jt
 from jaxtyping import Array, Bool, Float, Int
 import jraph
 
-from tensorial import gcnn, nn_utils
-from tensorial.typing import IndexArray, IntoIrreps, IrrepLike, IrrepsArrayShape
+from . import _base, _message_passing, _product_basis, experimental, keys
+from .. import nn_utils
+from ..typing import IntoIrreps, IrrepsArrayShape
 
-from . import _base, _message_passing, experimental, keys
+__all__ = "Mace", "MaceLayer", "InteractionBlock", "NonLinearReadoutBlock"
 
-A025582 = [0, 1, 3, 7, 12, 20, 30, 44, 65, 80, 96, 122, 147, 181, 203, 251, 289]
-
-
-class SymmetricContraction(linen.Module):
-    """Symmetric tensor contraction up to a given correlation order.
-
-    Based on implementation from:
-
-        https://github.com/ACEsuit/mace-jax/blob/main/mace_jax/modules/symmetric_contraction.py
-    """
-
-    correlation_order: int
-    keep_irrep_out: str | Iterable[IrrepLike]
-
-    num_types: int = 1
-    gradient_normalisation: str | float | None = None
-    symmetric_tensor_product_basis: bool = True
-    off_diagonal: bool = False
-    param_dtype = jnp.float32
-
-    def setup(self):
-        # pylint: disable=attribute-defined-outside-init
-        # Gradient normalisation
-        gradient_normalisation = self.gradient_normalisation
-        if gradient_normalisation is None:
-            gradient_normalisation = e3j.config("gradient_normalization")
-        if isinstance(gradient_normalisation, str):
-            gradient_normalisation = {"element": 0.0, "path": 1.0}[gradient_normalisation]
-        self._gradient_normalisation = gradient_normalisation
-
-        # Output irreps to keep
-        keep_irrep_out = self.keep_irrep_out
-        if isinstance(self.keep_irrep_out, str):
-            keep_irrep_out = e3j.Irreps(self.keep_irrep_out)
-            assert all(mul == 1 for mul, _ in keep_irrep_out)
-
-        self._keep_irrep_out = {e3j.Irrep(ir) for ir in keep_irrep_out}
-
-    @linen.compact
-    @jt.jaxtyped(typechecker=beartype.beartype)
-    def __call__(
-        self,
-        inputs: IrrepsArrayShape["n_node features irreps"],
-        input_type: IndexArray["n_node"],
-    ) -> IrrepsArrayShape["n_node features irreps_out"]:
-        # Treat batch indices using vmap
-        shape = jnp.broadcast_shapes(inputs.shape[:-2], input_type.shape)
-        inputs = inputs.broadcast_to(shape + inputs.shape[-2:])
-        input_type = jnp.broadcast_to(input_type, shape)
-
-        contract = self._contract
-        for _ in range(inputs.ndim - 2):
-            contract = jax.vmap(contract)
-
-        return contract(inputs, input_type)
-
-    @jt.jaxtyped(typechecker=beartype.beartype)
-    def _contract(
-        self, inputs: IrrepsArrayShape["n_feats irreps_in"], input_type: IndexArray[""]
-    ) -> IrrepsArrayShape["n_feats irreps_out"]:
-        """This operation is parallel on the feature dimension (but each feature has its own
-        parameters)
-        Efficient implementation of:
-
-            vmap(lambda w, x: FunctionalLinear(irreps_out)(
-                w, concatenate([x, tensor_product(x, x), tensor_product(x, x, x), ...])))(w, x)
-
-        up to x power ``self.correlation_order``
-
-        Args:
-            inputs: the contraction inputs
-            input_type: the contraction index
-
-        Returns:
-            the contraction outputs
-        """
-        outputs: dict[e3j.Irrep, Array] = dict()
-        for order in range(self.correlation_order, 0, -1):  # correlation_order, ..., 1
-            if self.off_diagonal:
-                inp = jnp.roll(inputs.array, A025582[order - 1], axis=0)
-            else:
-                inp = inputs.array
-
-            # Create the basis
-            if self.symmetric_tensor_product_basis:
-                basis = e3j.reduced_symmetric_tensor_product_basis(
-                    inputs.irreps, order, keep_ir=self._keep_irrep_out
-                )
-            else:
-                basis = e3j.reduced_tensor_product_basis(
-                    [inputs.irreps] * order, keep_ir=self._keep_irrep_out
-                )
-
-            # ((w3 x + w2) x + w1) x
-            #  \-----------/
-            #       out
-
-            for (mul, ir_out), basis_fn in zip(basis.irreps, basis.chunks):
-                basis_fn: Float[Array, "irreps_in^order multiplicity irreps_out"] = basis_fn.astype(
-                    inp.dtype
-                )
-
-                weights: Float[Array, "multiplicity n_feats"] = self.param(
-                    f"w{order}_{ir_out}",
-                    linen.initializers.normal(
-                        stddev=(mul**-0.5) ** (1.0 - self._gradient_normalisation)
-                    ),
-                    (self.num_types, mul, inputs.shape[0]),
-                    self.param_dtype,
-                )
-                # Index by type
-                weights = weights[input_type]  # pylint: disable=unsubscriptable-object
-
-                # normalize the weights
-                weights = weights * (mul**-0.5) ** self._gradient_normalisation
-
-                if ir_out not in outputs:
-                    outputs[ir_out] = (
-                        "special",
-                        jnp.einsum("...jki,kc,cj->c...i", basis_fn, weights, inp),
-                    )  # [n_feats, (irreps_x.dim)^(oder-1), ir_out.dim]
-                else:
-                    outputs[ir_out] += jnp.einsum(
-                        "...ki,kc->c...i", basis_fn, weights
-                    )  # [n_feats, (irreps_x.dim)^order, ir_out.dim]
-
-            # ((w3 x + w2) x + w1) x
-            #  \----------------/
-            #         out (in the normal case)
-
-            for ir_out, val in outputs.items():
-                if isinstance(val, tuple):
-                    outputs[ir_out] = val[1]
-                    continue  # already done (special case optimisation above)
-
-                value: Float[Array, "n_feats irreps_in^(oder-1) irreps_out"] = jnp.einsum(
-                    "c...ji,cj->c...i", outputs[ir_out], inp
-                )
-                outputs[ir_out] = value
-
-            # ((w3 x + w2) x + w1) x
-            #  \-------------------/
-            #           out
-
-        irreps_out = e3j.Irreps(sorted(outputs.keys()))
-        output: IrrepsArrayShape["n_feats irreps_out"] = e3j.from_chunks(
-            irreps_out,
-            [outputs[ir][:, None, :] for (_, ir) in irreps_out],
-            (inputs.shape[0],),
-        )
-        return output
+_LOGGER = logging.getLogger(__name__)
 
 
-class EquivariantProductBasisBlock(linen.Module):
-    irreps_out: e3j.Irreps
-    correlation_order: int
-    num_types: int
-    symmetric_tensor_product_basis: bool = True
-    off_diagonal: bool = False
-
-    def setup(self):
-        # pylint: disable=attribute-defined-outside-init
-        self._target_irreps = e3j.Irreps(self.irreps_out)
-        self.symmetric_contractions = SymmetricContraction(
-            keep_irrep_out={ir for _, ir in e3j.Irreps(self._target_irreps)},
-            correlation_order=self.correlation_order,
-            num_types=self.num_types,
-            gradient_normalisation="element",  # NOTE: This is to copy mace-torch
-            symmetric_tensor_product_basis=self.symmetric_tensor_product_basis,
-            off_diagonal=self.off_diagonal,
-        )
-
-    @linen.compact
-    @jt.jaxtyped(typechecker=beartype.beartype)
-    def __call__(
-        self,
-        node_features: IrrepsArrayShape["n_node n_featsXirreps"],
-        node_types: IndexArray["n_node"],
-    ) -> IrrepsArrayShape["n_node irreps_out"]:
-        node_features = node_features.mul_to_axis().remove_zero_chunks()
-        node_features = self.symmetric_contractions(node_features, node_types)
-        node_features = node_features.axis_to_mul()
-        return e3j.flax.Linear(self._target_irreps)(node_features)
+def broadcast_to_nodes(
+    graph_array: IrrepsArrayShape["n_graph irreps"],
+    n_node: Int[Array, "n_graph"],
+    total_nodes: int,
+) -> IrrepsArrayShape["n_node irreps"]:
+    """Repeat a per-graph quantity out to one copy per node, in node order."""
+    repeated = jnp.repeat(graph_array.array, n_node, axis=0, total_repeat_length=total_nodes)
+    return e3j.IrrepsArray(graph_array.irreps, repeated)
 
 
 class InteractionBlock(linen.Module):
@@ -213,13 +43,17 @@ class InteractionBlock(linen.Module):
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
+        self._target_irreps = e3j.Irreps(self.irreps_out)
+
         self._message_passing = _message_passing.MessagePassingConvolution(
-            self.irreps_out,
+            self._target_irreps,
             avg_num_neighbours=self.avg_num_neighbours,
             epsilon=self.epsilon,
             radial_activation=self.radial_activation,
         )
-        self._linear_down = e3j.flax.Linear(self.irreps_out, name="linear_down")
+        self._linear_down = e3j.flax.Linear(
+            self._target_irreps, name="linear_down", force_irreps_out=True
+        )
 
     @linen.compact
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -302,14 +136,17 @@ class MaceLayer(linen.Module):
     correlation_order: int
     symmetric_tensor_product_basis: bool
     off_diagonal: bool
+    global_interaction: bool = False
+    global_correlation_order: int | None = None
+    global_irreps_out: IntoIrreps | None = None
 
-    soft_normalisation: float | None
+    soft_normalisation: float | None = None
     skip_connection: bool = True
 
     def setup(self):
         # pylint: disable=attribute-defined-outside-init
-        hidden_irreps = e3j.Irreps(self.hidden_irreps)
         interaction_irreps = e3j.Irreps(self.interaction_irreps)
+        hidden_irreps = e3j.Irreps(self.hidden_irreps)
 
         if self.num_features is None:
             num_features = functools.reduce(math.gcd, (mul for mul, _ in hidden_irreps))
@@ -317,22 +154,50 @@ class MaceLayer(linen.Module):
         else:
             num_features = self.num_features
 
+        self._target_irreps: e3j.Irreps = num_features * hidden_irreps
+
         self._interaction_block = InteractionBlock(
             num_features * interaction_irreps,
             avg_num_neighbours=self.avg_num_neighbours,
             epsilon=self.epsilon,
             radial_activation=self.radial_activation,
         )
-        self._product_basis = EquivariantProductBasisBlock(
-            irreps_out=num_features * hidden_irreps,
+
+        self._product_basis = _product_basis.EquivariantProductBasisBlock(
+            self._target_irreps,
             correlation_order=self.correlation_order,
             num_types=self.num_types,
             symmetric_tensor_product_basis=self.symmetric_tensor_product_basis,
             off_diagonal=self.off_diagonal,
         )
+
+        if self.global_interaction:
+            global_correlation_order = (
+                self.global_correlation_order
+                if self.global_correlation_order is not None
+                else self.correlation_order
+            )
+            global_irreps = (
+                e3j.Irreps(self.global_irreps_out)
+                if self.global_irreps_out is not None
+                else self._target_irreps
+            )
+            global_product_basis, node_global = self._init_global_interaction(
+                global_irreps,
+                global_correlation_order,
+                self.symmetric_tensor_product_basis,
+                self._target_irreps,
+            )
+
+            self._global_product_basis = global_product_basis
+            self._node_global = node_global
+        else:
+            self._global_product_basis = None
+            self._node_global = None
+
         if self.skip_connection:
             self._skip_connection = e3j.flax.Linear(
-                num_features * hidden_irreps,
+                self._target_irreps,
                 num_indexed_weights=self.num_types,
                 name="skip_connection",
                 force_irreps_out=True,
@@ -343,13 +208,19 @@ class MaceLayer(linen.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
         self,
+        # 1. Node data
         node_features: IrrepsArrayShape["n_node node_irreps"],
-        edge_features: IrrepsArrayShape["n_edge edge_irreps"],
         node_types: Int[Array, "n_node"],
+        # 2. Edge data & geometry
+        edge_features: IrrepsArrayShape["n_edge edge_irreps"],
         radial_embedding: Float[Array, "n_edge radial_embedding"],
+        # 3. Graph topology
         senders: Int[Array, "n_edge"],
         receivers: Int[Array, "n_edge"],
+        n_node: Int[Array, "n_graph"],
         *,
+        # 4. Globals & Optionals
+        global_features: IrrepsArrayShape["n_graph global_irreps"] | None = None,
         edge_mask: Bool[Array, "n_edge"] | None = None,
     ) -> IrrepsArrayShape["n_node node_irreps_out"]:
         skip_connection: IrrepsArrayShape["n_node feature*hidden_irreps"] | None = None
@@ -366,7 +237,25 @@ class MaceLayer(linen.Module):
             node_types=node_types,
         )
 
-        node_features = self._product_basis(node_features=node_features, node_types=node_types)
+        node_features = self._product_basis(node_features, input_type=node_types)
+        if self.global_interaction:
+            if global_features is None:
+                raise ValueError(
+                    "MaceLayer was configured with global_interaction=True but "
+                    "received global_features=None"
+                )
+            global_features = self._global_product_basis(global_features)
+            global_features_nodes = broadcast_to_nodes(
+                global_features, n_node, total_nodes=node_features.shape[0]
+            )
+
+            # Cross correlate node and global features
+            cross = e3j.tensor_product(
+                node_features, global_features_nodes, filter_ir_out=self._target_irreps
+            )
+            cross = self._node_global(cross)
+
+            node_features = node_features + cross
 
         if self.soft_normalisation is not None:
             node_features = e3j.norm_activation(
@@ -381,6 +270,33 @@ class MaceLayer(linen.Module):
     def _phi(self, n):
         n = n / self.soft_normalisation
         return 1.0 / (1.0 + n * e3j.sus(n))
+
+    @staticmethod
+    def _init_global_interaction(
+        global_irreps: e3j.Irreps,
+        global_correlation_order: int,
+        symmetric_tensor_product_basis: bool,
+        target_irreps: e3j.Irreps,
+    ) -> tuple[_product_basis.EquivariantProductBasisBlock, e3j.flax.Linear]:
+
+        cross_irreps: e3j.Irreps = e3j.tensor_product(
+            target_irreps, global_irreps, filter_ir_out=target_irreps
+        )
+        if cross_irreps.dim == 0:
+            raise ValueError(
+                f"global_irreps_out={global_irreps} has no tensor-product path to "
+                f"target_irreps={target_irreps}; the global cross term would be identically zero."
+            )
+
+        global_product_basis = _product_basis.EquivariantProductBasisBlock(
+            global_irreps,
+            correlation_order=global_correlation_order,
+            num_types=1,  # one global value per graph, not per species
+            symmetric_tensor_product_basis=symmetric_tensor_product_basis,
+        )
+        node_global = e3j.flax.Linear(target_irreps, name="linear_cross", force_irreps_out=True)
+
+        return global_product_basis, node_global
 
 
 class Mace(linen.Module):
@@ -397,6 +313,10 @@ class Mace(linen.Module):
     num_types: int = 1
     max_ell: int = 3  # Max spherical harmonic degree
     epsilon: float | None = None
+
+    global_interaction: bool = False
+    global_correlation_order: int | None = None
+    global_irreps_out: IntoIrreps | None = None
 
     # Normalistaion
     avg_num_neighbours: float | dict[int, float] = 1.0
@@ -417,23 +337,25 @@ class Mace(linen.Module):
             self.hidden_irreps, self.irreps_out
         )
         self._y0 = self._init_y0(self.y0_values, irreps_out, num_types=self.num_types)
+        interaction_irreps = self._init_interaction_irreps(self.interaction_irreps, self.max_ell)
+
+        # self._check_reachability(
+        #     hidden_irreps=hidden_irreps,
+        #     irreps_out=irreps_out,
+        #     interaction_irreps=interaction_irreps,
+        #     num_interactions=self.num_interactions,
+        #     correlation_order=self.correlation_order,
+        # )
 
         readout_mlp_irreps = (
             e3j.Irreps(self.readout_mlp_irreps) + non_scalar_irreps_out
         ).simplify()
 
         if self.num_features is None:
-            num_features = functools.reduce(math.gcd, (mul for mul, _ in hidden_irreps))
+            num_features = int(functools.reduce(math.gcd, (mul for mul, _ in hidden_irreps)))
             hidden_irreps = e3j.Irreps([(mul // num_features, ir) for mul, ir in hidden_irreps])
         else:
             num_features = self.num_features
-
-        if self.interaction_irreps == "o3_restricted":
-            self._interaction_irreps = e3j.Irreps.spherical_harmonics(self.max_ell)
-        elif self.interaction_irreps == "o3_full":
-            self._interaction_irreps = e3j.Irreps(e3j.Irrep.iterator(self.max_ell))
-        else:
-            self._interaction_irreps = e3j.Irreps(self.interaction_irreps)
 
         # Build the layers we will use
         mace_layers = []
@@ -444,11 +366,11 @@ class Mace(linen.Module):
 
             # Mace
             mace_layer = MaceLayer(
-                irreps_out=irreps_out,
+                irreps_out,
                 num_types=self.num_types,
                 # Interaction
                 num_features=num_features,
-                interaction_irreps=self._interaction_irreps,
+                interaction_irreps=interaction_irreps,
                 # Radial
                 radial_activation=self.radial_activation,
                 # Normalisation
@@ -459,6 +381,10 @@ class Mace(linen.Module):
                 correlation_order=self.correlation_order,
                 symmetric_tensor_product_basis=self.symmetric_tensor_product_basis,
                 off_diagonal=self.off_diagonal,
+                # Globals
+                global_interaction=self.global_interaction,
+                global_correlation_order=self.global_correlation_order,
+                global_irreps_out=self.global_irreps_out,
                 # Residual
                 soft_normalisation=self.soft_normalisation,
                 skip_connection=is_not_first or self.skip_connection_first_layer,
@@ -470,10 +396,7 @@ class Mace(linen.Module):
             else:
                 # Nonlinear readout on last layer
                 readout = NonLinearReadoutBlock(
-                    readout_mlp_irreps,
-                    irreps_out,
-                    activation=self.radial_activation,
-                    gate=self.radial_activation,
+                    readout_mlp_irreps, irreps_out, activation=self.radial_activation
                 )
 
             mace_layers.append(mace_layer)
@@ -483,7 +406,6 @@ class Mace(linen.Module):
         self._readouts = readouts
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    @gcnn.shape_check
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         # Embeddings
@@ -499,13 +421,15 @@ class Mace(linen.Module):
         # Now expand up to the maximum correlation order
         for layer, readout in zip(self._layers, self._readouts):
             node_feats = layer(
-                node_feats,
+                node_features=node_feats,
+                node_types=node_types,
                 # Edge features are not mutated, so just take directly from graph
-                graph.edges[keys.ATTRIBUTES],
-                node_types,
-                graph.edges[keys.RADIAL_EMBEDDINGS],
-                graph.senders,
-                graph.receivers,
+                edge_features=graph.edges[keys.ATTRIBUTES],
+                radial_embedding=graph.edges[keys.RADIAL_EMBEDDINGS],
+                senders=graph.senders,
+                receivers=graph.receivers,
+                n_node=graph.n_node,
+                global_features=graph.globals.get(keys.ATTRIBUTES),
                 edge_mask=graph.edges.get(keys.MASK),
             )
             node_outputs: IrrepsArrayShape["n_node output_irreps"] = readout(node_feats)
@@ -591,3 +515,71 @@ class Mace(linen.Module):
             array_offset += dim
 
         return e3j.IrrepsArray(irreps_out, full_array)
+
+    @jt.jaxtyped(typechecker=beartype.beartype)
+    @staticmethod
+    def _init_interaction_irreps(
+        interaction_irreps: Literal["o3_restricted", "o3_full"] | IntoIrreps, ell_max: int
+    ) -> e3j.Irreps:
+        if interaction_irreps == "o3_restricted":
+            return e3j.Irreps.spherical_harmonics(ell_max)
+
+        if interaction_irreps == "o3_full":
+            return e3j.Irreps(e3j.Irrep.iterator(ell_max))
+
+        return e3j.Irreps(interaction_irreps)
+
+    @staticmethod
+    def _check_reachability(
+        hidden_irreps: e3j.Irreps,
+        irreps_out: e3j.Irreps,
+        interaction_irreps: e3j.Irreps,
+        num_interactions: int,
+        correlation_order: int,
+    ):
+        """Simulates the tensor product paths to verify all requested irreps are physically
+        reachable."""
+
+        # Helper to do Irreps algebra but drop multiplicities (we only care if paths exist)
+        def multiply_unique(ir1: e3j.Irreps, ir2: e3j.Irreps) -> e3j.Irreps:
+            unique_irs = {ir for _, ir in e3j.tensor_product(ir1, ir2)}
+            return e3j.Irreps([(1, ir) for ir in unique_irs])
+
+        # Layer 0 node input is purely scalar
+        reachable = e3j.Irreps("1x0e")
+
+        for _ in range(num_interactions):
+            # 1. Interaction Block: node features tensor-product with edge spherical harmonics
+            messages = multiply_unique(reachable, interaction_irreps)
+
+            # 2. Product Basis: tensor product of messages up to correlation_order
+            layer_out_irs = {ir for _, ir in messages}
+            current_power = messages
+
+            for _ in range(1, correlation_order):
+                current_power = multiply_unique(current_power, messages)
+                layer_out_irs.update({ir for _, ir in current_power})
+
+            reachable = e3j.Irreps([(1, ir) for ir in layer_out_irs])
+
+        # Verification
+        reachable_set = {ir for _, ir in reachable}
+
+        # Check hidden_irreps (Warn: they just result in wasted parameters)
+        unreachable_hidden = [str(ir) for _, ir in hidden_irreps if ir not in reachable_set]
+        if unreachable_hidden:
+            _LOGGER.warning(
+                "MACE is configured with hidden_irreps containing %s, "
+                "but given max_ell and correlation_order, these channels will never "
+                "receive data and will remain zero throughout the network.",
+                unreachable_hidden,
+            )
+
+        # Check irreps_out (Error: network cannot fulfill the physical target)
+        unreachable_out = [str(ir) for _, ir in irreps_out if ir not in reachable_set]
+        if unreachable_out:
+            raise ValueError(
+                f"The target irreps_out requires {unreachable_out}, but these are physically "
+                f"unreachable after {num_interactions} layers. Increase max_ell, num_interactions, "
+                f"or correlation_order."
+            )

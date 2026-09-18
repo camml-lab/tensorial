@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from tensorial import gcnn
-from tensorial.gcnn import _mace
+from tensorial.gcnn import mace
 
 from .. import utils
 
@@ -136,7 +136,7 @@ def test_benchmark_message_passing(cube_graph, pad_multiple, bitwidth, benchmark
     model = utils.graph_model(
         r_max,
         e3j.Irreps("0e + 1o + 2e"),
-        _mace.Mace(
+        mace.Mace(
             irreps_out=e3j.Irreps("0e"),
             out_field=gcnn.atomic.ENERGY_PER_ATOM,
             hidden_irreps="2x0e + 2x1o",

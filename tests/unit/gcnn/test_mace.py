@@ -1,5 +1,3 @@
-import functools
-
 import e3nn_jax as e3j
 import jax
 import jax.numpy as jnp
@@ -7,22 +5,9 @@ import jraph
 import numpy as np
 
 from tensorial import gcnn
-from tensorial.gcnn import _mace
+from tensorial.gcnn import mace
 
 from ... import utils
-
-
-def test_symmetric_contraction():
-    num_types = 4
-    x = e3j.normal("0e + 0o + 1o + 1e + 2e + 2o", jax.random.PRNGKey(0), (32, 128))
-    types = jax.random.randint(jax.random.PRNGKey(1), (32,), minval=0, maxval=num_types)
-
-    contraction = _mace.SymmetricContraction(3, ["0e", "1o", "2e"], num_types=num_types)
-    params = contraction.init(jax.random.PRNGKey(0), x, types)
-
-    e3j.utils.assert_equivariant(
-        functools.partial(contraction.apply, params, input_type=types), jax.random.PRNGKey(3), x
-    )
 
 
 def test_mace(cube_graph: jraph.GraphsTuple):
@@ -32,7 +17,7 @@ def test_mace(cube_graph: jraph.GraphsTuple):
     model = utils.graph_model(
         r_max,
         e3j.Irreps("0e + 1o + 2e"),
-        _mace.Mace(
+        mace.Mace(
             irreps_out=e3j.Irreps("0e"),
             out_field=gcnn.atomic.ENERGY_PER_ATOM,
             hidden_irreps="2x0e + 2x1o",
@@ -64,7 +49,7 @@ def test_mace_dict_avg_num_neighbours(cube_graph: jraph.GraphsTuple):
     model = utils.graph_model(
         r_max,
         e3j.Irreps("0e + 1o + 2e"),
-        _mace.Mace(
+        mace.Mace(
             irreps_out=e3j.Irreps("0e"),
             out_field=gcnn.atomic.ENERGY_PER_ATOM,
             hidden_irreps="2x0e + 2x1o",
@@ -101,7 +86,7 @@ def test_interaction_block_normalization():
     avg_num_neighbours = {0: 1.0, 1: 4.0}  # Square roots will be 1.0 and 2.0
 
     # Use a simple block
-    block = _mace.InteractionBlock("1x0e", avg_num_neighbours=avg_num_neighbours)
+    block = mace.InteractionBlock("1x0e", avg_num_neighbours=avg_num_neighbours)
 
     # Create dummy graph data
     n_node = 2

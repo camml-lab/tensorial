@@ -15,6 +15,7 @@ from . import (
     graph_ops,
     keys,
     losses,
+    mace,
     metrics,
     random,
     typing,
@@ -30,6 +31,7 @@ from ._nodewise import *
 from ._spatial import *
 from .derivatives import *
 from .losses import *
+from .mace import *
 from .metrics import *
 from .typing import *
 
@@ -54,6 +56,7 @@ __all__ = (
         "derivatives",
         "keys",
         "losses",
+        "mace",
         "utils",
         "random",
         "typing",
