@@ -59,7 +59,7 @@ class NodewiseLinear(linen.Module):
         nodes = graph.nodes
         if self.num_types:
             # We are using weights indexed by the type
-            features = self.linear(nodes[self._types_field], nodes[self.field])
+            features = self.linear(nodes[self._types_field][:, 0], nodes[self.field])
         else:
             features = self.linear(nodes[self.field])
 
