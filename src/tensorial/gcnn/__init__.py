@@ -4,8 +4,8 @@ from . import (
     _diff,
     _edgewise,
     _modules,
-    _nequip,
     _nodewise,
+    _packing,
     _spatial,
     atomic,
     calc,
@@ -17,6 +17,7 @@ from . import (
     losses,
     mace,
     metrics,
+    nequip,
     random,
     typing,
     utils,
@@ -26,22 +27,24 @@ from ._common import *
 from ._diff import *
 from ._edgewise import *
 from ._modules import *
-from ._nequip import *
 from ._nodewise import *
+from ._packing import *
 from ._spatial import *
 from .derivatives import *
 from .losses import *
 from .mace import *
 from .metrics import *
+from .nequip import *
 from .typing import *
 
 __all__ = (
     _base.__all__
     + _common.__all__
     + _diff.__all__
-    + _nequip.__all__
+    + nequip.__all__
     + _edgewise.__all__
     + _nodewise.__all__
+    + _packing.__all__
     + _spatial.__all__
     + _modules.__all__
     + derivatives.__all__
@@ -57,6 +60,7 @@ __all__ = (
         "keys",
         "losses",
         "mace",
+        "nequip",
         "utils",
         "random",
         "typing",

@@ -1,11 +1,13 @@
 import abc
 from collections.abc import Sequence
 import dataclasses
+import logging
 import re
 from typing import TYPE_CHECKING, Final, Protocol, Union
 
 import flax.core
 import jax
+import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
 
@@ -17,6 +19,7 @@ if TYPE_CHECKING:
 
 __all__ = ("diff",)
 
+_LOGGER = logging.getLogger(__name__)
 DERIV_DELIMITER: Final[str] = ","
 ArgumentSpecifier = Union[int, "gcnn.typing.TreePath"]
 
@@ -66,6 +69,10 @@ class GraphEntrySpec:
     def safe_indices(self) -> str:
         return self.indices if self.indices is not None else ""
 
+    @property
+    def rank(self) -> int | None:
+        return len(self.indices) if self.indices is not None else None
+
     def __str__(self) -> str:
         rep = []
         if self.key_path is not None:
@@ -78,6 +85,9 @@ class GraphEntrySpec:
         if self.indices is not None:
             rep.append(f":{self.indices}")
         return "".join(rep)
+
+    def __repr__(self) -> str:
+        return f"GraphEntrySpec('{self.__str__()}')"
 
     def __truediv__(self, other: "GraphEntrySpecLike") -> "SingleDerivative":
         return SingleDerivative.create(self, other)
@@ -240,12 +250,12 @@ class SingleDerivative(Derivative):
 
     @property
     def of(self) -> GraphEntrySpec:
-        """Derivative of"""
+        """The entry being differentiated."""
         return self._of
 
     @property
     def wrt(self) -> GraphEntrySpec:
-        """Derivative output"""
+        """The entry with respect to which the derivative is taken."""
         return self._wrt
 
     @property
@@ -264,7 +274,7 @@ class SingleDerivative(Derivative):
 
     @property
     def out(self) -> GraphEntrySpec:
-        """Derivative output"""
+        """The entry containing the derivative output."""
         return self._actual_out
 
     def __str__(self) -> str:
@@ -309,7 +319,20 @@ class SingleDerivative(Derivative):
                     f"but only {len(args)} were passed.  Did you forget to pass a value for "
                     f"the value at which you would like the derivative to be evaluated?"
                 )
-            self._check_shape("wrt", self.wrt, args[argnum])
+
+            value = args[argnum]
+            if (
+                self.wrt.rank is not None
+                and not isinstance(value, float)
+                and value.ndim == self.wrt.rank - 1
+            ):
+                # Broadcast to correct leading dimension based on the graph's number of entries
+                value = jnp.broadcast_to(
+                    value, (_tree.num_entries(self.wrt.key_path[0], graph), *value.shape)
+                )
+                args = (*args[:argnum], value, *args[argnum + 1 :])
+
+            self._check_shape("wrt", self.wrt, value)
 
             value, graph = do_diff(graph, *args)
             value, graph = self._post_process(value, graph)
@@ -459,6 +482,15 @@ class MultiDerivative(Derivative):
 
 
 def process_paths(parts: Sequence[SingleDerivative]):
+    """Process paths from a sequence of single derivatives.
+
+    Args:
+        parts: A sequence of SingleDerivative objects
+
+    Returns:
+        A tuple of (paths, wrt_map, arg_parts) where paths maps tree paths to indices,
+        wrt_map contains the wrt path indices, and arg_parts contains argument indices.
+    """
     paths: dict[gcnn.typing.TreePath, int] = {}
     wrt_map: list[int] = []
     arg_parts = []
@@ -500,13 +532,15 @@ class Evaluator:
         self, graph: jraph.GraphsTuple, *args, **kwargs: dict[str, jt.PyTree]
     ) -> jt.Array | tuple[jt.Array, jraph.GraphsTuple]:
         values: dict[int, jt.PyTree] = {}
-        for name, value in kwargs.items():
-            idx: int = self.spec.graph_tuple_paths[_tree.path_from_str(name)]
-            values[idx] = value
 
         for name, value in (self.at or {}).items():
             tree_path = _tree.path_from_str(name)
             idx: int = self.spec.graph_tuple_paths[tree_path]
+            values[idx] = value
+
+        # kwargs take precedence, so come second
+        for name, value in kwargs.items():
+            idx: int = self.spec.graph_tuple_paths[_tree.path_from_str(name)]
             values[idx] = value
 
         diff_args = tuple(value for _, value in sorted(values.items())) + args
@@ -614,10 +648,20 @@ def diff(
 
 
 def ordered_unique_indices(lst):
+    """Return indices of unique elements in order of first appearance."""
     seen = {}
     return [i for i, x in enumerate(lst) if x not in seen and not seen.setdefault(x, True)]
 
 
 def find_index_permutation(lst_a, lst_b) -> list[int]:
+    """Find the permutation mapping elements from lst_a to their positions in lst_b.
+
+    Args:
+        lst_a: Source list of unique values.
+        lst_b: Target list containing all values from lst_a (possibly reordered).
+
+    Returns:
+        A list of indices such that lst_a[i] == lst_b[result[i]] for all i.
+    """
     index_map = {value: idx for idx, value in enumerate(lst_a)}
     return [index_map[x] for x in lst_b]

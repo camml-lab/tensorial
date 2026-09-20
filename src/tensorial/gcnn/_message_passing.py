@@ -69,15 +69,10 @@ class MessagePassingConvolution(linen.Module):
         """
         irreps_out = e3j.Irreps(self.irreps_out)  # Recast, because flax converts to tuple
 
-        # The irreps to use for the output node features
-        output_irreps = e3j.Irreps(self.irreps_out).regroup()
-
         messages = node_feats[senders]
 
         # Interaction between nodes and edges
-        edge_features = e3j.tensor_product(
-            messages, edge_features, filter_ir_out=output_irreps + "0e"
-        )
+        edge_features = e3j.tensor_product(messages, edge_features, filter_ir_out=irreps_out + "0e")
 
         # Make a compound message
         messages: IrrepsArrayShape["n_edge node_irreps+edge_irreps"] = e3j.concatenate(

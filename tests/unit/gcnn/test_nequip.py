@@ -5,12 +5,12 @@ import numpy as np
 import pytest
 
 from tensorial import gcnn
-from tensorial.gcnn import _nequip, keys
+from tensorial.gcnn import keys, nequip
 
 
 def test_nequip_interaction_block(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
     irreps_out = e3j.Irreps("0e + 1o + 2e")
-    block = _nequip.InteractionBlock(irreps_out, num_species=3)
+    block = nequip.InteractionBlock(irreps_out, num_species=3)
 
     args = (
         cube_graph_gcnn.nodes[keys.FEATURES],
@@ -18,10 +18,11 @@ def test_nequip_interaction_block(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
         cube_graph_gcnn.edges[keys.RADIAL_EMBEDDINGS],
         cube_graph_gcnn.senders,
         cube_graph_gcnn.receivers,
-        cube_graph_gcnn.nodes[keys.SPECIES][:, 0],
     )
-    params = block.init(rng_key, *args)
-    node_features = block.apply(params, *args)
+    kwargs = {"node_species": cube_graph_gcnn.nodes[keys.SPECIES][:, 0]}
+
+    params = block.init(rng_key, *args, **kwargs)
+    node_features = block.apply(params, *args, **kwargs)
 
     assert isinstance(node_features, e3j.IrrepsArray)
     assert node_features.irreps == irreps_out
@@ -32,7 +33,7 @@ def test_nequip_interaction_block_with_padding(
     cube_graph_gcnn: jraph.GraphsTuple, rng_key, skip_connection
 ):
     irreps_out = e3j.Irreps("0e + 1o + 2e")
-    block = _nequip.InteractionBlock(irreps_out, num_species=3, skip_connection=skip_connection)
+    block = nequip.InteractionBlock(irreps_out, num_species=3, skip_connection=skip_connection)
 
     def _compute(graph: jraph.GraphsTuple):
         args = (

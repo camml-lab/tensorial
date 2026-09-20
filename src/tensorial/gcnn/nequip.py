@@ -81,8 +81,8 @@ class InteractionBlock(linen.Module):
         radial_embedding: Float[Array, "n_edge radial_embedding_dim"],
         senders: IndexArray["n_edge"],
         receivers: IndexArray["n_edge"],
-        node_species: Int[Array, "n_node"] | None = None,
         *,
+        node_species: Int[Array, "n_node"] | None = None,
         node_mask: Bool[Array, "n_node"] | None = None,
         edge_mask: Bool[Array, "n_edge"] | None = None,
     ) -> e3j.IrrepsArray:
@@ -99,8 +99,6 @@ class InteractionBlock(linen.Module):
         output_irreps = e3j.Irreps(self.irreps_out).regroup()
         if node_mask is not None:
             node_mask = nn_utils.prepare_mask(node_mask, node_features)
-
-        if node_mask is not None:
             node_features = e3j.where(
                 node_mask, node_features, tensorial_utils.zeros_like(node_features)
             )
@@ -192,13 +190,16 @@ class NequipLayer(linen.Module):
         Returns:
             the output graph with node features updated
         """
+        species = graph.nodes.get(keys.SPECIES)
+        node_species = species[:, 0] if species is not None else None
+
         node_features = self._interaction_block(
             graph.nodes[keys.FEATURES],
             graph.edges[keys.ATTRIBUTES],
             graph.edges[keys.RADIAL_EMBEDDINGS],
             graph.senders,
             graph.receivers,
-            graph.nodes.get(keys.SPECIES)[:, 0],
+            node_species=node_species,
             node_mask=graph.nodes.get(keys.MASK),
             edge_mask=graph.edges.get(keys.MASK),
         )

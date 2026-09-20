@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 import functools
+import inspect
 
 from flax import linen
 
@@ -40,38 +41,72 @@ class Sequential(linen.Module):
         return outputs
 
 
-def _layers(layers: Sequence[linen.Module | functools.partial]) -> list[linen.Module]:
-    """Create the model from the configuration object"""
-    new_layers = []
-    for layer in layers:
-        if isinstance(layer, functools.partial):
+def _layers(modules: Sequence[linen.Module | functools.partial]) -> list[linen.Module]:
+    """Create the model from the configuration object by building modules sequentially.
+
+    Handles three cases:
+    1. Regular modules: appended directly
+    2. ``functools.partial`` modules: partially applied with reference arguments from
+       preceding modules (when required parameters are available)
+    3. ``linen.FrozenDict`` references: accumulated parameter references for later use
+
+    The function supports constructing nested sequential modules when multiple partial
+    modules depend on different earlier modules.
+
+    Args:
+        modules: A sequence of linen.Module instances or functools.partial objects.
+                 If a partial module's required parameters are available from earlier
+                 modules in the sequence, those are passed as arguments.
+
+    Returns:
+        A list of constructed linen.Module instances.
+    """
+    new_modules = []
+    references = {}
+
+    for module in modules:
+        if isinstance(module, functools.partial):
             # We've reached a module that is partly constructed.  This indicates that it's a
             # module that wraps a function i.e. f(g(x)), typically because it needs access to
             # g(x) (for example to calculate gradients). So, we build what we've found so far,
             # and pass it to the module
-            if len(new_layers) == 0:
-                raise ValueError(
-                    f"Got a partial module, but have no previous modules to pass to it: {layer}"
-                )
-
-            if len(new_layers) == 1:
-                nested = new_layers[0]
+            sig = inspect.signature(module)
+            unfilled = [
+                name
+                for name, param in sig.parameters.items()
+                if param.default == inspect.Parameter.empty
+            ]
+            have_references = all(name in references for name in unfilled)
+            if have_references:
+                args = [references[name] for name in unfilled]
+                new_modules.append(module(*args))
             else:
-                nested = Sequential(new_layers)
+                if len(new_modules) == 0:
+                    raise ValueError(
+                        "Got a partial module, but have no previous modules to pass to it: "
+                        f"{module}"
+                    )
 
-            layer = layer(nested)
-            if not isinstance(layer, linen.Module):
-                raise ValueError(
-                    f"Calling partial module {type(layer).__name__}() did not resolve to a "
-                    f"linen.Module instance"
-                )
+                if len(new_modules) == 1:
+                    nested = new_modules[0]
+                else:
+                    nested = Sequential(new_modules)
 
-            new_layers = [layer]
+                module = module(nested)
+                if not isinstance(module, linen.Module):
+                    raise ValueError(
+                        f"Calling partial module {type(module).__name__}() did not resolve to a "
+                        f"linen.Module instance"
+                    )
+
+                new_modules = [module]
+        elif isinstance(module, linen.FrozenDict):
+            references.update(module)
         else:
-            new_layers.append(layer)
+            new_modules.append(module)
 
-    if len(new_layers) == 1:
+    if len(new_modules) == 1:
         # Special case to avoid needlessly wrapping a single module
-        return [new_layers[0]]
+        return [new_modules[0]]
 
-    return new_layers
+    return new_modules

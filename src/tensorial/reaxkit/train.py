@@ -26,13 +26,13 @@ def train(cfg: omegaconf.DictConfig | dict):
     if cfg.get("seed"):
         reax.seed_everything(cfg.seed, workers=True)
 
-    _LOGGER.info("Instantiating listeners...")
+    _LOGGER.debug("Instantiating listeners...")
     listeners: list[reax.TrainerListener] = utils.instantiate_listeners(cfg.get("listeners"))
 
-    _LOGGER.info("Instantiating loggers...")
+    _LOGGER.debug("Instantiating loggers...")
     logger: list[reax.Logger] = utils.instantiate_loggers(cfg.get("logger"))
 
-    _LOGGER.info(
+    _LOGGER.debug(
         "Instantiating trainer <%s>", cfg[keys.TRAINER]._target_  # pylint: disable=protected-access
     )
     trainer: reax.Trainer = hydra.utils.instantiate(
@@ -42,7 +42,7 @@ def train(cfg: omegaconf.DictConfig | dict):
         default_root_dir=output_dir,
     )
 
-    _LOGGER.info(
+    _LOGGER.debug(
         "Instantiating datamodule <%s>", cfg.data._target_  # pylint: disable=protected-access
     )
     datamodule: reax.DataModule = hydra.utils.instantiate(cfg.data, _convert_="object")
@@ -64,7 +64,7 @@ def train(cfg: omegaconf.DictConfig | dict):
         with open(output_dir / config.DEFAULT_CONFIG_FILE, "w", encoding="utf-8") as file:
             file.write(omegaconf.OmegaConf.to_yaml(cfg, resolve=True))
 
-    _LOGGER.info(
+    _LOGGER.debug(
         "Instantiating model <%s>",
         cfg[keys.MODEL]._target_,  # pylint: disable=protected-access
     )
@@ -80,7 +80,7 @@ def train(cfg: omegaconf.DictConfig | dict):
     }
 
     if logger:
-        _LOGGER.info("Logging hyperparameters!")
+        _LOGGER.debug("Logging hyperparameters!")
         utils.log_hyperparameters(object_dict)
 
     # Fit the potential

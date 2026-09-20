@@ -36,12 +36,12 @@ def extras(cfg: omegaconf.DictConfig) -> None:
 
     # prompt user to input tags from command line if none are provided in the config
     if cfg.extras.get("enforce_tags"):
-        _LOGGER.info("Enforcing tags! <cfg.extras.enforce_tags=True>")
+        _LOGGER.debug("Enforcing tags! <cfg.extras.enforce_tags=True>")
         rich_utils.enforce_tags(cfg, save_to_file=True)
 
     # pretty print config tree using Rich library
     if cfg.extras.get("print_config"):
-        _LOGGER.info("Printing config tree with Rich! <cfg.extras.print_config=True>")
+        _LOGGER.debug("Printing config tree with Rich! <cfg.extras.print_config=True>")
         rich_utils.print_config_tree(cfg, resolve=True, save_to_file=True)
 
 

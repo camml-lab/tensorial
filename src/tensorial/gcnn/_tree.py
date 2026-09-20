@@ -1,8 +1,9 @@
 from collections.abc import Sequence
 import functools
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Literal
 
 import jax
+from jaxtyping import Array
 import jraph
 from pytray import tree
 
@@ -83,6 +84,20 @@ def get(
 def to_paths(
     wrt: str | Sequence["gcnn.typing.TreePathLike"] | None,
 ) -> "tuple[gcnn.typing.TreePath, ...]":
+    """Normalise a path specification into a tuple of tree paths.
+
+    Converts strings, sequences of paths, or None into a consistent
+    tuple of path tuples for use throughout the library.
+
+    Args:
+        wrt: A string path, sequence of paths, or None.
+
+    Returns:
+        A tuple of parsed tree paths.
+
+    Raises:
+        ValueError: If `wrt` has an unsupported type.
+    """
     if wrt is None:
         return tuple()
     if isinstance(wrt, str):
@@ -97,6 +112,7 @@ def path_root(
     path: "gcnn.typing.TreePathLike",
     delimiter=DEFAULT_DELIMITER,
 ) -> "gcnn.typing.TreePath":
+    """Return the root component (first element) of a tree path."""
     return path_from_str(path, delimiter=delimiter)[:1]
 
 
@@ -105,8 +121,41 @@ def get_mask(
     path: "gcnn.typing.TreePathLike",
     delimiter=DEFAULT_DELIMITER,
 ) -> jax.Array | None:
+    """Get the mask for a given path in the graph, if it exists.
+
+    Constructs the path to the mask by appending 'mask' to the root of the given path,
+    then retrieves the value from the graph.
+
+    Args:
+        graph: The graph to get the mask from
+        path: The tree path whose root determines which component's mask to get
+        delimiter: The delimiter used to parse the path
+
+    Returns:
+        The mask array if found, or None if the path doesn't exist
+    """
     path = path_root(path, delimiter) + (keys.MASK,)
     try:
         return tree.get_by_path(graph._asdict(), path)
     except KeyError:
         return None
+
+
+def num_entries(entity: Literal["nodes", "edges", "globals"], graph: jraph.GraphsTuple) -> int:
+    """Return the number of entries in a component of the graph
+
+    Args:
+        entity: The graph component to count entries in ('nodes', 'edges', or 'globals')
+        graph: The graph to count entries in
+
+    Returns:
+        The number of entries in the specified component
+    """
+    if entity not in ("nodes", "edges", "globals"):
+        raise ValueError(f"entity must be one of 'nodes', 'edges', or 'globals', got {entity}")
+
+    if entity == "globals":
+        return len(graph.n_node)
+
+    entries: dict[str, Array] = getattr(graph, entity)
+    return next(iter(entries.values())).shape[0] if entries else 0

@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 import functools
 import logging
 import math
@@ -32,11 +32,12 @@ def broadcast_to_nodes(
     return e3j.IrrepsArray(graph_array.irreps, repeated)
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 class InteractionBlock(linen.Module):
     irreps_out: IntoIrreps
 
     # Normalisation
-    avg_num_neighbours: float | dict[int, float] = 1.0
+    avg_num_neighbours: float | Mapping[int, float] = 1.0
     epsilon: float | None = None
 
     radial_activation: str | nn_utils.ActivationFunction = "swish"
@@ -86,6 +87,7 @@ class InteractionBlock(linen.Module):
         return node_features
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 class NonLinearReadoutBlock(linen.Module):
     hidden_irreps: IntoIrreps
     output_irreps: IntoIrreps
@@ -110,11 +112,12 @@ class NonLinearReadoutBlock(linen.Module):
         return self._linear_out(inputs)
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 class MaceLayer(linen.Module):
     """A MACE layer composed of:
     * Interaction block
     * Normalisation
-    * Product basis
+    * Product basis (node-only, or joint node+global when ``global_interaction`` is set)
     * (optional) self connection
     """
 
@@ -129,16 +132,17 @@ class MaceLayer(linen.Module):
 
     # Normalisation
     epsilon: float | None
-    avg_num_neighbours: float | dict[int, float] | linen.FrozenDict[int, float]
+    avg_num_neighbours: float | Mapping[int, float]
 
     # Product basis
     hidden_irreps: IntoIrreps
     correlation_order: int
     symmetric_tensor_product_basis: bool
     off_diagonal: bool
+
+    # Globals
     global_interaction: bool = False
     global_correlation_order: int | None = None
-    global_irreps_out: IntoIrreps | None = None
 
     soft_normalisation: float | None = None
     skip_connection: bool = True
@@ -154,7 +158,7 @@ class MaceLayer(linen.Module):
         else:
             num_features = self.num_features
 
-        self._target_irreps: e3j.Irreps = num_features * hidden_irreps
+        target_irreps: e3j.Irreps = num_features * hidden_irreps
 
         self._interaction_block = InteractionBlock(
             num_features * interaction_irreps,
@@ -163,47 +167,45 @@ class MaceLayer(linen.Module):
             radial_activation=self.radial_activation,
         )
 
-        self._product_basis = _product_basis.EquivariantProductBasisBlock(
-            self._target_irreps,
-            correlation_order=self.correlation_order,
-            num_types=self.num_types,
-            symmetric_tensor_product_basis=self.symmetric_tensor_product_basis,
-            off_diagonal=self.off_diagonal,
-        )
-
         if self.global_interaction:
             global_correlation_order = (
                 self.global_correlation_order
                 if self.global_correlation_order is not None
                 else self.correlation_order
             )
-            global_irreps = (
-                e3j.Irreps(self.global_irreps_out)
-                if self.global_irreps_out is not None
-                else self._target_irreps
+            self._joint_product_basis = _product_basis.JointProductBasisBlock(
+                irreps_out=target_irreps,
+                node_correlation_order=self.correlation_order,
+                global_correlation_order=global_correlation_order,
+                num_types=self.num_types,
+                symmetric_tensor_product_basis=self.symmetric_tensor_product_basis,
             )
-            global_product_basis, node_global = self._init_global_interaction(
-                global_irreps,
-                global_correlation_order,
-                self.symmetric_tensor_product_basis,
-                self._target_irreps,
-            )
-
-            self._global_product_basis = global_product_basis
-            self._node_global = node_global
+            self._product_basis = None
         else:
-            self._global_product_basis = None
-            self._node_global = None
+            self._joint_product_basis = None
+            self._product_basis = _product_basis.EquivariantProductBasisBlock(
+                target_irreps,
+                correlation_order=self.correlation_order,
+                num_types=self.num_types,
+                symmetric_tensor_product_basis=self.symmetric_tensor_product_basis,
+                off_diagonal=self.off_diagonal,
+            )
 
         if self.skip_connection:
             self._skip_connection = e3j.flax.Linear(
-                self._target_irreps,
+                target_irreps,
                 num_indexed_weights=self.num_types,
                 name="skip_connection",
                 force_irreps_out=True,
             )
         else:
             self._skip_connection = None
+
+        self._target_irreps = target_irreps
+
+    @property
+    def target_irreps(self) -> e3j.Irreps:
+        return e3j.Irreps(self._target_irreps)
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __call__(
@@ -237,25 +239,21 @@ class MaceLayer(linen.Module):
             node_types=node_types,
         )
 
-        node_features = self._product_basis(node_features, input_type=node_types)
-        if self.global_interaction:
+        if self._joint_product_basis is not None:
             if global_features is None:
                 raise ValueError(
                     "MaceLayer was configured with global_interaction=True but "
-                    "received global_features=None"
+                    "received global_features=None, which probably means that the graph "
+                    "does not contain any global features"
                 )
-            global_features = self._global_product_basis(global_features)
             global_features_nodes = broadcast_to_nodes(
                 global_features, n_node, total_nodes=node_features.shape[0]
             )
-
-            # Cross correlate node and global features
-            cross = e3j.tensor_product(
-                node_features, global_features_nodes, filter_ir_out=self._target_irreps
+            node_features = self._joint_product_basis(
+                node_features, global_features_nodes, input_type=node_types
             )
-            cross = self._node_global(cross)
-
-            node_features = node_features + cross
+        else:
+            node_features = self._product_basis(node_features, input_type=node_types)
 
         if self.soft_normalisation is not None:
             node_features = e3j.norm_activation(
@@ -271,34 +269,8 @@ class MaceLayer(linen.Module):
         n = n / self.soft_normalisation
         return 1.0 / (1.0 + n * e3j.sus(n))
 
-    @staticmethod
-    def _init_global_interaction(
-        global_irreps: e3j.Irreps,
-        global_correlation_order: int,
-        symmetric_tensor_product_basis: bool,
-        target_irreps: e3j.Irreps,
-    ) -> tuple[_product_basis.EquivariantProductBasisBlock, e3j.flax.Linear]:
 
-        cross_irreps: e3j.Irreps = e3j.tensor_product(
-            target_irreps, global_irreps, filter_ir_out=target_irreps
-        )
-        if cross_irreps.dim == 0:
-            raise ValueError(
-                f"global_irreps_out={global_irreps} has no tensor-product path to "
-                f"target_irreps={target_irreps}; the global cross term would be identically zero."
-            )
-
-        global_product_basis = _product_basis.EquivariantProductBasisBlock(
-            global_irreps,
-            correlation_order=global_correlation_order,
-            num_types=1,  # one global value per graph, not per species
-            symmetric_tensor_product_basis=symmetric_tensor_product_basis,
-        )
-        node_global = e3j.flax.Linear(target_irreps, name="linear_cross", force_irreps_out=True)
-
-        return global_product_basis, node_global
-
-
+@jt.jaxtyped(typechecker=beartype.beartype)
 class Mace(linen.Module):
     irreps_out: IntoIrreps
     out_field: str
@@ -306,7 +278,7 @@ class Mace(linen.Module):
 
     correlation_order: int = 3  # Correlation order at each layer (~ node_features^correlation)
     num_interactions: int = 2  # Number of interactions (layers)
-    y0_values: list[float] | None = None
+    y0_values: Sequence[float] | None = None
     soft_normalisation: bool | None = None
     # Number of features per node, default gcd of hidden_irreps multiplicities
     num_features: int | None = None
@@ -316,10 +288,9 @@ class Mace(linen.Module):
 
     global_interaction: bool = False
     global_correlation_order: int | None = None
-    global_irreps_out: IntoIrreps | None = None
 
     # Normalistaion
-    avg_num_neighbours: float | dict[int, float] = 1.0
+    avg_num_neighbours: float | Mapping[int, float] = 1.0
     off_diagonal: bool = False
 
     symmetric_tensor_product_basis: bool = True
@@ -338,14 +309,6 @@ class Mace(linen.Module):
         )
         self._y0 = self._init_y0(self.y0_values, irreps_out, num_types=self.num_types)
         interaction_irreps = self._init_interaction_irreps(self.interaction_irreps, self.max_ell)
-
-        # self._check_reachability(
-        #     hidden_irreps=hidden_irreps,
-        #     irreps_out=irreps_out,
-        #     interaction_irreps=interaction_irreps,
-        #     num_interactions=self.num_interactions,
-        #     correlation_order=self.correlation_order,
-        # )
 
         readout_mlp_irreps = (
             e3j.Irreps(self.readout_mlp_irreps) + non_scalar_irreps_out
@@ -384,7 +347,6 @@ class Mace(linen.Module):
                 # Globals
                 global_interaction=self.global_interaction,
                 global_correlation_order=self.global_correlation_order,
-                global_irreps_out=self.global_irreps_out,
                 # Residual
                 soft_normalisation=self.soft_normalisation,
                 skip_connection=is_not_first or self.skip_connection_first_layer,
@@ -468,7 +430,7 @@ class Mace(linen.Module):
         return hidden_irreps, irreps_out, non_scalar_irreps_out
 
     @staticmethod
-    def _init_y0(y0_values, irreps_out: e3j.Irreps, num_types: int):
+    def _init_y0(y0_values, irreps_out: e3j.Irreps, num_types: int) -> e3j.IrrepsArray | None:
         """
         Safely maps scalar 0-body baselines (y0) to arbitrary target irreps_out.
         """
@@ -516,7 +478,6 @@ class Mace(linen.Module):
 
         return e3j.IrrepsArray(irreps_out, full_array)
 
-    @jt.jaxtyped(typechecker=beartype.beartype)
     @staticmethod
     def _init_interaction_irreps(
         interaction_irreps: Literal["o3_restricted", "o3_full"] | IntoIrreps, ell_max: int
@@ -528,58 +489,3 @@ class Mace(linen.Module):
             return e3j.Irreps(e3j.Irrep.iterator(ell_max))
 
         return e3j.Irreps(interaction_irreps)
-
-    @staticmethod
-    def _check_reachability(
-        hidden_irreps: e3j.Irreps,
-        irreps_out: e3j.Irreps,
-        interaction_irreps: e3j.Irreps,
-        num_interactions: int,
-        correlation_order: int,
-    ):
-        """Simulates the tensor product paths to verify all requested irreps are physically
-        reachable."""
-
-        # Helper to do Irreps algebra but drop multiplicities (we only care if paths exist)
-        def multiply_unique(ir1: e3j.Irreps, ir2: e3j.Irreps) -> e3j.Irreps:
-            unique_irs = {ir for _, ir in e3j.tensor_product(ir1, ir2)}
-            return e3j.Irreps([(1, ir) for ir in unique_irs])
-
-        # Layer 0 node input is purely scalar
-        reachable = e3j.Irreps("1x0e")
-
-        for _ in range(num_interactions):
-            # 1. Interaction Block: node features tensor-product with edge spherical harmonics
-            messages = multiply_unique(reachable, interaction_irreps)
-
-            # 2. Product Basis: tensor product of messages up to correlation_order
-            layer_out_irs = {ir for _, ir in messages}
-            current_power = messages
-
-            for _ in range(1, correlation_order):
-                current_power = multiply_unique(current_power, messages)
-                layer_out_irs.update({ir for _, ir in current_power})
-
-            reachable = e3j.Irreps([(1, ir) for ir in layer_out_irs])
-
-        # Verification
-        reachable_set = {ir for _, ir in reachable}
-
-        # Check hidden_irreps (Warn: they just result in wasted parameters)
-        unreachable_hidden = [str(ir) for _, ir in hidden_irreps if ir not in reachable_set]
-        if unreachable_hidden:
-            _LOGGER.warning(
-                "MACE is configured with hidden_irreps containing %s, "
-                "but given max_ell and correlation_order, these channels will never "
-                "receive data and will remain zero throughout the network.",
-                unreachable_hidden,
-            )
-
-        # Check irreps_out (Error: network cannot fulfill the physical target)
-        unreachable_out = [str(ir) for _, ir in irreps_out if ir not in reachable_set]
-        if unreachable_out:
-            raise ValueError(
-                f"The target irreps_out requires {unreachable_out}, but these are physically "
-                f"unreachable after {num_interactions} layers. Increase max_ell, num_interactions, "
-                f"or correlation_order."
-            )
