@@ -85,7 +85,7 @@ def test_graph_metric_with_mask(mask_field):
 
 
 @pytest.mark.parametrize("batch_size", [1, 3, 100])
-def test_indexed_metrics(rng_key, batch_size: int):
+def test_indexed_metrics(rng_key, batch_size: int, test_trainer):
     num_graphs: Final[int] = 13
     num_nodes: Final[int] = 100
     type_fields: Final[str] = "type_id"
@@ -115,7 +115,7 @@ def test_indexed_metrics(rng_key, batch_size: int):
 
     loader = gcnn.data.GraphLoader(random_graphs, batch_size=batch_size)
 
-    trainer = reax.Trainer()
+    trainer = test_trainer
     logged: dict = trainer.eval_stats(avg_num_neighbours, loader).logged_metrics
     res: dict[int, jt.Float[jax.Array, "n_types"]] = logged[
         gcnn.metrics.AvgNumNeighboursByType.__name__

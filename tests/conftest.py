@@ -7,6 +7,7 @@ from jax import config
 import jax.numpy as jnp
 import jraph
 import pytest
+import reax
 
 import tensorial
 from tensorial import gcnn
@@ -25,6 +26,11 @@ def no_jax_preallocate():
 @pytest.fixture
 def rng_key():
     return jax.random.PRNGKey(0)
+
+
+@pytest.fixture
+def test_trainer(tmp_path):
+    return reax.Trainer(default_root_dir=tmp_path)
 
 
 @pytest.fixture

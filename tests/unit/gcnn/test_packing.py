@@ -1,10 +1,9 @@
 import e3nn_jax as e3j
-import jax
 import jax.numpy as jnp
 import jraph
 import pytest
 
-from tensorial import base, gcnn
+from tensorial import base
 from tensorial.gcnn import _packing, keys
 
 

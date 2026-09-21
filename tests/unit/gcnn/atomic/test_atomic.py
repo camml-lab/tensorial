@@ -111,7 +111,7 @@ def test_per_species_rescale():
     assert jnp.all(rescaled.nodes[atomic.keys.ENERGY_PER_ATOM] != energies)
 
 
-def test_metrics(molecule_dataset: Sequence[jraph.GraphsTuple]):
+def test_metrics(molecule_dataset: Sequence[jraph.GraphsTuple], test_trainer):
     batch_size = 4
     all_molecules = jraph.batch(molecule_dataset)
     batcher = gcnn.data.GraphLoader(molecule_dataset, batch_size=batch_size)
@@ -133,7 +133,7 @@ def test_metrics(molecule_dataset: Sequence[jraph.GraphsTuple]):
         metric = reax.metrics.get(name)
 
         # Compute using the data loader
-        eval = reax.Trainer().eval_stats(metric, dataloaders=batcher)
+        eval = test_trainer.eval_stats(metric, dataloaders=batcher)
         res = list(eval.logged_metrics.values())[0]
 
         # Compute directly
