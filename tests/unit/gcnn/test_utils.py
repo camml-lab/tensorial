@@ -46,14 +46,24 @@ def test_updatedict_delitem():
 
 
 def test_updatedict_iter():
-    d = {"a": 1, "b": 2}
+    d = {"a": 1, "b": 2, "c": 3}
     u = UpdateDict(d)
 
-    u["c"] = 3
+    # "a" is a live base key that is NOT overridden -> iterated from the base dict
+    # "b" is overridden then deleted -> skipped
+    # "c" is overridden with a live value -> iterated from overrides (base-dict branch)
+    # "d" is a newly added key -> iterated from overrides (new-key branch)
     del u["b"]
+    u["c"] = 30
+    u["d"] = 4
 
-    keys = set(u)
-    assert keys == {"a", "c"}
+    keys = list(u)
+    assert set(keys) == {"a", "c", "d"}
+    assert u["a"] == 1
+    assert u["c"] == 30
+    assert u["d"] == 4
+    with pytest.raises(KeyError):
+        _ = u["b"]
 
 
 def test_updatedict_len():

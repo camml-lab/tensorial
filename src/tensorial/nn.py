@@ -57,7 +57,7 @@ class Sequential(linen.Module):
             if isinstance(outputs, dict):
                 outputs = layer(**outputs)
             elif type(outputs) is tuple:  # pylint: disable=unidiomatic-typecheck
-                outputs = layer(**outputs)
+                outputs = layer(*outputs)
             else:
                 outputs = layer(outputs)
         return outputs

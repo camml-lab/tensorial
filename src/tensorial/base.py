@@ -222,9 +222,10 @@ def irreps(tensorial: Tensorial) -> e3j.Irreps:
 
     for name, val in tensorial_attrs(tensorial).items():
         try:
-            total_irreps = val.irreps if total_irreps is None else total_irreps + val.irreps
-        except AttributeError as exc:
+            val_irreps = irreps(val)
+        except (AttributeError, TypeError) as exc:
             raise AttributeError(f"Failed to get irreps for {name}") from exc
+        total_irreps = val_irreps if total_irreps is None else total_irreps + val_irreps
 
     return total_irreps
 
@@ -367,11 +368,11 @@ def _from_tensor_irreps_obj(tensorial: IrrepsObj, value) -> dict[str, ValueType]
 def _from_tensor_dict(tensorial: dict, value: Array) -> dict[str, ValueType]:
     """Dict leaf: split the tensor in attribute order and delegate per key."""
     dims = jnp.array(tuple(map(lambda val: irreps(val).dim, tensorial.values())))
-    split_points = jnp.array(tuple(jnp.sum(dims[:i]) for i in range(len(dims) - 1)))
-    split_value = jnp.split(value, split_points)
+    split_points = jnp.array(tuple(jnp.sum(dims[:i]) for i in range(1, len(dims))))
+    split_value = jnp.split(as_array(value), split_points)
 
     return {
-        key: from_tensor(dict_value, array_value)
+        key: from_tensor(dict_value, e3j.IrrepsArray(irreps(dict_value), array_value))
         for array_value, (key, dict_value) in zip(split_value, tensorial_attrs(tensorial).items())
     }
 

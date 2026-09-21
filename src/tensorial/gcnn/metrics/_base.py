@@ -196,9 +196,12 @@ class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
         return AvgNumNeighboursByType(self._node_types)
 
     def merge(self, other: "AvgNumNeighboursByType") -> "AvgNumNeighboursByType":
-        if not jnp.all(self._node_types == other._node_types):  # pylint: disable=protected-access
+        # pylint: disable=protected-access
+        if self._node_types.shape != other._node_types.shape or not bool(
+            jnp.all(self._node_types == other._node_types)
+        ):
             raise ValueError(
-                f"Type maps must match, got {self._node_types} and {other._node_types}"  # pylint: disable=protected-access
+                f"Type maps must match, got {self._node_types} and {other._node_types}"
             )
 
         if other.is_empty:  # pylint: disable=protected-access
