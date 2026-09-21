@@ -16,7 +16,7 @@ class DummyModel(linen.Module):
 
 
 @pytest.mark.parametrize("output", [None, "predictions", "targets", ["predictions", "targets"]])
-def test_module_outputs(output):
+def test_module_outputs(output, tmp_path):
     class Listener(reax.TrainerListener):
         val_outputs = []
 
@@ -40,7 +40,7 @@ def test_module_outputs(output):
     )
 
     listener = Listener()
-    trainer = reax.Trainer(listeners=listener)
+    trainer = reax.Trainer(listeners=listener, default_root_dir=tmp_path)
 
     dataset = np.random.rand(2, 10)
     trainer.fit(module, train_dataloaders=dataset, val_dataloaders=dataset, max_epochs=1)

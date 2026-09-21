@@ -1,3 +1,5 @@
+import tempfile
+
 import pytest
 import reax.testing
 
@@ -15,6 +17,7 @@ def train(devices: int):
         "_target_": "reax.training.Trainer",
         "accelerator": "cpu",
         "devices": devices,
+        "default_root_dir": tempfile.mkdtemp(),
     }
     model = {"_target_": "reax.demos.boring_classes.BoringModel"}
     cfg = {keys.DATA: data, keys.MODEL: model, keys.TRAINER: trainer}
