@@ -1,3 +1,10 @@
+"""Graph-aware loss functions for `jraph.GraphsTuple` model outputs.
+
+Wraps pure (array-level) loss functions with the ability to reduce over batches of
+variable-size graphs, optionally apply per-graph weights, and expose per-graph losses
+for logging/monitoring.
+"""
+
 import abc
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Final, Literal, Optional
@@ -26,6 +33,12 @@ PureLossFn = Callable[[jax.Array, jax.Array], jax.Array]
 
 
 class GraphLoss(equinox.Module):
+    """Base class for losses over batches of `jraph.GraphsTuple`.
+
+    Subclasses implement `_call` (and optionally `loss_with_contributions`) to
+    combine a batch of predictions with a batch of targets into a scalar loss.
+    """
+
     _label: str
 
     def __init__(self, label: str):
@@ -115,9 +128,11 @@ class Loss(GraphLoss):
 
     @property
     def reduction(self) -> Literal["sum", "mean"]:
+        """How per-graph losses are combined into the batch scalar."""
         return self._reduction
 
     def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> jax.Array:
+        """Compute the scalar loss by applying the wrapped loss function to the fields."""
         predictions_dict = predictions._asdict()
 
         pred_values = base.as_array(tree.get_by_path(predictions_dict, self._prediction_field))
@@ -158,6 +173,19 @@ class Loss(GraphLoss):
 
 
 class WeightedLoss(GraphLoss):
+    """A weighted combination of multiple `GraphLoss` instances.
+
+    The combined loss is ``sum_i weights[i] * loss_fns[i](preds, targets)``.
+
+    Args:
+        loss_fns: Sequence of `GraphLoss` instances to combine.
+        weights: Sequence of per-term weights. Defaults to all-ones.
+
+    Raises:
+        ValueError: If any item in ``loss_fns`` is not a `GraphLoss` or the
+            number of weights does not match the number of loss functions.
+    """
+
     _weights: tuple[float, ...]
     _loss_fns: tuple[GraphLoss, ...]
 
@@ -207,6 +235,7 @@ class WeightedLoss(GraphLoss):
 
     @property
     def weights(self):
+        """Per-term loss weights as a gradient-stopped array of shape ``(n_terms,)``."""
         return jax.lax.stop_gradient(jnp.array(self._weights))
 
     @property
@@ -223,6 +252,7 @@ class WeightedLoss(GraphLoss):
         return "mean"
 
     def _call(self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple) -> jax.Array:
+        """Return the weighted sum of the per-term losses."""
         # Calculate the loss for each function
         losses = jnp.array(list(map(lambda loss_fn: loss_fn(predictions, targets), self._loss_fns)))
         return jnp.dot(self.weights, losses)
@@ -230,6 +260,7 @@ class WeightedLoss(GraphLoss):
     def loss_with_contributions(
         self, predictions: jraph.GraphsTuple, target: jraph.GraphsTuple
     ) -> tuple[jax.Array, dict[str, float]]:
+        """Return the combined loss plus per-term contributions (keyed by term label)."""
         # Calculate the loss for each function
         losses = jax.array(list(map(lambda loss_fn: loss_fn(predictions, target), self._loss_fns)))
         # Group the contributions into a dictionary keyed by the label

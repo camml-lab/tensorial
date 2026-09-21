@@ -1,3 +1,9 @@
+"""Well-known string keys for ``jraph.GraphsTuple`` node/edge/global attributes.
+
+Defining these as constants avoids ad-hoc string keys drifting out of sync between
+modules. Use `predicted` to derive the corresponding ``predicted_*`` key name.
+"""
+
 from typing import Final
 
 POSITIONS: Final[str] = "positions"

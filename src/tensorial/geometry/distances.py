@@ -1,3 +1,10 @@
+"""Abstract interfaces for neighbour lists and neighbour finders.
+
+These are the contracts implemented by the concrete backends in
+:mod:`tensorial.geometry.np_neighbours` (NumPy-based) and
+:mod:`tensorial.geometry.jax_neighbours` (JAX-based).
+"""
+
 import abc
 import collections
 
@@ -9,26 +16,32 @@ Edges = collections.namedtuple("Edge", "from_idx to_idx cell_shift")
 
 
 class NeighbourList(abc.ABC):
-    """An interface that represents a neighbour list"""
+    """Abstract representation of a neighbour list for a set of particles.
+
+    Concrete subclasses must implement :attr:`num_particles`,
+    :attr:`max_neighbours` and :meth:`get_edges`.
+    """
 
     @property
     @abc.abstractmethod
     def num_particles(self) -> int:
-        """Get the number of neighbours in this list"""
+        """The number of particles for which neighbours are stored."""
 
     @property
     @abc.abstractmethod
     def max_neighbours(self) -> int:
-        """Get the maximum number of neighbours in this list"""
+        """The (observed) maximum number of neighbours of any single particle."""
 
     @abc.abstractmethod
     def get_edges(self) -> Edges:
-        """Get the edges representing all neighbours"""
+        """Return all (particle, neighbour) pairs together with their periodic-image shifts."""
 
 
 class NeighbourFinder(abc.ABC):
+    """Abstract contract for finding a neighbour list around a set of positions."""
+
     @abc.abstractmethod
     def get_neighbours(
         self, positions: jax.typing.ArrayLike, max_neighbours: int = None
     ) -> NeighbourList:
-        """Get the neighbour list for the given positions"""
+        """Build the :class:`NeighbourList` containing all neighbours within the cutoff."""

@@ -1,3 +1,10 @@
+"""A `reax` trainer stage that computes dataset statistics and bakes them into the config.
+
+Useful to derive per-dataset quantities (e.g. normalisation terms) once, store
+them under ``${from_data.<name>}``, and then reuse those values when instantiating
+the model.
+"""
+
 from collections.abc import Mapping
 import functools
 from typing import Any
@@ -68,6 +75,7 @@ class FromData(reax.stages.Stage):
 
     @property
     def dataloader(self) -> reax.DataLoader | None:
+        """Return the :class:`reax.DataLoader` this stage loads statistics from."""
         return self._datamanager.get_dataloader(self._dataset_name)
 
     @property
@@ -91,6 +99,21 @@ class FromData(reax.stages.Stage):
         on_step=False,
         on_epoch=True,
     ) -> None:
+        """Log a metric to the parent stage.
+
+        Delegates to :meth:`reax.stages.Stage.log` so that metrics emitted here
+        (e.g. during the ``EvaluateStats`` child stage) are reported through the
+        normal reax logging pipeline.
+
+        Args:
+            name: The name of the metric.
+            value: The metric value (array-like) to log.
+            batch_size: Current batch size, if available.
+            prog_bar: Whether to show the value on the progress bar.
+            logger: Whether to forward the value to the attached loggers.
+            on_step: Whether the value is a step-level metric.
+            on_epoch: Whether the value should be reduced over an epoch.
+        """
         self._child.log(
             name,
             value,
@@ -175,6 +198,15 @@ def _(value: jt.Array) -> int | float | list:
 
 
 def find_iterpol(root, path=()):
+    """Yield ``(path, key)`` for every nested OmegaConf interpolation in a config node.
+
+    Args:
+        root: An OmegaConf dict (or a nested dict).
+        path: The partial path accumulated so far (used only on recursion).
+
+    Yields:
+        Tuples of the path to, and the key within, each interpolation found.
+    """
     for key, value in root.items():
         if isinstance(value, str):
             if omegaconf.OmegaConf.is_interpolation(root, key):

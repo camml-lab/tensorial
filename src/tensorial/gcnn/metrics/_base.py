@@ -142,7 +142,7 @@ class GraphMetric(reax.Metric):
         return self._state.compute()
 
     @override
-    def reduce(self, axis: int = 0) -> "Metric[_OutT]":
+    def reduce(self, axis: int = 0) -> "reax.Metric[OutT]":
         if self.is_empty:
             raise RuntimeError("Cannot compute, metric is empty")
 

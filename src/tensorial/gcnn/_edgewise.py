@@ -48,6 +48,21 @@ class EdgewiseLinear(linen.Module):
 
 
 class EdgewiseEmbedding(linen.Module):
+    """Embed edge attributes into a direct sum of irreps.
+
+    The edge attributes specified by ``attrs`` (a mapping of attribute name to a
+    :class:`~tensorial.base.Attr` or irreps specification) are encoded and stored in a
+    single ``e3nn_jax.IrrepsArray`` at ``out_field`` in the graph's edges.
+
+    Args:
+        attrs: a mapping of edge attribute name to the tensorial attribute (or irreps)
+            used to encode it
+        out_field: the edge field in which to store the encoded features
+
+    Example:
+        >>> embedding = EdgewiseEmbedding({"vectors": "1o"})
+    """
+
     attrs: "tensorial.IrrepsTree"
     out_field: str = keys.ATTRIBUTES
 
@@ -89,6 +104,25 @@ class EdgewiseDecoding(linen.Module):
 
 
 class RadialBasisEdgeEmbedding(linen.Module):
+    """Embed edge lengths into a radial basis.
+
+    Computes the edge vectors (and hence lengths) of the graph, then expands the lengths
+    in a Bessel radial basis of ``num_basis`` functions, optionally multiplied by a
+    polynomial envelope that smoothly approaches zero at the cutoff. The result is stored
+    at ``out_field`` in the graph's edges.
+
+    Args:
+        field: the edge field from which to read the lengths (used if already present)
+        out_field: the edge field in which to store the radial embeddings
+        num_basis: the number of radial basis functions
+        r_max: the cutoff radius, used to scale the Bessel basis and envelope
+        envelope: if ``True``, use a default polynomial envelope; or a callable
+            ``envelope(r / r_max)`` to use instead
+
+    Example:
+        >>> embedding = RadialBasisEdgeEmbedding(num_basis=8, r_max=5.0, envelope=True)
+    """
+
     field: str = keys.EDGE_LENGTHS
     out_field: str = keys.RADIAL_EMBEDDINGS
     num_basis: int = 8

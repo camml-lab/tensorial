@@ -1,3 +1,5 @@
+"""A fluent `GraphMutator` for building modified copies of a `jraph.GraphsTuple`."""
+
 import copy
 from typing import Any
 
@@ -7,6 +9,24 @@ __all__ = "update_graph", "GraphMutator"
 
 
 class GraphMutator:
+    """Accumulates set / update / delete operations on a `jraph.GraphsTuple`.
+
+    Mutations are recorded against the original (unmodified) graph and applied
+    atomically when `get` is called, so each call produces a fresh graph without
+    mutating the source.
+
+    Args:
+        graph: The base graph all mutations are applied to.
+
+    Example:
+        >>> new_graph = (
+        ...     update_graph(graph)
+        ...     .set("globals.energy", jnp.array(1.0))
+        ...     .delete("nodes.foo")
+        ...     .get()
+        ... )
+    """
+
     def __init__(self, graph: jraph.GraphsTuple):
         self.original = graph
         self.mutations: list[tuple[str, tuple[str | int, ...], Any]] = []
@@ -15,14 +35,29 @@ class GraphMutator:
         return tuple(path.split(".")) if isinstance(path, str) else path
 
     def set(self, path: str | tuple, value) -> "GraphMutator":
+        """Schedule a `value` assignment at `path` (either node/edge/global).
+
+        Returns:
+            ``self`` for chaining.
+        """
         self.mutations.append(("set", self._normalize_path(path), value))
         return self
 
     def update(self, path: str | tuple, updates: dict) -> "GraphMutator":
+        """Schedule a merge of ``updates`` into the dict at ``path``.
+
+        Returns:
+            ``self`` for chaining.
+        """
         self.mutations.append(("update", self._normalize_path(path), updates))
         return self
 
     def delete(self, path: str | tuple) -> "GraphMutator":
+        """Schedule a deletion of the field at ``path``.
+
+        Returns:
+            ``self`` for chaining.
+        """
         self.mutations.append(("delete", self._normalize_path(path), None))
         return self
 
@@ -59,6 +94,7 @@ class GraphMutator:
         return target if container is None else None
 
     def get(self) -> jraph.GraphsTuple:
+        """Return a new `jraph.GraphsTuple` with all the recorded mutations applied."""
         # Deepcopy all mutable fields; assume non-dict fields are safe to mutate directly
         mutated_fields = {
             # In gcnn these can be (mutable) dicts of immutable values
@@ -87,4 +123,5 @@ class GraphMutator:
 
 
 def update_graph(graph: jraph.GraphsTuple) -> GraphMutator:
+    """Create a new `GraphMutator` for ``graph``, for building modified copies."""
     return GraphMutator(graph)

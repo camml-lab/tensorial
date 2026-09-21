@@ -1,3 +1,5 @@
+"""NumPy-based neighbour-finder backends (open and periodic boundaries)."""
+
 import numbers
 
 from jaxtyping import Bool, Float, Int
@@ -15,36 +17,50 @@ Range = tuple[int, int]
 
 
 class GridCells:
+    """A grid of integer image coordinates inside a unit cell."""
+
     def __init__(
         self,
         cell: Float[Array, "3 3"],
         grid_coords: Int[Array, "... 3"],
         grid_pts: Float[Array, "... 3"] | None = None,
     ):
+        """Initialise the grid.
+
+        Args:
+            cell: unit cell, rows are the three cell vectors.
+            grid_coords: integer image coordinates, shape ``(N, 3)``.
+            grid_pts: optional precomputed Cartesian positions of the images.
+        """
         self._cell = cell
         self._grid_coords = grid_coords
         self._grid_pts = grid_pts
 
     @property
     def num_cells(self) -> int:
+        """The number of image cells in the grid."""
         return self._grid_coords.shape[0]
 
     @property
     def cell(self) -> Float[Array, "3 3"]:
+        """The unit cell for this grid."""
         return self._cell
 
     @property
     def grid_coords(self) -> Int[Array, "... 3"]:
+        """The integer image coordinates."""
         return self._grid_coords
 
     @property
     def grid_pts(self) -> Float[Array, "... 3"]:
+        """The Cartesian positions of the images, computed lazily from ``grid_coords``."""
         if self._grid_pts is None:
             self._grid_pts = self._grid_coords @ self._cell
 
         return self._grid_pts
 
     def mask_off(self, mask: Bool[Array, "... 3"]) -> "GridCells":
+        """Return a new :class:`GridCells` with only the entries selected by ``mask``."""
         return GridCells(
             self._cell,
             self._grid_coords[mask],
@@ -54,6 +70,14 @@ class GridCells:
     def bloom(
         self, points: Float[Array, "N 3"]
     ) -> tuple[Float[Array, "... 3"], Int[Array, "..."], Int[Array, "... 3"]]:
+        """Expand a set of points into their images in every cell of the grid.
+
+        Args:
+            points: the positions to expand, shape ``(N, 3)``.
+
+        Returns:
+            a tuple of (Cartesian image positions, original-point index, cell index).
+        """
         bloomed_points = []
         for grid_pt in self.grid_pts:
             bloomed_points.extend(grid_pt + points)
@@ -70,6 +94,7 @@ class GridCells:
         )
 
     def flatten(self):
+        """Collapse the (possibly multi-dim) grid to a single flat list of cells."""
         self._grid_coords = self._grid_coords.reshape(-1, 3)
         if self._grid_pts is not None:
             self._grid_pts = self._grid_pts.reshape(-1, 3)
@@ -77,26 +102,35 @@ class GridCells:
 
 
 class NeighbourList(distances.NeighbourList):
+    """A concrete :class:`~tensorial.geometry.distances.NeighbourList` backed by NumPy."""
+
     def __init__(self, n_particles: int, edges: distances.Edges):
+        """Store the particle count and the edge list."""
         self._n_particles = n_particles
         self._edges = edges
 
     @override
     @property
     def num_particles(self) -> int:
+        """The number of particles in this list."""
         return self._n_particles
 
     @override
     @property
     def max_neighbours(self) -> int:
+        """The maximum degree of any particle in the list."""
         return np.unique(self._edges.from_idx, return_counts=True)[1].max()
 
     def get_edges(self) -> distances.Edges:
+        """The underlying edge list."""
         return self._edges
 
 
 class OpenBoundary(distances.NeighbourFinder):
+    """Open-boundary neighbour finder: a simple cutoff sphere, no periodic images."""
+
     def __init__(self, cutoff: numbers.Number, include_self: bool = False):
+        """Initialise with a cutoff radius and (optionally) include self-neighbours."""
         self._cutoff = float(cutoff)
         self._include_self = include_self
 
@@ -105,6 +139,7 @@ class OpenBoundary(distances.NeighbourFinder):
         positions: Float[Array, "N 3"],
         max_neighbours: int = None,  # pylint: disable=unused-argument
     ) -> distances.NeighbourList:
+        """All (i, j) pairs with ``|p_i - p_j| < cutoff`` (and self-neighbours if requested)."""
         npts = positions.shape[0]
         dists = ssd.squareform(ssd.pdist(positions))
         mask = dists < self._cutoff
@@ -118,6 +153,8 @@ class OpenBoundary(distances.NeighbourFinder):
 
 
 class PeriodicBoundary(distances.NeighbourFinder):
+    """Periodic-boundary neighbour finder, considering images in periodic cell repetitions."""
+
     def __init__(
         self,
         cell: CellType,
@@ -163,6 +200,7 @@ class PeriodicBoundary(distances.NeighbourFinder):
         positions: Float[Array, "N 3"],
         max_neighbours: int = None,  # pylint: disable=unused-argument
     ) -> distances.NeighbourList:
+        """Return the neighbour list across periodic images within the cutoff."""
         n_pts: int = positions.shape[0]
 
         neigh_pos, neigh_idx, neigh_grid_coords = self._full_grid.bloom(positions)
@@ -194,6 +232,21 @@ def neighbour_finder(
     include_self: bool = False,
     **kwargs,
 ) -> distances.NeighbourFinder:
+    """Create the appropriate neighbour finder for the given boundary conditions.
+
+    Pick :class:`PeriodicBoundary` if any component of ``pbc`` is ``True`` (and a
+    cell was provided), otherwise :class:`OpenBoundary`.
+
+    Args:
+        cutoff: the cutoff radius.
+        cell: the unit cell required for periodic boundaries.
+        pbc: which cell directions are periodic.
+        include_self: also count self-neighbours (same particle, central cell).
+        **kwargs: forwarded to the chosen backend.
+
+    Returns:
+        a :class:`~tensorial.geometry.distances.NeighbourFinder` instance.
+    """
     if pbc is not None and any(pbc):
         return PeriodicBoundary(cell, cutoff, pbc, include_self=include_self, **kwargs)
 

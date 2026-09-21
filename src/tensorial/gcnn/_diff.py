@@ -580,51 +580,47 @@ def diff(
     (e.g., 'nodes.positions:Iγ') for specifying differentiation targets and output shape.
 
     Args:
-        *func_of:
-            Either (func), where 'func' is the energy function, or (func, of), where 'of'
-            is the scalar entry (e.g., 'globals.energy') to differentiate.
-            - func (Callable): The function (Graph -> Graph) whose output is differentiated.
-            - of (GraphEntrySpecLike, optional): Specifies the scalar entry within the
-              output graph of 'func' to differentiate. Defaults to the sole scalar
-              output if omitted.
-        wrt (GraphEntrySpecLike | Sequence[GraphEntrySpecLike]):
-            The input entries of the graph with respect to which the derivative is taken.
-            This must be a string or a sequence of strings, specifying the index
-            notation for the input:
-            - Example: 'nodes.positions:Iγ' means differentiate w.r.t. the $\\gamma$
-              component of the position of node $I$.
-        out (GraphEntrySpecLike, optional):
-            The index notation for the desired output tensor shape. This string
-            defines the contraction of the indices from 'wrt'.
-            - Example: If wrt=['field:α', 'field:β', 'positions:Iγ'], out=':Iγαβ'
-              specifies a rank-4 tensor output with indices $I, \\gamma, \alpha, \beta$.
-              If omitted, the indices are concatenated in the order they appear in 'wrt'.
-        scale (float):
-            A scalar factor to multiply the final derivative result by. Defaults to 1.0.
-        at (dict | None):
-            A dictionary mapping GraphEntrySpecLike strings (without indices) to jax.numpy
-            arrays, specifying the value at which to evaluate the derivative for those
-            entries. These entries will be held constant.
-            - Example: {'globals.electric_field': jnp.zeros(3)}
-        return_graph (bool):
-            If True, the derivative tensor is packaged into a new Graph object under the
-            name specified by the 'out' argument. If False, the function returns the
-            raw derivative tensor. Defaults to False.
-        mode (str):
-            "rev" (default) uses reverse-mode AD (jax.jacrev). "fwd" uses forward-mode AD
-            (jax.jacfwd), which is more memory-efficient when dim(input) << dim(output).
+        *func_of: Either ``(func)``, where ``func`` is the energy function, or
+            ``(func, of)``, where ``of`` is the scalar entry (e.g.,
+            ``globals.energy``) to differentiate. ``func`` is the function
+            (Graph -> Graph) whose output is differentiated, and ``of`` (optional)
+            specifies the scalar entry within the output graph of ``func`` to
+            differentiate, defaulting to the sole scalar output if omitted.
+        wrt: The input entries of the graph with respect to which the derivative is
+            taken. This must be a string or a sequence of strings, specifying the
+            index notation for the input: for example, ``nodes.positions:Iγ`` means
+            differentiate w.r.t. the ``γ`` component of the position of node ``I``.
+        out: The index notation for the desired output tensor shape. This string
+            defines the contraction of the indices from ``wrt``. For example, if
+            ``wrt=['field:α', 'field:β', 'positions:Iγ']``, then
+            ``out=':Iγαβ'`` specifies a rank-4 tensor output with indices
+            ``I, γ, α, β``. If omitted, the indices are concatenated in the order
+            they appear in ``wrt``.
+        scale: A scalar factor to multiply the final derivative result by. Defaults
+            to 1.0.
+        at: A dictionary mapping GraphEntrySpecLike strings (without indices) to
+            jax.numpy arrays, specifying the value at which to evaluate the derivative
+            for those entries. These entries will be held constant, e.g.
+            ``{'globals.electric_field': jnp.zeros(3)}``.
+        return_graph: If True, the derivative tensor is packaged into a new Graph
+            object under the name specified by the ``out`` argument. If False, the
+            function returns the raw derivative tensor. Defaults to False.
+        mode: "rev" (default) uses reverse-mode AD (jax.jacrev). "fwd" uses
+            forward-mode AD (jax.jacfwd), which is more memory-efficient when
+            dim(input) << dim(output).
 
     Returns:
-        Evaluator: A callable object that takes a Graph and returns the computed
-                   derivative tensor (or a Graph containing it).
+        A callable object that takes a Graph and returns the computed derivative
+        tensor (or a Graph containing it).
 
     Raises:
         TypeError: If the arguments do not conform to the expected types.
 
     Note:
-        The index notation used in 'wrt' and 'out' must adhere to the library's
+        The index notation used in ``wrt`` and ``out`` must adhere to the library's
         conventions for Graph entry keys and indices. For multi-derivatives, the
-        number of unique indices in 'out' must match the number of indices in 'wrt'.
+        number of unique indices in ``out`` must match the number of indices in
+        ``wrt``.
     """
     if len(func_of) == 1:
         func = func_of[0]

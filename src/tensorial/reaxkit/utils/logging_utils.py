@@ -1,3 +1,5 @@
+"""Logging helpers shared by the ``tensorial.reaxkit`` training pipeline."""
+
 import logging
 from typing import Any
 

@@ -1,3 +1,5 @@
+"""Well-known config key names used by the ``tensorial.reaxkit`` training pipeline."""
+
 from typing import Final
 
 MODEL: Final[str] = "model"

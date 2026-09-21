@@ -1,3 +1,10 @@
+"""Segment reduction operations over batched `jraph.GraphsTuple` data.
+
+Wraps ``jraph.segment_*`` with masking of invalid nodes/edges/segments and a
+convenience `graph_segment_reduce` that reduces a specified node/edge field of a
+whole graph batch.
+"""
+
 from functools import singledispatch
 from typing import Literal
 
@@ -381,6 +388,21 @@ def graph_segment_reduce(
     path: "gcnn.typing.TreePathLike",
     reduction: str = "sum",
 ) -> Float[jax.Array, "num_segments ..."] | e3j.IrrepsArray:
+    """Reduce a node/edge field of a graph batch down to one vector per graph.
+
+    Args:
+        graph: A `jraph.GraphsTuple` (or its dict form) with nodes or edges.
+        path: Path to the field to reduce. Must begin with ``"nodes"`` or ``"edges"``.
+        reduction: One of ``"sum"``, ``"mean"``, ``"max"`` or ``"min"``.
+
+    Returns:
+        The reduced array of shape ``(num_segments, ...)``; invalid entries are
+        masked using the graph's ``mask`` if present.
+
+    Raises:
+        ValueError: If the root of ``path`` is not ``nodes``/``edges`` or the
+            field cannot be found on the graph.
+    """
     if isinstance(graph, jraph.GraphsTuple):
         graph_dict = graph._asdict()
     else:

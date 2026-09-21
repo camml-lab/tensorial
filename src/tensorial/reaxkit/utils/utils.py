@@ -1,3 +1,5 @@
+"""General reaxkit utilities: task wrapping, config extras, and metric retrieval."""
+
 from collections.abc import Callable
 from importlib.util import find_spec
 import logging
@@ -49,14 +51,14 @@ def task_wrapper(task_func: Callable) -> Callable:
     """Optional decorator that controls the failure behavior when executing the task function.
 
     This wrapper can be used to:
-        - make sure loggers are closed even if the task function raises an exception (prevents
-            multirun failure)
-        - save the exception to a `.log` file
-        - mark the run as failed with a dedicated file in the `logs/` folder (so we can find and
-            rerun it later)
-        - etc. (adjust depending on your needs)
 
-    Example:
+    - make sure loggers are closed even if the task function raises an exception (prevents
+      multirun failure)
+    - save the exception to a ``.log`` file
+    - mark the run as failed with a dedicated file in the ``logs/`` folder (so we can find and
+      rerun it later)
+    - etc. (adjust depending on your needs)
+
     .. code-block:: python
 
         @utils.task_wrapper
@@ -72,6 +74,14 @@ def task_wrapper(task_func: Callable) -> Callable:
     """
 
     def wrap(cfg: omegaconf.DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Execute ``task_func`` and close the wandb run on completion.
+
+        Args:
+            cfg: The Hydra ``DictConfig`` passed to the original task function.
+
+        Returns:
+            The ``(metric_dict, object_dict)`` pair returned by ``task_func``.
+        """
         # execute the task
         try:
             metric_dict, object_dict = task_func(cfg=cfg)

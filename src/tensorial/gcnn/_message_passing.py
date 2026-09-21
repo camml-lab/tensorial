@@ -12,6 +12,29 @@ from tensorial.typing import Array, IndexArray, IntoIrreps, IrrepsArrayShape
 
 
 class MessagePassingConvolution(linen.Module):
+    """Equivariant message passing convolution.
+
+    Updates node features by aggregating messages from neighbouring nodes. Each message is
+    formed by taking the equivariant tensor product of the sender's node features with the
+    edge features, concatenating the result with the (filtered) node features, and weighting
+    the compound message with a radial MLP that depends on the inter-atomic distance
+    embedding. The messages are then scattered to the receiver nodes and normalised.
+
+    Args:
+        irreps_out: the irreps of the tensor product output (and hence of the updated node
+            features)
+        avg_num_neighbours: average number of neighbours of each node, used to normalise the
+            aggregated messages. Can be a single value or a mapping of node type to value
+        epsilon: if set, the aggregated messages are multiplied by this constant instead of
+            being divided by the square root of the average number of neighbours
+        radial_num_layers: the number of layers in the radial MLP
+        radial_num_neurons: the number of neurons per layer in the radial MLP
+        radial_activation: activation function used by the radial MLP
+
+    Example:
+        >>> conv = MessagePassingConvolution("64x0e + 32x1o", avg_num_neighbours=5.0)
+    """
+
     irreps_out: IntoIrreps
 
     # Normalisation

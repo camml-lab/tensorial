@@ -1,3 +1,5 @@
+"""Qm9 dataset loader, parser, and graph-conversion helpers."""
+
 import collections.abc
 import io
 import logging
@@ -42,6 +44,19 @@ QM9_XYZ_LABELS: Final[list[str]] = [
 
 
 class GraphOptions(TypedDict):
+    """Configuration for converting a Qm9 molecule entry into a `jraph.GraphsTuple`.
+
+    Args:
+        r_max: Cutoff radius (Angstrom) for building the k-nearest-neighbour graph.
+        self_edges: Whether to add self-edges (i == j) to the graph.
+        node_attrs: Node attribute keys to copy onto the graph. Each item is either
+            a string key (used for both input and output labels) or a
+            ``(raw_key, output_label)`` tuple to rename the attribute.
+        graph_attrs: Graph-level attribute keys to copy onto the graph, with the
+            same key / rename semantics as ``node_attrs``.
+        np_: NumPy module to use for array ops (e.g. ``numpy`` or ``jax.numpy``).
+    """
+
     r_max: float
     self_edges: bool
     node_attrs: list[str | tuple[str, str]]
@@ -50,6 +65,29 @@ class GraphOptions(TypedDict):
 
 
 class Qm9(collections.abc.Sequence):
+    """The Qm9 dataset (134k small organic molecules, Isayev et al. 2017).
+
+    Provides `Sequence` access to either raw molecule dicts or
+    `jraph.GraphsTuple` objects (via lazy conversion when ``as_graphs`` is set).
+    The dataset is downloaded from the official figshare mirror on first use and
+    cached under ``data_dir``.
+
+    Args:
+        data_dir: Directory in which to cache the downloaded tarball.
+        download: Download (and cache) the dataset if missing. Set to ``False``
+            to load from an already-populated ``data_dir`` without network access.
+        limit: If set, return only this many molecules (optionally shuffled).
+        as_graphs: Optional mapping of `GraphOptions` to build the dataset as
+            message-passing graphs on the fly.
+        shuffle: Shuffle molecule order when ``limit`` is set.
+        rng_seed: Optional seed for the shuffle RNG.
+
+    Example:
+        >>> ds = Qm9(limit=100, as_graphs={"r_max": 3.0, "self_edges": False})
+        >>> len(ds), type(ds[0])
+        (100, <class 'jraph.GraphsTuple'>)
+    """
+
     URL: Final[str] = "https://springernature.figshare.com/ndownloader/files/3195389"
     FILENAME: Final[str] = "dsgdb9nsd.xyz.tar.bz2"
     QM9_STRUCTURES: Final[str] = "qm9_structures"
@@ -82,7 +120,8 @@ class Qm9(collections.abc.Sequence):
         archive_path = pathlib.Path(self._data_dir) / self.FILENAME
         self._data = self._extract_tarball(archive_path, limit, shuffle)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: int) -> dict[str, Any] | jraph.GraphsTuple:
+        """Return a single molecule as a dict (or a `jraph.GraphsTuple` if configured)."""
         entry = self._data[item]
         if self._to_graphs and not isinstance(entry, jraph.GraphsTuple):
             # Lazily convert the first time
@@ -159,6 +198,20 @@ class Qm9(collections.abc.Sequence):
         return molecules
 
     def to_graph(self, entry: MoleculeDict) -> jraph.GraphsTuple:
+        """Convert a single :class:`QM9` molecule into a `jraph.GraphsTuple`.
+
+        Delegates to the module-level :func:`to_graph` using this instance's
+        ``as_graphs`` options. Only called when the dataset was constructed
+        with ``as_graphs`` set.
+
+        Args:
+            entry: A molecule dict as produced by :func:`QM9._extract_tarball`
+                (a mapping with ``species``, ``positions``, and property keys).
+
+        Returns:
+            A `jraph.GraphsTuple` built from the molecule's atoms and
+            requested node/graph attributes.
+        """
         return to_graph(entry, **self._to_graphs)
 
 
@@ -213,6 +266,25 @@ def to_graph(
     graph_attrs: list[str | tuple[str, str]] = None,
     np_=np,
 ) -> jraph.GraphsTuple:
+    """Convert a single Qm9 molecule entry into a `jraph.GraphsTuple`.
+
+    Builds a k-nearest-neighbour graph from the atomic positions (within
+    ``r_max``) and copies the requested node / graph attributes onto it.
+
+    Args:
+        entry: A molecule dict as produced by `read_qm9` (positions, species, ...).
+        r_max: Cutoff radius (Angstrom) for building the neighbour graph.
+        self_edges: Whether to add self-edges to the graph.
+        node_attrs: Node attribute keys to copy, optionally as ``(raw, label)``
+            rename tuples.
+        graph_attrs: Graph-level attribute keys to copy, with the same key
+            semantics as ``node_attrs``.
+        np_: NumPy backend to perform the atomic-number lookup with.
+
+    Returns:
+        A `jraph.GraphsTuple` with node attributes (including atomic numbers)
+        and the requested graph globals.
+    """
     ase_data = utils.optional_import("ase.data")
 
     n_nodes = len(entry["species"])

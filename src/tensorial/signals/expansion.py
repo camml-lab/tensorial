@@ -1,4 +1,4 @@
-"""Module for functions performing expansion of functions with a basis"""
+"""Module for functions performing expansion of functions with a basis."""
 
 import functools
 
@@ -11,11 +11,16 @@ from . import bases, functions
 def expand(  # pylint: disable=unused-argument
     basis: bases.RadialSphericalBasis, function: functions.Function
 ) -> jnp.array:
-    """Expand a function in the given basis"""
+    """Expand a function in the given basis.
+
+    This is a singledispatch function: the implementation is chosen based on
+    the concrete types of ``basis`` and ``function``.
+    """
 
 
 @expand.register
 def expand_(basis: bases.SimpleRadialSphericalBasis, function: functions.Function) -> jnp.array:
+    """Expand a function in a :class:`.SimpleRadialSphericalBasis`."""
     if isinstance(function, functions.DiracDelta):
         return function.weight * basis.evaluate(function.pos)
 

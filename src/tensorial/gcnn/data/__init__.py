@@ -1,3 +1,10 @@
+"""Graph I/O utilities for loading and batching :class:`jraph.GraphsTuple` data.
+
+This package re-exports the public API for graph data modules, dataloaders,
+batching, and ASE-based loading so users can import as
+``tensorial.gcnn.data.<name>``.
+"""
+
 from . import _ase, _batching, _common, _dataloader, _datamodule
 from ._ase import *
 from ._batching import *

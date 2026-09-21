@@ -12,6 +12,27 @@ __all__ = ("AseDataLoader",)
 
 
 class AseDataLoader(Sequence[jraph.GraphsTuple]):
+    """Load ASE structures from file(s) and, optionally, convert them to graphs.
+
+    Reads one or more files containing ASE :class:`ase.Atoms` objects (e.g. CIF, XYZ,
+    extxyz) using :func:`ase.io.read`. If ``as_graphs`` is supplied, each structure is
+    lazily converted to a :class:`jraph.GraphsTuple` via
+    :func:`~tensorial.gcnn.atomic.graph_from_ase` the first time it is accessed, with the
+    given keyword arguments.
+
+    Args:
+        path: a path, or sequence of paths, to files containing ASE structures
+        limit: the maximum number of structures to read from each file
+        read_kwargs: keyword arguments passed to :func:`ase.io.read`
+        as_graphs: keyword arguments for :func:`~tensorial.gcnn.atomic.graph_from_ase`,
+            e.g. ``{"r_max": 5.0}``. If ``None``, structures are returned as
+            :class:`ase.Atoms`
+
+    Example:
+        >>> loader = AseDataLoader("structures.xyz", as_graphs={"r_max": 5.0})
+        >>> graph = loader[0]
+    """
+
     def __init__(
         self,
         path: str | Sequence[str],

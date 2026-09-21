@@ -1,3 +1,5 @@
+"""Configuration constants and helpers for the ``tensorial.reaxkit`` training package."""
+
 import logging
 from typing import TYPE_CHECKING, Final
 

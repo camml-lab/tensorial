@@ -19,6 +19,11 @@ REAX_COMMAND: Final[str] = "REAX_COMMAND"
 
 
 def main_cli():
+    """Entry point for the ``tensorial`` command-line tool.
+
+    Parses the command-line arguments and dispatches to the ``train`` or
+    ``predict`` subcommand, which in turn run the appropriate Hydra config script.
+    """
     os.environ[REAX_COMMAND] = " ".join(sys.argv)
 
     parser = argparse.ArgumentParser("tensorial")

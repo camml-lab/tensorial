@@ -1,3 +1,11 @@
+"""JAX-based neighbour-finder backends (open and periodic boundaries).
+
+This module mirrors :mod:`tensorial.geometry.np_neighbours` but returns
+:class:`NeighbourList` objects built from JAX arrays, so they can be carried
+through ``jit``-compiled training loops.  Use the :func:`neighbour_finder`
+factory to construct the right backend for a given boundary condition.
+"""
+
 import functools
 import numbers
 
@@ -18,6 +26,13 @@ MASK_VALUE = -1
 
 
 class NeighbourList(equinox.Module, distances.NeighbourList):
+    """JAX-backed :class:`~tensorial.geometry.distances.NeighbourList`.
+
+    The neighbour table is stored as a rectangular array of shape ``(N, K)``
+    where ``K`` is the (fixed) maximum, and invalid entries are filled with
+    :data:`MASK_VALUE`.
+    """
+
     neighbours: jax.Array
     cell_indices: jax.Array
     actual_max_neighbours: int
@@ -30,6 +45,11 @@ class NeighbourList(equinox.Module, distances.NeighbourList):
         actual_max_neighbours: jax.Array = -1,
         finder: "NeighbourFinder" = None,
     ):
+        """Build the list, validating shapes and storing the fields.
+
+        Raises:
+            ValueError: if ``neighbours`` and ``cell_indices`` shapes disagree.
+        """
         if neighbours.shape != cell_indices.shape[:2]:
             raise ValueError("Cell indices and neighbours must have same shape")
         # checkify.check(neighbours.shape == cell_indices.shape[:2], "Cell indices and neighbours
@@ -47,10 +67,12 @@ class NeighbourList(equinox.Module, distances.NeighbourList):
 
     @property
     def num_particles(self) -> int:
+        """The number of particles stored in this list (first dimension)."""
         return self.neighbours.shape[0]
 
     @property
     def max_neighbours(self) -> int:
+        """The fixed maximum number of neighbours per particle (second dimension)."""
         return self.neighbours.shape[1]
 
     @property
@@ -61,6 +83,7 @@ class NeighbourList(equinox.Module, distances.NeighbourList):
         return self.actual_max_neighbours > self.max_neighbours
 
     def get_edges(self) -> distances.Edges:
+        """Return the valid (i, j, cell) triples, mask entries removed."""
         mask = self.neighbours != MASK_VALUE
         from_idx = jnp.repeat(
             jnp.arange(0, self.num_particles)[:, None], self.max_neighbours, axis=1
@@ -68,29 +91,38 @@ class NeighbourList(equinox.Module, distances.NeighbourList):
         return distances.Edges(from_idx[mask], self.neighbours[mask], self.cell_indices[mask])
 
     def list_overflow(self) -> bool:
+        """Return ``True`` if the fixed maximum is smaller than the actual maximum needed."""
         return self.actual_max_neighbours > self.max_neighbours
 
     def reallocate(self, positions: jt.ArrayLike) -> "NeighbourList":
+        """Re-derive the neighbour list with a (larger) capacity sized for
+        ``actual_max_neighbours``."""
         return self._finder.get_neighbours(positions, max_neighbours=self.actual_max_neighbours)
 
 
 class NeighbourFinder(equinox.Module, distances.NeighbourFinder):
+    """JAX-backed neighbour-finder base class for the backends below."""
+
     def get_neighbours(self, positions: jt.ArrayLike, max_neighbours: int = None) -> NeighbourList:
-        """Get the neighbour list for the given positions"""
+        """Get the neighbour list for the given positions."""
 
     def estimate_neighbours(self, positions: jt.ArrayLike) -> int:
-        """Estimate the number of neighbours per particle"""
+        """Best-effort estimate of how many neighbours per particle to pre-allocate for."""
 
 
 class OpenBoundary(NeighbourFinder):
+    """Open-boundary neighbour finder (cutoff sphere, no periodic images)."""
+
     _cutoff: float
     _include_self: bool
 
     def __init__(self, cutoff: numbers.Number, include_self=False):
+        """Initialise with a cutoff radius and (optionally) include self-neighbours."""
         self._cutoff = float(cutoff)
         self._include_self = include_self
 
     def get_neighbours(self, positions: jt.ArrayLike, max_neighbours: int = None) -> NeighbourList:
+        """All (i, j) pairs with ``|p_i - p_j| < cutoff`` (plus self if requested)."""
         positions = jnp.asarray(positions)
         num_points = positions.shape[0]
         max_neighbours = max_neighbours or self.estimate_neighbours(positions)
@@ -114,6 +146,7 @@ class OpenBoundary(NeighbourFinder):
         )
 
     def estimate_neighbours(self, positions: jt.ArrayLike) -> int:
+        """Rough estimate of the number of neighbours per particle, used to size the table."""
         positions = jnp.asarray(positions)
 
         dimensions = jnp.max(positions, axis=0) - jnp.min(positions, axis=0)
@@ -125,6 +158,13 @@ class OpenBoundary(NeighbourFinder):
 
 
 class PeriodicBoundary(NeighbourFinder):
+    """Periodic-boundary neighbour finder, considering images in periodic cell repetitions.
+
+    The list of cell-images to consider (and their Cartesian positions) is
+    precomputed at construction time in :meth:`__init__` and cached on the
+    module.
+    """
+
     _cell: jax.Array
     _cutoff: float
     _cell_list: jax.Array
@@ -143,6 +183,16 @@ class PeriodicBoundary(NeighbourFinder):
         include_self=False,
         include_images=True,
     ):
+        """Initialise with a unit cell, a cutoff, periodicity, and self/image flags.
+
+        Args:
+            cell: the unit cell (rows are the three cell vectors).
+            cutoff: the cutoff radius.
+            pbc: which cell directions are periodic (default: all).
+            max_cell_multiples: cap on the number of image multiples searched.
+            include_self: also count the central image for each atom.
+            include_images: include atoms from non-central images.
+        """
         self._cell = jnp.asarray(cell)
         self._cutoff = float(cutoff)
         self._cell_list, self._grid_points = get_cell_list(
@@ -155,6 +205,11 @@ class PeriodicBoundary(NeighbourFinder):
         self._include_images = include_images
 
     def get_neighbours(self, positions: jt.ArrayLike, max_neighbours: int = None) -> NeighbourList:
+        """Build the neighbour list for ``positions`` using the periodic grid-cell list.
+
+        Each point is considered against every periodic image (cell shift); pairs
+        within ``cutoff`` are retained.
+        """
         num_points = positions.shape[0]
         num_cells = self._cell_list.shape[0]
         max_neighbours = (
@@ -194,6 +249,7 @@ class PeriodicBoundary(NeighbourFinder):
         )
 
     def estimate_neighbours(self, positions: jt.ArrayLike) -> int:
+        """Rough estimate of the number of neighbours per particle, used to size the table."""
         density = positions.shape[0] / unit_cells.cell_volume(self._cell)
         return int(1.3 * jnp.ceil(density * unit_cells.sphere_volume(self._cutoff) + 1.0).item())
 
@@ -206,6 +262,21 @@ def neighbour_finder(
     include_self: bool = False,
     **kwargs,
 ) -> NeighbourFinder:
+    """Create the appropriate neighbour finder for the given boundary conditions.
+
+    Pick :class:`PeriodicBoundary` if any component of ``pbc`` is ``True`` (and a
+    cell was provided), otherwise :class:`OpenBoundary`.
+
+    Args:
+        cutoff: the cutoff radius.
+        cell: the unit cell required for periodic boundaries.
+        pbc: which cell directions are periodic.
+        include_self: also count self-neighbours (same particle, central cell).
+        **kwargs: forwarded to the chosen backend.
+
+    Returns:
+        a :class:`NeighbourFinder` instance.
+    """
     if pbc is not None and any(pbc):
         return PeriodicBoundary(cell, cutoff, pbc, include_self=include_self, **kwargs)
 
@@ -213,6 +284,7 @@ def neighbour_finder(
 
 
 def generate_positions(cell: jax.Array, positions: jax.Array, cell_shifts: jax.Array) -> jax.Array:
+    """Translate each position by the corresponding ``cell_shift`` (in units of ``cell``)."""
     return jax.vmap(lambda shift: (shift @ cell) + positions)(cell_shifts)
 
 
@@ -222,6 +294,18 @@ def get_cell_list(
     pbc: PbcType | None = (True, True, True),
     max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
 ) -> tuple[jax.Array, jax.Array]:
+    """Precompute the integer image list and the Cartesian translations to consider.
+
+    Args:
+        cell: the unit cell (rows are the three cell vectors).
+        cutoff: the search radius.
+        pbc: which cell directions are periodic.
+        max_cell_multiples: cap on the number of image multiples searched.
+
+    Returns:
+        a pair of ``(integer_image_coordinates, cartesian_translations)`` arrays,
+        both of shape ``(M, 3)``.
+    """
     cell = jnp.asarray(cell)
 
     # Get the multipliers for each cell direction

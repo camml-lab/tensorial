@@ -1,11 +1,11 @@
-.. mincepy documentation master file
+.. tensorial documentation master file
 
 .. _tensorial: https://github.com/camml-lab/tensorial
 
 Welcome to tensorial
 ====================
 
-.. image:: https://codecov.io/gh/muhrin/tensorial/branch/develop/graph/badge.svg
+.. image:: https://codecov.io/gh/camml-lab/tensorial/branch/develop/graph/badge.svg
     :target: https://codecov.io/gh/camml-lab/tensorial
     :alt: Coveralls
 
@@ -45,7 +45,9 @@ Table Of Contents
    :glob:
    :maxdepth: 1
 
-   starting/introduction.ipynb
+   starting/about.rst
+   starting/quickstart.rst
+   starting/concepts.rst
    API <api_reference/modules>
 
 Versioning

@@ -1,3 +1,10 @@
+"""Training pipeline for reactive-forcefield / GNN models in tensorial.
+
+Instantiates everything (listeners, loggers, trainer, datamodule, model) from a
+Hydra/OmegaConf config, then runs the optional ``from_data`` stage and the
+fit / test / predict stages.
+"""
+
 import logging
 import pathlib
 
@@ -14,6 +21,16 @@ DEFAULT_TRAIN_FILE = "train.yaml"
 
 
 def train(cfg: omegaconf.DictConfig | dict):
+    """Set up and run the full training / evaluation pipeline from a config.
+
+    Args:
+        cfg: A Hydra ``DictConfig`` (or plain dict) describing the experiment.
+            Recognised keys include ``data``, the model, the trainer, ``train``,
+            ``test``, ``predict`` and ``from_data``.
+
+    Returns:
+        A dict of the final metrics produced by the trainer.
+    """
     if isinstance(cfg, dict):
         cfg = omegaconf.DictConfig(cfg)
 

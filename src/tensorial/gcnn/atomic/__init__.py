@@ -1,3 +1,9 @@
+"""Atom-species-based building blocks for :mod:`tensorial.gcnn` models.
+
+Exposes per-species rescaling, atomic metrics, and the atomic keys used to
+index per-species graph attributes.
+"""
+
 from . import _importing, _metrics, _modules, keys
 from ._importing import *
 from ._metrics import *

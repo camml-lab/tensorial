@@ -1,3 +1,10 @@
+"""MACE (Matter Simulations) interaction-block implementation of a `ConvNetwork`.
+
+Provides `InteractionBlock`, `NonLinearReadoutBlock`, `MaceLayer` and the full `Mace`
+flax Module — a faithful port of the MACE model used for force / energy / dipole
+regression and molecular dynamics.
+"""
+
 from collections.abc import Callable, Mapping, Sequence
 import functools
 import logging
@@ -34,6 +41,28 @@ def broadcast_to_nodes(
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 class InteractionBlock(linen.Module):
+    """MACE style interaction block.
+
+    A single message passing step in which node features are up-projected, combined with
+    edge features through an equivariant tensor product (see
+    :class:`~tensorial.gcnn.MessagePassingConvolution`), and down-projected back to the
+    target irreps.
+
+    Args:
+        irreps_out: the irreps of the output node features
+        avg_num_neighbours: average number of neighbours of each node, used to
+            normalise the message aggregation. Can be a single value or a mapping
+            of node type to value
+        epsilon: if set, the aggregated messages are multiplied by this constant
+            instead of being divided by the square root of the average number of
+            neighbours
+        radial_activation: activation function used by the radial MLP that maps
+            inter-atomic distances to tensor product weights
+
+    Example:
+        >>> block = InteractionBlock("64x0e + 32x1o", avg_num_neighbours=5.0)
+    """
+
     irreps_out: IntoIrreps
 
     # Normalisation
@@ -43,6 +72,7 @@ class InteractionBlock(linen.Module):
     radial_activation: str | nn_utils.ActivationFunction = "swish"
 
     def setup(self):
+        """Build the message-passing convolution and the down-projection to ``irreps_out``."""
         # pylint: disable=attribute-defined-outside-init
         self._target_irreps = e3j.Irreps(self.irreps_out)
 
@@ -89,12 +119,29 @@ class InteractionBlock(linen.Module):
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 class NonLinearReadoutBlock(linen.Module):
+    """Readout block that maps node features to an output through a gated non-linearity.
+
+    The input is first projected to ``hidden_irreps`` (with extra scalar channels added so
+    that every non-scalar irrep has a gate), passed through an equivariant gate non-linearity,
+    and finally projected to ``output_irreps``.
+
+    Args:
+        hidden_irreps: the irreps of the intermediate representation used by the gate
+        output_irreps: the irreps of the output
+        activation: activation function applied to the even (scalar) components of the gate
+        gate: activation function applied to the gate itself
+
+    Example:
+        >>> readout = NonLinearReadoutBlock("16x0e + 8x1o", "1x0e", activation=jax.nn.silu)
+    """
+
     hidden_irreps: IntoIrreps
     output_irreps: IntoIrreps
     activation: Callable | None = None
     gate: Callable | None = None
 
     def setup(self) -> None:
+        """Build the projection + gated non-linearity and output projection linear layers."""
         # pylint: disable=attribute-defined-outside-init
         hidden_irreps = e3j.Irreps(self.hidden_irreps)
         output_irreps = e3j.Irreps(self.output_irreps)
@@ -148,6 +195,7 @@ class MaceLayer(linen.Module):
     skip_connection: bool = True
 
     def setup(self):
+        """Resolve target irreps and build the interaction + readout block."""
         # pylint: disable=attribute-defined-outside-init
         interaction_irreps = e3j.Irreps(self.interaction_irreps)
         hidden_irreps = e3j.Irreps(self.hidden_irreps)
@@ -205,6 +253,7 @@ class MaceLayer(linen.Module):
 
     @property
     def target_irreps(self) -> e3j.Irreps:
+        """The irreps of the node features produced by this layer."""
         return e3j.Irreps(self._target_irreps)
 
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -272,6 +321,64 @@ class MaceLayer(linen.Module):
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 class Mace(linen.Module):
+    """MACE (Meta Atomistic Channel Equations) equivariant graph neural network.
+
+    A stack of :class:`MaceLayer` interactions, each followed by a readout. The outputs of
+    every readout (plus an optional per-type 0-body baseline, ``y0_values``) are summed to
+    give the final per-node prediction, which is written to ``out_field`` in the graph's
+    nodes. The updated node features are also written back to ``nodes.features``.
+
+    The module expects the graph to contain, at minimum:
+
+    * ``nodes.features`` — the node features (an ``e3nn_jax.IrrepsArray``)
+    * ``nodes.species`` — integer node types, shape ``[n_node, 1]``
+    * ``edges.attributes`` — the edge features (an ``e3nn_jax.IrrepsArray``)
+    * ``edges.radial_embeddings`` — radial edge embeddings, shape ``[n_edge, D]``
+
+    Optionally, when ``global_interaction`` is enabled, ``globals.attributes`` is used to
+    provide per-graph features that are jointly contracted with the node features.
+
+    Args:
+        irreps_out: the irreps of the per-node output
+        out_field: the node field in which to store the output
+        hidden_irreps: the irreps of the hidden node representation, e.g. ``"256x0e"`` or
+            ``"128x0e + 128x1o"``
+        correlation_order: the correlation order of the product basis at each layer
+        num_interactions: the number of interaction layers
+        y0_values: optional per-type 0-body (scalar) baselines, shape
+            ``[num_types, num_scalars]``
+        soft_normalisation: if set, a soft norm activation with this scale is applied to
+            the node features at the end of each layer
+        num_features: the number of features per node. Defaults to the greatest common
+            divisor of the multiplicities of ``hidden_irreps``
+        num_types: the number of node types
+        max_ell: the maximum spherical harmonic degree
+        epsilon: if set, used to normalise the interaction block instead of
+            ``avg_num_neighbours``
+        global_interaction: if ``True``, use a joint node+global product basis
+        global_correlation_order: the correlation order of the global features when
+            ``global_interaction`` is enabled. Defaults to ``correlation_order``
+        avg_num_neighbours: average number of neighbours of each node, used for
+            normalisation. Can be a single value or a mapping of node type to value
+        off_diagonal: if ``True``, the product basis excludes the diagonal terms
+        symmetric_tensor_product_basis: if ``True``, use a symmetric tensor product basis
+        readout_mlp_irreps: the irreps of the readout MLP hidden layer
+        interaction_irreps: the irreps used for the interaction. Either ``"o3_restricted"``,
+            ``"o3_full"``, or an explicit irreps specification
+        radial_activation: activation function used by the radial MLP
+        skip_connection_first_layer: if ``True``, apply a skip connection in the first layer
+
+    Example:
+        >>> model = Mace(
+        ...     irreps_out="1x0e",
+        ...     out_field="energy",
+        ...     hidden_irreps="128x0e + 64x1o",
+        ...     correlation_order=3,
+        ...     num_interactions=2,
+        ...     num_types=118,
+        ... )
+    """
+
     irreps_out: IntoIrreps
     out_field: str
     hidden_irreps: IntoIrreps  # 256x0e or 128x0e + 128x1o
@@ -303,6 +410,7 @@ class Mace(linen.Module):
     skip_connection_first_layer: bool = False
 
     def setup(self):
+        """Resolve irreps, build the interaction stack and the read-out head."""
         # pylint: disable=attribute-defined-outside-init
         hidden_irreps, irreps_out, non_scalar_irreps_out = self._init_irreps(
             self.hidden_irreps, self.irreps_out

@@ -1,3 +1,16 @@
+"""Re-exported JAX/e3nn typing helpers used throughout the public API.
+
+This module centralises the type aliases :mod:`tensorial` uses for its public
+signatures so users can write, e.g.,
+
+    ``Float[ArrayT, "batch 9"]``
+    ``IrrepsArrayShape["n_node 9"]``
+    ``CellType``
+    ``PbcType``
+
+instead of repeating the full ``jaxtyping``/``Annotated`` spellings.
+"""
+
 from collections.abc import Sequence
 from typing import Annotated, Generic, TypeVar, Union
 

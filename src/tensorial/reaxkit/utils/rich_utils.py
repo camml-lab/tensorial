@@ -1,3 +1,10 @@
+"""Rich-based helpers for pretty-printing Hydra configs and prompting for tags.
+
+These functions rely on the `rich <https://github.com/Textualize/rich>`_ library
+to render nested ``DictConfig`` objects as trees and to interact with the user
+via :class:`rich.prompt.Prompt`.
+"""
+
 from collections.abc import Mapping, Sequence
 import logging
 from pathlib import Path
@@ -17,6 +24,13 @@ TREE_STYLE: Final[str] = "dim"
 
 
 def print_tree(root: Mapping, name: str):
+    """Render a nested mapping as a Rich tree and print it to the console.
+
+    Args:
+        root: The top-level mapping to render. Each key becomes a branch and its
+            value is formatted with ``str()`` and shown as YAML syntax.
+        name: The title displayed above the root of the tree.
+    """
     tree = rich.tree.Tree(name, style=TREE_STYLE, guide_style=TREE_STYLE)
 
     queue = []

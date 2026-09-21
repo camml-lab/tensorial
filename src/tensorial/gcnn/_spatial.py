@@ -38,14 +38,14 @@ def graph_from_points(
     Args:
         pos: a [N, 3] array of atomic positions
         r_max: the cutoff radius to use for identifying neighbours
-        fractional_positions: if ``True``, `pos` are interpreted as
+        fractional_positions: if ``True``, ``pos`` are interpreted as
             fractional positions
         self_interaction: if ``True``, edges are created between an atom
             and itself in other unit cells
         strict_self_interaction: if ``True``, edges are created between
             an atom and itself within the central unit cell
         cell: a [3, 3] array of unit cell vectors (in row-major format)
-        pbc: a ``bool`` of a sequence of three `bool`s indicating
+        pbc: a bool or a sequence of three bools indicating
             whether the space is periodic in x, y, z directions
         nodes: a dictionary containing additional data relating to each
             node, it should contain arrays of shape [N, ...]

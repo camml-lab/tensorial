@@ -1,3 +1,5 @@
+"""Shared type aliases and protocols for the ``tensorial.gcnn`` namespace."""
+
 from collections.abc import Callable
 from typing import Protocol, Union
 

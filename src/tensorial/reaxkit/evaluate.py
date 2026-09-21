@@ -1,3 +1,9 @@
+"""Evaluation / test entry point that runs a trained model on a (test) datamodule.
+
+Wraps the `reax` Trainer to run the test and predict stages and to write the
+resulting metrics, driven by the Hydra ``eval.yaml`` config script.
+"""
+
 import logging
 from typing import TYPE_CHECKING
 

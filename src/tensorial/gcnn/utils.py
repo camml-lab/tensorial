@@ -1,3 +1,5 @@
+"""Utility helpers for the ``tensorial.gcnn`` namespace (tree paths, update dicts)."""
+
 import collections.abc
 import logging
 

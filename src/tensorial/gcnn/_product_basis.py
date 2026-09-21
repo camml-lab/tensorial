@@ -278,6 +278,26 @@ class SymmetricContraction(linen.Module):
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 class EquivariantProductBasisBlock(linen.Module):
+    """Equivariant product basis block.
+
+    Expands the input features in a symmetric tensor product basis up to a given
+    correlation order, then projects the result to the target irreps with a linear layer.
+    This is the core non-linearity of the MACE model, capturing interactions between up to
+    ``correlation_order`` neighbouring atoms.
+
+    Args:
+        irreps_out: the irreps of the output
+        correlation_order: the maximum order of the symmetric tensor product
+        num_types: the number of node types (one set of parameters per type)
+        symmetric_tensor_product_basis: if ``True``, use a symmetric tensor product basis
+        off_diagonal: if ``True``, exclude the diagonal terms of the tensor product
+
+    Example:
+        >>> block = EquivariantProductBasisBlock(
+        ...     "64x0e + 32x1o", correlation_order=3, num_types=118
+        ... )
+    """
+
     irreps_out: e3j.Irreps
     correlation_order: int
     num_types: int

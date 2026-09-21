@@ -1,3 +1,10 @@
+"""NequIP-style equivariant graph neural network layers.
+
+Provides `InteractionBlock` and `NequipLayer` (a full convolution layer wrapping
+an interaction block plus invariant layers), a faithful port of the NEquIP model
+commonly used for force-field regression.
+"""
+
 from collections.abc import Callable, Mapping
 import functools
 
@@ -54,6 +61,7 @@ class InteractionBlock(linen.Module):
     num_species: int = 1
 
     def setup(self):
+        """Build the underlying `MessagePassingConvolution` for this block."""
         # pylint: disable=attribute-defined-outside-init
         self._message_passing = _message_passing.MessagePassingConvolution(
             self.irreps_out,
@@ -161,6 +169,7 @@ class NequipLayer(linen.Module):
     resnet: bool = False
 
     def setup(self):
+        """Build the interaction block (and invariant layers) for the NequIP layer."""
         # pylint: disable=attribute-defined-outside-init
         if self.interaction_block is None:
             self._interaction_block = InteractionBlock(

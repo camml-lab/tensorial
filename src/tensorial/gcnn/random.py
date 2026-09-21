@@ -1,3 +1,9 @@
+"""Random graph generators used for tests and demos.
+
+Utilities that build small `jraph.GraphsTuple` instances with random positions /
+attributes, useful for smoke-testing models without a real dataset.
+"""
+
 from collections.abc import Callable
 
 import beartype

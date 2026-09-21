@@ -1,3 +1,11 @@
+"""ReActrix listeners that render parity plots of model outputs.
+
+The :class:`ParityPlotter` and :class:`GraphParityPlotter` listeners
+collect true and predicted values across a training stage and render them as
+scattered parity plots (``y'`` vs ``y``) using Matplotlib, writing the result
+to a ``plots/`` directory inside the trainer's log directory.
+"""
+
 import logging
 import pathlib
 from typing import Any, Final
@@ -130,6 +138,11 @@ class ParityPlotter(reax.TrainerListener):
         _LOGGER.debug("Parity Plot for %s generated.", stage_name)
 
     def reset(self):
+        """Clear all collected data and last-plotted-epoch state.
+
+        Called at the start of a new stage so that each plot contains only the
+        data generated during that stage.
+        """
         self.data_store: dict[str, tuple[list[np.ndarray], list[np.ndarray]]] = {
             "train": ([], []),
             "validation": ([], []),
@@ -150,6 +163,7 @@ class ParityPlotter(reax.TrainerListener):
         _batch_idx: int,
         /,
     ) -> None:
+        """Collect true and predicted values at the end of each training batch."""
         if self._should_collect("train", stage.epoch):
             self._collect_batch_data("train", outputs, batch)
 
@@ -163,6 +177,7 @@ class ParityPlotter(reax.TrainerListener):
         _batch_idx: int,
         /,
     ) -> None:
+        """Collect true and predicted values at the end of each validation batch."""
         if self._should_collect("validation", stage.epoch):
             self._collect_batch_data("validation", outputs, batch)
 
@@ -176,6 +191,7 @@ class ParityPlotter(reax.TrainerListener):
         _batch_idx: int,
         /,
     ) -> None:
+        """Collect true and predicted values at the end of each test batch."""
         if self._should_collect("test", stage.epoch):
             self._collect_batch_data("test", outputs, batch)
 
@@ -189,6 +205,7 @@ class ParityPlotter(reax.TrainerListener):
         _batch_idx: int,
         /,
     ) -> None:
+        """Collect true and predicted values at the end of each predict batch."""
         if self._should_collect("predict", stage.epoch):
             self._collect_batch_data("predict", outputs, batch)
 
@@ -221,6 +238,19 @@ class ParityPlotter(reax.TrainerListener):
         self._plot_parity("predict", self._get_save_dir(trainer), stage.epoch)
 
     def get_target_predicted(self, batch, outputs) -> tuple[np.ndarray, np.ndarray]:
+        """Return the flattened ``(targets, predictions)`` arrays for a single batch.
+
+        Both arrays are converted with :func:`base.as_array` and returned as
+        plain ``numpy.ndarray`` instances so they can be plotted directly.
+
+        Args:
+            batch: The input batch as a ``(x, y)`` tuple (or a single element).
+            outputs: The model outputs, either a scalar tensor or a
+                ``{"targets": ..., "predictions": ...}`` mapping.
+
+        Returns:
+            A ``(targets, predictions)`` pair as ``numpy.ndarray``.
+        """
         targets, predictions = self._get_target_predicted(batch, outputs)
         return np.array(base.as_array(targets)), np.array(base.as_array(predictions))
 
@@ -255,6 +285,15 @@ class ParityPlotter(reax.TrainerListener):
 
 
 class GraphParityPlotter(ParityPlotter):
+    """Parity plotter specialised for :class:`tensorial.gcnn.typing.GraphsTuple` models.
+
+    Extends :class:`ParityPlotter` so that it knows how to pull the target
+    value and the predicted value out of a ``GraphsTuple`` via a
+    ``TreePath``-style selector (similar to :func:`tensorial.gcnn._tree.get`),
+    and optionally apply a ``mask`` if the last node of the target path has a
+    sibling named ``mask``.
+    """
+
     def __init__(
         self,
         targets: gcnn.typing.TreePathLike,
@@ -264,6 +303,25 @@ class GraphParityPlotter(ParityPlotter):
         x_label: str | None = None,
         y_label: str | None = None,
     ):
+        """Create the plotter.
+
+        Args:
+            targets: A TreePath identifying which node of the target graph
+                contains the value to plot.
+            predictions: A TreePath identifying which node of the prediction
+                graph contains the value to plot. If ``None``, this is derived
+                from ``targets`` by replacing the last node with
+                ``tensorial.gcnn.keys.predicted(<last>)``.
+            save_dir: Where to write the ``.pdf`` parity plots. Defaults to
+                ``"plots/"``.
+            fit_plot_every: For ``train``/``validation`` plots, the maximum
+                number of epochs between two plots. Higher values mean fewer
+                plots.
+            x_label: Custom label for the x-axis. Defaults to
+                ``"True Values (<last target node>)"``.
+            y_label: Custom label for the y-axis. Defaults to
+                ``"Predicted Values (<last prediction node>)"``.
+        """
         target_path = gcnn.utils.path_from_str(targets)
         prediction_path = self._init_prediction_path(predictions, target_path)
 

@@ -1,3 +1,5 @@
+"""Small calculation helpers for periodic systems (currently: cell volume)."""
+
 from jaxtyping import Array, Float
 
 from .. import utils

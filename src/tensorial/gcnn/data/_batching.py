@@ -170,7 +170,41 @@ def _get_pad_multiple(pad_to_multiple: int | str | jax.Device | None) -> int | N
 
 
 class GraphBatcher(Iterable[jraph.GraphsTuple]):
-    """Take an iterable of graphs tuples and break it up into batches"""
+    """Take an iterable of graph tuples and break it up into batches.
+
+    Iterates over batches of :class:`jraph.GraphsTuple`, optionally padding each batch to a
+    fixed size and adding padding masks so that downstream code can tell which entries are
+    real and which are there just for padding.
+
+    Two batching modes are supported:
+
+    * ``implicit`` (default) — graphs are concatenated into a single flat batch with a
+      single padding graph at the end, the standard jraph batching scheme.
+    * ``explicit`` — each graph is padded to the maximum size and stacked, so that
+      ``batch.n_node`` has shape ``(batch_size, 2)``. This keeps a static shape per graph
+      and is useful for certain model architectures.
+
+    Args:
+        graphs: a sequence of individual (unbatched) graphs, or a single batched graph
+        batch_size: the number of graphs per batch
+        shuffle: if ``True``, shuffle the graphs before batching
+        pad: if ``True``, pad each batch to the calculated (or supplied) padding size
+        add_mask: if ``True`` and ``pad``, add padding masks to the nodes, edges and
+            globals of each batch
+        padding: an explicit :class:`~tensorial.gcnn.data.GraphPadding` to use. If ``None``
+            and ``pad`` is ``True`` in implicit mode, the padding is calculated
+            automatically
+        pad_to_multiple: round the padding up to a multiple of this value. Can be an
+            integer, a device (e.g. ``jax.devices()[0]``), or the string ``"auto"`` to
+            choose a platform-appropriate value
+        drop_last: if ``True``, drop the last incomplete batch
+        mode: the batching mode, either ``"implicit"`` or ``"explicit"``
+
+    Example:
+        >>> batcher = GraphBatcher(graphs, batch_size=8, pad=True)
+        >>> for batch in batcher:
+        ...     process(batch)
+    """
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(

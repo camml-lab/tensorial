@@ -1,3 +1,10 @@
+"""Neural network building blocks.
+
+Currently :class:`Sequential` only — a drop-in replacement for the
+equivalent in :mod:`flax.linen` that preserves custom ``tuple`` subclasses
+(e.g. :class:`jraph.GraphsTuple`) when passing values between layers.
+"""
+
 from collections.abc import Sequence
 import functools
 import inspect
@@ -18,10 +25,16 @@ class Sequential(linen.Module):
     layers: Sequence[linen.Module | functools.partial]
 
     def setup(self) -> None:
+        """Run the Flax :meth:`setup` hook, building the internal module list."""
         # pylint: disable=attribute-defined-outside-init
         self._layers: list[linen.Module] = _layers(self.layers)
 
     def __post_init__(self):
+        """Validate ``layers`` on construction.
+
+        Raises:
+            ValueError: if ``layers`` is not a sequence, or is empty.
+        """
         if not isinstance(self.layers, Sequence):
             raise ValueError(f"'layers' must be a sequence, got '{type(self.layers).__name__}'.")
         if not self.layers:
@@ -30,6 +43,15 @@ class Sequential(linen.Module):
 
     @linen.compact
     def __call__(self, *args, **kwargs):
+        """Run each layer in turn, forwarding the previous layer's output.
+
+        Args:
+            *args: positional inputs forwarded to the first layer.
+            **kwargs: keyword inputs forwarded to the first layer.
+
+        Returns:
+            the final layer's output.
+        """
         outputs = self._layers[0](*args, **kwargs)
         for layer in self._layers[1:]:
             if isinstance(outputs, dict):

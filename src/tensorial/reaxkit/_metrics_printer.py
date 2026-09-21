@@ -60,6 +60,7 @@ class MetricsPrinter(reax.listeners.ProgressBar):
 
     @override
     def enable(self) -> None:
+        """Enable printing of metrics."""
         self._enabled = True
 
     @override

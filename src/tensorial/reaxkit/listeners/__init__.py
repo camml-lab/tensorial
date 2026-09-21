@@ -1,3 +1,5 @@
+"""ReActrix trainer listeners (parity plotting, etc.)."""
+
 from . import parity_plotter
 from .parity_plotter import *
 

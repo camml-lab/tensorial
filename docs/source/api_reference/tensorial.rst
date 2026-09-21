@@ -10,7 +10,6 @@ Subpackages
    tensorial.datasets
    tensorial.gcnn
    tensorial.geometry
-   tensorial.metrics
    tensorial.reaxkit
    tensorial.signals
    tensorial.training
@@ -81,3 +80,4 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+   :noindex:

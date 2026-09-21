@@ -1,3 +1,9 @@
+"""Shared utility functions for the :mod:`tensorial.reaxkit` package.
+
+Covers configuration instantiators, rank-aware logging, ``rich``-based
+helpers, and general task / metric utilities.
+"""
+
 from . import instantiators, logging_utils, pylogger, rich_utils, utils
 from .instantiators import *
 from .logging_utils import *

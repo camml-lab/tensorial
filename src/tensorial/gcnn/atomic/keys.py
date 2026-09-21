@@ -1,3 +1,5 @@
+"""Well-known string keys for atomic energy-related graph attributes."""
+
 from typing import Final
 
 __all__ = (

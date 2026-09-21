@@ -1,3 +1,19 @@
+"""The ``tensorial.gcnn`` package: GNN layers, modules, and message-passing networks.
+
+This is the top-level namespace for graph neural network building blocks built on
+top of ``jraph``, including:
+
+- **Layers** (``nn``-style): `EmbedLayer`, `EdgeLayer`, `NodeLayer`, `GraphLayer`.
+- **Modules**: `ConvNetwork`, `GNN`, `GraphGatherer`, `GraphUnwrapper`,
+  `GraphWrapper`, `GraphToGraph`, `GNNLayer`.
+- **Derivatives**: finite-difference helpers (`finite_difference`).
+- **Loss functions** (`losses`): `MACE`-style losses and related utilities.
+- **Metrics** (`metrics`): MAE, WADE, R2, etc.
+- **Atomic data** (`atomic`): atomic numbers, one-hot tables, etc.
+- **Data helpers**: `graph_from_points`, `points_from_edge_coords`,
+  `unbatch_edge_coords_from_points`.
+"""
+
 from . import (
     _base,
     _common,

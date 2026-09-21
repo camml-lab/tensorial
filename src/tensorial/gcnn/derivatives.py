@@ -1,3 +1,12 @@
+"""Automatic differentiation of functions on `jraph.GraphsTuple` graphs.
+
+Builds on JAX's ``grad`` / ``jacrev`` / ``jacfwd`` / ``hessian`` to differentiate
+graph-level quantities (e.g. node/edge/global attributes) with respect to other
+graph fields. Exposes both function-based factories (`grad`, `jacobian`, `jacfwd`,
+`hessian`) and flax `Module` wrappers (`Grad`, `Jacobian`, `Jacfwd`) that write the
+result back into the graph.
+"""
+
 from collections.abc import Callable, Sequence
 import functools
 from typing import TYPE_CHECKING, Any
@@ -32,7 +41,25 @@ def grad_shim(
     paths: tuple["gcnn.typing.TreePathLike"],
     *wrt_variables,
 ) -> tuple[jax.Array, jraph.GraphsTuple]:
+    """Substitute ``wrt_variables`` for the ``paths`` in the graph, then run ``fn``.
+
+    This is a helper used by the factory functions (`grad`, `jacobian`, etc.) to
+    feed the quantities being differentiated as explicit arguments into the graph
+    function, so JAX can differentiate through them.
+
+    Args:
+        fn: The graph function to evaluate.
+        graph: The input graph to apply the substitution to.
+        of: Path to the graph attribute to differentiate (its sum).
+        paths: Paths in the graph to override with ``wrt_variables``.
+        wrt_variables: Values substituted for the entries of ``paths``.
+
+    Returns:
+        A tuple of ``(summed_of_value, out_graph)`` suitable for JAX autodiff.
+    """
+
     def repl(path, val):
+        """Swap in the supplied ``wrt_variables`` for the matching path."""
         try:
             idx = paths.index(tuple(map(_tree.key_to_str, path)))
             return wrt_variables[idx]
@@ -62,6 +89,7 @@ def _create_grad_shim(
     def shim(
         graph: jraph.GraphsTuple, *args
     ) -> "tuple[tensorial.typing.ArrayType, jraph.GraphsTuple]":
+        """Run the transformed function and return ``(summed_output, out_graph)``."""
         new_fn = _base.transform_fn(fn, *wrt, outs=[of], return_graphs=True)
 
         # Pass the graph through the function
@@ -97,6 +125,7 @@ def _graph_autodiff(
 
     # Evaluate
     def calc_grad(graph: jraph.GraphsTuple, *wrt_values) -> GradOut:
+        """Evaluate the derivative of ``func`` with respect to the ``wrt`` fields."""
         if len(wrt_values) != len(wrt):
             raise ValueError(
                 f"Failed to supply valued to evaluate derivatives at, expected: "
@@ -122,13 +151,17 @@ def grad(
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
-    """Build a partially initialised Grad function whose only
+    """Build a `Grad`-style graph autograd function using JAX's ``grad``.
 
     Args:
-        kwargs: accepts any arguments that `Grad` does
+        of: Path to the graph attribute to differentiate.
+        wrt: Path (or list of paths) to the graph attribute(s) to differentiate through.
+        sign: Multiplier applied to the resulting gradient.
+        has_aux: If true, also return the output graph as an auxiliary value.
 
     Returns:
-        the partially initialized Grad function
+        A decorator that, given a graph function, returns a callable that produces
+        gradient(s) with respect to ``wrt``.
     """
     return functools.partial(_graph_autodiff, jax.grad, of=of, wrt=wrt, sign=sign, has_aux=has_aux)
 
@@ -139,13 +172,17 @@ def jacrev(
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
-    """Build a partially initialised Grad function whose only
+    """Build a `Jacobian`-style graph autograd function using JAX's ``jacrev``.
 
     Args:
-        kwargs: accepts any arguments that `Grad` does
+        of: Path to the graph attribute to differentiate.
+        wrt: Path (or list of paths) to the graph attribute(s) to differentiate through.
+        sign: Multiplier applied to the resulting Jacobian.
+        has_aux: If true, also return the output graph as an auxiliary value.
 
     Returns:
-        the partially initialized Grad function
+        A decorator that, given a graph function, returns a callable that produces
+        Jacobian(s) with respect to ``wrt``.
     """
     return functools.partial(
         _graph_autodiff, jax.jacrev, of=of, wrt=wrt, sign=sign, sum_axis=0, has_aux=has_aux
@@ -158,13 +195,17 @@ def jacfwd(
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.typing.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
-    """Build a partially initialised Grad function whose only
+    """Build a `Jacfwd`-style graph autograd function using JAX's ``jacfwd``.
 
     Args:
-        kwargs: accepts any arguments that `Grad` does
+        of: Path to the graph attribute to differentiate.
+        wrt: Path (or list of paths) to the graph attribute(s) to differentiate through.
+        sign: Multiplier applied to the resulting Jacobian.
+        has_aux: If true, also return the output graph as an auxiliary value.
 
     Returns:
-        the partially initialized Grad function
+        A decorator that, given a graph function, returns a callable that produces
+        Jacobian(s) with respect to ``wrt``.
     """
     return functools.partial(
         _graph_autodiff, jax.jacfwd, of=of, wrt=wrt, sign=sign, sum_axis=0, has_aux=has_aux
@@ -180,13 +221,17 @@ def hessian(
     sign: float = 1.0,
     has_aux: bool = False,
 ) -> Callable[["gcnn.GraphFunction"], Callable[[jraph.GraphsTuple, ...], GradOut]]:
-    """Build a partially initialised Grad function whose only
+    """Build a `Hessian`-style graph autograd function using JAX's ``hessian``.
 
     Args:
-        kwargs: accepts any arguments that `Grad` does
+        of: Path to the graph attribute to differentiate.
+        wrt: Path (or list of paths) to the graph attribute(s) to differentiate through.
+        sign: Multiplier applied to the resulting Hessian.
+        has_aux: If true, also return the output graph as an auxiliary value.
 
     Returns:
-        the partially initialized Grad function
+        A decorator that, given a graph function, returns a callable that produces
+        Hessian(s) with respect to ``wrt``.
     """
     return functools.partial(
         _graph_autodiff, jax.hessian, of=of, wrt=wrt, sign=sign, sum_axis=None, has_aux=has_aux
@@ -209,6 +254,7 @@ class Grad(linen.Module):
     sign: float = 1.0
 
     def setup(self):
+        """Resolve the of/wrt paths and build the underlying JAX gradient function."""
         # pylint: disable=attribute-defined-outside-init
         self._of = _tree.to_paths(self.of)[0]
         self._wrt = _tree.to_paths(self.wrt)
@@ -217,6 +263,7 @@ class Grad(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> GradOut:
+        """Compute the gradient and write it back into the graph under ``out_field``."""
         wrt = _tree.get(graph, *self._wrt)
         if len(self._wrt) == 1:
             wrt = [wrt]
@@ -233,6 +280,12 @@ class Grad(linen.Module):
 
 
 class Jacobian(linen.Module):
+    """Compute the reverse-mode Jacobian of a graph field with respect to another.
+
+    Like `Grad`, but returns the full Jacobian (``jacfwd``/``jacrev``) instead of a
+    scalar gradient, writing the result back into the graph under ``out_field``.
+    """
+
     func: "gcnn.typing.GraphFunction"
     of: "gcnn.typing.TreePathLike"
     wrt: str | Sequence["gcnn.typing.TreePathLike"]
@@ -240,6 +293,7 @@ class Jacobian(linen.Module):
     sign: float = 1.0
 
     def setup(self):
+        """Resolve the of/wrt paths and build the underlying JAX Jacobian function."""
         # pylint: disable=attribute-defined-outside-init
         self._of = _tree.to_paths(self.of)[0]
         self._wrt = _tree.to_paths(self.wrt)
@@ -248,6 +302,7 @@ class Jacobian(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> GradOut:
+        """Compute the Jacobian and write it back into the graph under ``out_field``."""
         wrt = _tree.get(graph, *self._wrt)
         if len(self._wrt) == 1:
             wrt = [wrt]
@@ -262,6 +317,12 @@ class Jacobian(linen.Module):
 
 
 class Jacfwd(linen.Module):
+    """Compute the forward-mode Jacobian of a graph field with respect to another.
+
+    Like `Jacobian`, but uses JAX's forward-mode ``jacfwd`` rule, writing the result
+    back into the graph under ``out_field``.
+    """
+
     func: "gcnn.typing.GraphFunction"
     of: "gcnn.typing.TreePathLike"
     wrt: str | Sequence["gcnn.typing.TreePathLike"]
@@ -269,6 +330,7 @@ class Jacfwd(linen.Module):
     sign: float = 1.0
 
     def setup(self):
+        """Resolve the of/wrt paths and build the underlying JAX Jacobian function."""
         # pylint: disable=attribute-defined-outside-init
         self._of = _tree.to_paths(self.of)[0]
         self._wrt = _tree.to_paths(self.wrt)
@@ -277,6 +339,7 @@ class Jacfwd(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> GradOut:
+        """Compute the forward-mode Jacobian and write it into the graph."""
         wrt = _tree.get(graph, *self._wrt)
         if len(self._wrt) == 1:
             wrt = [wrt]

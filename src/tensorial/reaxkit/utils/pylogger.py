@@ -1,3 +1,5 @@
+"""Logging helpers for rank-aware logging in distributed reaxkit training."""
+
 from collections.abc import Mapping
 import logging
 
@@ -15,13 +17,33 @@ def rank_prefixed_message(message: str, rank: int | None) -> str:
 
 
 class RankFilter(logging.Filter):
+    """A :class:`logging.Filter` that keeps only log records emitted by a chosen rank.
+
+    The rank is read from :mod:`lightning_utilities`'s ``rank_zero`` and is always
+    attached to every log record under the ``rank`` attribute.
+    """
+
     UNKNOWN = "N/A"
 
     def __init__(self, keep_rank: int | None = 0):
+        """Initialize the filter.
+
+        Args:
+            keep_rank: The rank whose log records should be kept. If ``None``, every
+                record is kept. Defaults to rank ``0``.
+        """
         super().__init__()
         self._keep_rank = keep_rank
 
     def filter(self, record) -> bool:
+        """Attach the current rank to ``record`` and decide whether to keep it.
+
+        Args:
+            record: The :class:`logging.LogRecord` being processed.
+
+        Returns:
+            True if the record should be logged on the current process.
+        """
         # Dynamically inject 'rank' into the record object
         # If no rank is found, default to 'N/A'
         this_rank = getattr(rank_zero.rank_zero_only, "rank", self.UNKNOWN)
@@ -56,6 +78,17 @@ class RankedLogger(logging.LoggerAdapter):
         self.rank_zero_only = rank_zero_only
 
     def isEnabledFor(self, level):
+        """Return whether the logger is enabled for ``level``.
+
+        When ``rank_zero_only`` is set, the logger is disabled on every process except
+        rank zero. Otherwise the underlying logger's own level is used.
+
+        Args:
+            level: The numeric level to check.
+
+        Returns:
+            True if messages of this level should be logged on the current process.
+        """
         current_rank = getattr(rank_zero.rank_zero_only, "rank", None)
         if self.rank_zero_only and current_rank != 0:
             return False
