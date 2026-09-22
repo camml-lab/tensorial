@@ -4,8 +4,10 @@ import jraph
 import numpy as np
 import pytest
 
+import tensorial
 from tensorial import gcnn
 from tensorial.gcnn import keys, nequip
+import tensorial.nn
 
 
 def test_nequip_interaction_block(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
@@ -78,3 +80,61 @@ def test_nequip_layer(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
     e3j.utils.assert_equivariant(
         wrapper, rng_key, e3j.IrrepsArray("1o", cube_graph_gcnn.nodes[keys.POSITIONS])
     )
+
+
+def test_nequip_stack(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
+    hidden_irreps = tensorial.make_irreps(4, 2)
+    model = gcnn.Nequip(hidden_irreps, num_layers=3, num_species=3)
+
+    params = model.init(rng_key, cube_graph_gcnn)
+    graph_out = model.apply(params, cube_graph_gcnn)
+
+    assert sorted(params["params"]) == ["_layers_0", "_layers_1", "_layers_2"]
+    # The gate returns the irreps in canonical (regrouped) order
+    assert graph_out.nodes[keys.FEATURES].irreps == hidden_irreps.regroup()
+
+    def wrapper(positions: e3j.IrrepsArray) -> e3j.IrrepsArray:
+        cube_graph_gcnn.nodes[keys.POSITIONS] = positions.array
+        out = model.apply(params, cube_graph_gcnn)
+        return e3j.IrrepsArray("1o", out.nodes[keys.POSITIONS])
+
+    e3j.utils.assert_equivariant(
+        wrapper, rng_key, e3j.IrrepsArray("1o", cube_graph_gcnn.nodes[keys.POSITIONS])
+    )
+
+
+def test_nequip_matches_stacked_layers(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
+    """`Nequip` is exactly a chain of `NequipLayer`s: given the same weights, it produces the
+    same node features as the equivalent hand-written stack."""
+    hidden_irreps = tensorial.make_irreps(4, 2)
+    layer_kwargs = dict(num_species=3, avg_num_neighbours=3.0)
+
+    stacked = tensorial.nn.Sequential(
+        [gcnn.NequipLayer(hidden_irreps, **layer_kwargs) for _ in range(2)]
+    )
+    model = gcnn.Nequip(hidden_irreps, num_layers=2, **layer_kwargs)
+
+    stacked_params = stacked.init(rng_key, cube_graph_gcnn)
+    params = {"params": {f"_layers_{i}": stacked_params["params"][f"layers_{i}"] for i in range(2)}}
+
+    expected = stacked.apply(stacked_params, cube_graph_gcnn).nodes[keys.FEATURES]
+    result = model.apply(params, cube_graph_gcnn).nodes[keys.FEATURES]
+
+    assert result.irreps == expected.irreps
+    np.testing.assert_allclose(result.array, expected.array, rtol=1e-6, atol=1e-6)
+
+
+@pytest.mark.parametrize("num_species", [1, 3])
+def test_nequip_num_species_sets_self_connection_weights(
+    cube_graph_gcnn: jraph.GraphsTuple, rng_key, num_species
+):
+    model = gcnn.Nequip(tensorial.make_irreps(2, 1), num_layers=1, num_species=num_species)
+    params = model.init(rng_key, cube_graph_gcnn)
+
+    skip = params["params"]["_layers_0"]["_interaction_block"]["skip_connection"]
+    assert all(weights.shape[0] == num_species for weights in jax.tree_util.tree_leaves(skip))
+
+
+def test_nequip_rejects_no_layers(cube_graph_gcnn: jraph.GraphsTuple, rng_key):
+    with pytest.raises(ValueError, match="num_layers"):
+        gcnn.Nequip(tensorial.make_irreps(2, 1), num_layers=0).init(rng_key, cube_graph_gcnn)
