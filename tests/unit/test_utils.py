@@ -134,8 +134,8 @@ def test_make_irreps(parity, expected):
     assert utils.make_irreps(8, 2, parity=parity) == e3j.Irreps(expected)
 
 
-def test_make_irreps_defaults_to_both_parities_odd_first():
-    assert utils.make_irreps(4, 1) == e3j.Irreps("4x0o + 4x0e + 4x1o + 4x1e")
+def test_make_irreps_defaults_to_both_parities_even_first():
+    assert utils.make_irreps(4, 1) == e3j.Irreps("4x0e + 4x0o + 4x1e + 4x1o")
 
 
 def test_make_irreps_parity_ignores_spaces():
@@ -143,12 +143,17 @@ def test_make_irreps_parity_ignores_spaces():
 
 
 def test_make_irreps_ell_max_zero():
-    assert utils.make_irreps(3, 0) == e3j.Irreps("3x0o + 3x0e")
+    assert utils.make_irreps(3, 0) == e3j.Irreps("3x0e + 3x0o")
     assert utils.make_irreps(3, 0, parity="sh") == e3j.Irreps("3x0e")
 
 
 def test_make_irreps_sh_matches_spherical_harmonics():
     assert utils.make_irreps(1, 4, parity="sh") == e3j.Irreps.spherical_harmonics(4)
+
+
+def test_make_irreps_parity_is_keyword_only():
+    with pytest.raises(TypeError):
+        utils.make_irreps(8, 2, "e + o")  # pylint: disable=too-many-function-args
 
 
 def test_make_irreps_is_exported_at_top_level():

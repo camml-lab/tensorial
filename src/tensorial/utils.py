@@ -102,10 +102,10 @@ def ones_like(irreps_array: e3j.IrrepsArray) -> e3j.IrrepsArray:
 
 
 # Parity patterns accepted by `make_irreps`, as the parities emitted for each rotation order
-_PARITIES = {"o+e": ("o", "e"), "e+o": ("e", "o"), "e": ("e",), "o": ("o",)}
+_PARITIES = {"e+o": ("e", "o"), "o+e": ("o", "e"), "e": ("e",), "o": ("o",)}
 
 
-def make_irreps(mul: int, ell_max: int, parity: str = "o + e") -> e3j.Irreps:
+def make_irreps(mul: int, ell_max: int, *, parity: str = "e + o") -> e3j.Irreps:
     """Build irreps with ``mul`` channels for every rotation order from 0 up to ``ell_max``.
 
     Handy in configs, where writing out the full irreps by hand is error prone and does not
@@ -116,7 +116,7 @@ def make_irreps(mul: int, ell_max: int, parity: str = "o + e") -> e3j.Irreps:
         ell_max: the highest rotation order to include.
         parity: which parities to include for each rotation order:
 
-            * ``"o + e"`` (default) or ``"e + o"``: both parities, in the given order
+            * ``"e + o"`` (default) or ``"o + e"``: both parities, in the given order
             * ``"e"`` or ``"o"``: a single parity for every order
             * ``"sh"``: the spherical harmonics convention, parity :math:`(-1)^\\ell`
 
@@ -128,7 +128,7 @@ def make_irreps(mul: int, ell_max: int, parity: str = "o + e") -> e3j.Irreps:
 
     Example:
         >>> print(make_irreps(8, 2))
-        8x0o+8x0e+8x1o+8x1e+8x2o+8x2e
+        8x0e+8x0o+8x1e+8x1o+8x2e+8x2o
         >>> print(make_irreps(4, 3, parity="sh"))
         4x0e+4x1o+4x2e+4x3o
     """
@@ -144,7 +144,7 @@ def make_irreps(mul: int, ell_max: int, parity: str = "o + e") -> e3j.Irreps:
         irreps = [(mul, f"{ell}{p}") for ell in range(ell_max + 1) for p in _PARITIES[key]]
     else:
         raise ValueError(
-            f"Unknown parity {parity!r}, expected one of: 'o + e', 'e + o', 'e', 'o', 'sh'"
+            f"Unknown parity {parity!r}, expected one of: 'e + o', 'o + e', 'e', 'o', 'sh'"
         )
 
     return e3j.Irreps(irreps)
