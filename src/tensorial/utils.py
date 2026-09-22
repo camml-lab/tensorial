@@ -1,4 +1,4 @@
-"""Internal helpers: backend inference, zero/one helpers, optional imports."""
+"""Internal helpers: backend inference, irreps construction, zero/one helpers, optional imports."""
 
 import importlib
 import types
@@ -99,6 +99,55 @@ def ones_like(irreps_array: e3j.IrrepsArray) -> e3j.IrrepsArray:
     """
     np_ = infer_backend(irreps_array.array)
     return ones(irreps_array.irreps, irreps_array.shape[:-1], irreps_array.dtype, np_=np_)
+
+
+# Parity patterns accepted by `make_irreps`, as the parities emitted for each rotation order
+_PARITIES = {"e+o": ("e", "o"), "o+e": ("o", "e"), "e": ("e",), "o": ("o",)}
+
+
+def make_irreps(mul: int, ell_max: int, *, parity: str = "e + o") -> e3j.Irreps:
+    """Build irreps with ``mul`` channels for every rotation order from 0 up to ``ell_max``.
+
+    Handy in configs, where writing out the full irreps by hand is error prone and does not
+    scale when sweeping ``mul`` or ``ell_max``.
+
+    Args:
+        mul: the multiplicity (number of channels) of every irrep.
+        ell_max: the highest rotation order to include.
+        parity: which parities to include for each rotation order:
+
+            * ``"e + o"`` (default) or ``"o + e"``: both parities, in the given order
+            * ``"e"`` or ``"o"``: a single parity for every order
+            * ``"sh"``: the spherical harmonics convention, parity :math:`(-1)^\\ell`
+
+    Returns:
+        the irreps.
+
+    Raises:
+        ValueError: if ``mul`` or ``ell_max`` are out of range or ``parity`` is not recognised.
+
+    Example:
+        >>> print(make_irreps(8, 2))
+        8x0e+8x0o+8x1e+8x1o+8x2e+8x2o
+        >>> print(make_irreps(4, 3, parity="sh"))
+        4x0e+4x1o+4x2e+4x3o
+    """
+    if mul < 1:
+        raise ValueError(f"'mul' must be at least 1, got {mul}")
+    if ell_max < 0:
+        raise ValueError(f"'ell_max' must be non-negative, got {ell_max}")
+
+    key = parity.replace(" ", "")
+    if key == "sh":
+        irreps = [(mul, (ell, (-1) ** ell)) for ell in range(ell_max + 1)]
+    elif key in _PARITIES:
+        irreps = [(mul, f"{ell}{p}") for ell in range(ell_max + 1) for p in _PARITIES[key]]
+    else:
+        raise ValueError(
+            f"Unknown parity {parity!r}, expected one of: 'e + o', 'o + e', 'e', 'o', 'sh'"
+        )
+
+    return e3j.Irreps(irreps)
 
 
 def optional_import(name: str, extra: str | None = None):

@@ -15,6 +15,7 @@ from .base import *
 from .tensors import *
 from .training import *
 from .training import ReaxModule
+from .utils import make_irreps
 
 __version__ = "0.6.5"
 
@@ -30,6 +31,7 @@ __all__ = (
         "training",
         "typing",
         "ReaxModule",
+        "make_irreps",
         "utils",
     )
 )

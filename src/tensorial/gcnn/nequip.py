@@ -1,8 +1,8 @@
 """NequIP-style equivariant graph neural network layers.
 
-Provides `InteractionBlock` and `NequipLayer` (a full convolution layer wrapping
-an interaction block plus invariant layers), a faithful port of the NEquIP model
-commonly used for force-field regression.
+Provides `InteractionBlock`, `NequipLayer` (a full convolution layer wrapping
+an interaction block plus invariant layers) and `Nequip` (a stack of `NequipLayer`s),
+a faithful port of the NEquIP model commonly used for force-field regression.
 """
 
 from collections.abc import Callable, Mapping
@@ -21,7 +21,7 @@ from . import _base, _message_passing, keys
 from .. import nn_utils
 from .. import utils as tensorial_utils
 
-__all__ = ("NequipLayer",)
+__all__ = "NequipLayer", "Nequip"
 
 # Default activations used by gate
 DEFAULT_ACTIVATIONS = linen.FrozenDict({"e": "silu", "o": "tanh"})
@@ -221,3 +221,95 @@ class NequipLayer(linen.Module):
         nodes = dict(graph.nodes)
         nodes[keys.FEATURES] = node_features
         return graph._replace(nodes=nodes)
+
+
+class Nequip(linen.Module):
+    """NequIP equivariant graph neural network: a stack of :class:`NequipLayer` interactions.
+
+    Every layer maps the node features to ``hidden_irreps``, so the whole stack is described
+    by a handful of numbers instead of one config entry per layer.  As with
+    :class:`tensorial.gcnn.Mace`, the embeddings that come before (species, edge spherical
+    harmonics, radial basis, initial ``NodewiseLinear``) and any readout that comes after are
+    left to the surrounding model, which keeps this module independent of the task.
+
+    The module expects the graph to contain, at minimum:
+
+    * ``nodes.features`` — the node features (an ``e3nn_jax.IrrepsArray``)
+    * ``edges.attributes`` — the edge features (an ``e3nn_jax.IrrepsArray``)
+    * ``edges.radial_embeddings`` — radial edge embeddings, shape ``[n_edge, D]``
+    * ``nodes.species`` — integer node types, shape ``[n_node, 1]``, used when
+      ``num_species > 1``
+
+    and writes the updated node features back to ``nodes.features``.
+
+    Args:
+        hidden_irreps: the irreps of the node features produced by every layer, e.g.
+            ``make_irreps(mul=16, ell_max=2)``
+        num_layers: the number of interaction layers
+        num_species: the number of node types.  With more than one, the self-connection of
+            every layer has separate weights per type
+        avg_num_neighbours: average number of neighbours of each node, used for
+            normalisation.  Can be a single value or a mapping of node type to value
+        radial_num_layers: the number of layers in the radial MLP
+        radial_num_neurons: the number of neurons per layer in the radial MLP
+        radial_activation: activation function used by the radial MLP
+        activations: the gate activations for even (``"e"``) and odd (``"o"``) scalars
+        skip_connection: if ``True``, every interaction adds a self-connection
+        resnet: if ``True``, every layer adds its input node features to its output
+
+    Example:
+        >>> model = Nequip(
+        ...     hidden_irreps=make_irreps(mul=16, ell_max=2),
+        ...     num_layers=3,
+        ...     num_species=4,
+        ...     avg_num_neighbours=12.0,
+        ... )
+    """
+
+    hidden_irreps: IntoIrreps
+    num_layers: int = 3
+    num_species: int = 1
+    avg_num_neighbours: float | Mapping[int, float] = 1.0
+    # Radial
+    radial_num_layers: int = 1
+    radial_num_neurons: int = 8
+    radial_activation: ActivationLike = "swish"
+
+    activations: str | Mapping[str, ActivationLike] = DEFAULT_ACTIVATIONS
+    skip_connection: bool = True
+    resnet: bool = False
+
+    def setup(self):
+        """Build the stack of interaction layers."""
+        # pylint: disable=attribute-defined-outside-init
+        if self.num_layers < 1:
+            raise ValueError(f"'num_layers' must be at least 1, got {self.num_layers}")
+
+        self._layers = [
+            NequipLayer(
+                self.hidden_irreps,
+                radial_num_layers=self.radial_num_layers,
+                radial_num_neurons=self.radial_num_neurons,
+                radial_activation=self.radial_activation,
+                avg_num_neighbours=self.avg_num_neighbours,
+                activations=self.activations,
+                skip_connection=self.skip_connection,
+                num_species=self.num_species,
+                resnet=self.resnet,
+            )
+            for _ in range(self.num_layers)
+        ]
+
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
+        """Apply every interaction layer in turn.
+
+        Args:
+            graph: the input graph
+
+        Returns:
+            the output graph with node features updated
+        """
+        for layer in self._layers:
+            graph = layer(graph)
+
+        return graph
