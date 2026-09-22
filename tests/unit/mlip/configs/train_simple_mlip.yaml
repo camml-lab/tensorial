@@ -1,0 +1,136 @@
+# @package _global_
+
+# Global parameters
+r_max: 5.0
+seed: 0 # seed for random number generators in jax, numpy and python.random
+
+data:
+  _target_: tensorial.mlip.data.AtomGraphModule
+
+  dataloader:
+    _target_: tensorial.gcnn.data.AseDataLoader
+    path: ${paths.data_dir}/sitraj.xyz
+    as_graphs:
+      r_max: ${r_max}
+      atom_include_keys:
+        - numbers
+        - forces
+      global_include_keys:
+        - energy
+        - stress
+
+  train_val_test_split: [ 0.8, 0.1, 0.1 ]
+  batch_size: 16 # Needs to be divisible by the number of devices (e.g., if in a distributed setup)
+
+
+# tags to help you identify your experiments
+# you can overwrite this in experiment configs
+# overwrite from command line with `python train.py tags="[first_tag, second_tag]"`
+tags: [ "dev" ]
+
+# Gather data use by the model before training
+from_data:
+  n_elements: atomic/num_species
+  atomic_numbers: atomic/all_atomic_numbers
+  avg_num_neighbours: atomic/avg_num_neighbours
+  has_forces:
+    _target_: tensorial.mlip.stats.Has
+    field: nodes.forces
+  has_energies:
+    _target_: tensorial.mlip.stats.Has
+    field: globals.energy
+  force_scale: atomic/force_std
+  energy_shifts:
+    _target_: tensorial.gcnn.atomic.EnergyContributionLstsq
+    type_map: ${from_data.atomic_numbers}
+
+# task name, determines output directory path
+task_name: "train"
+
+# set False to skip model training
+train:
+  min_epochs: 1 # prevents early stopping
+  max_epochs: 2
+  max_updates: 4
+  # perform a validation loop every N training epochs
+  check_val_every_n_epoch: 2
+
+trainer:
+  _target_: reax.Trainer
+  accelerator: cpu
+  devices: 1
+
+model:
+  _target_: tensorial.ReaxModule
+
+  optimizer:
+    _target_: optax.adam
+    learning_rate: 0.001
+
+  loss_fn:
+    _target_: tensorial.mlip.losses.mlip_loss
+    energy: ${from_data.has_energies}
+    forces: false
+    energy_weight: 1.0
+
+  metrics:
+    ermse: atomic/energy_per_atom_rmse
+
+  model:
+    _target_: tensorial.nn.Sequential
+    layers:
+      - _target_: tensorial.gcnn.atomic.SpeciesTransform
+        atomic_numbers: ${from_data.atomic_numbers}
+
+      - _target_: tensorial.gcnn.NodewiseEncoding
+        attrs:
+          species:
+            _target_: tensorial.tensors.OneHot
+            num_classes: ${from_data.n_elements}
+
+      - _target_: tensorial.gcnn.EdgeVectors
+
+      - _target_: tensorial.gcnn.EdgewiseEncoding
+        attrs:
+          edge_vectors:
+            _target_: tensorial.tensors.SphericalHarmonic
+            irreps: 0e + 1o
+            normalise: True
+
+      - _target_: tensorial.gcnn.RadialBasisEdgeEncoding
+        r_max: ${r_max}
+
+      - _target_: tensorial.gcnn.NodewiseLinear
+        field: attributes
+        irreps_out: 16x0o + 16x0e + 16x1o + 16x1e
+
+      - _target_: tensorial.gcnn.NequipLayer
+        irreps_out: 16x0o + 16x0e + 16x1o + 16x1e
+        avg_num_neighbours: ${from_data.avg_num_neighbours}
+
+      - _target_: tensorial.gcnn.NequipLayer
+        irreps_out: 16x0o + 16x0e + 16x1o + 16x1e
+        avg_num_neighbours: ${from_data.avg_num_neighbours}
+
+      - _target_: tensorial.gcnn.NequipLayer
+        irreps_out: 16x0o + 16x0e + 16x1o + 16x1e
+        avg_num_neighbours: ${from_data.avg_num_neighbours}
+
+      # Keep only scalars and reduce the number passing this point
+      - _target_: tensorial.gcnn.NodewiseLinear
+        irreps_out: 8x0e
+
+      - _target_: tensorial.gcnn.NodewiseLinear
+        irreps_out: 1x0e
+        out_field: energy # Per-atom energy
+
+      - _target_: tensorial.gcnn.atomic.per_species_rescale
+        num_types: ${from_data.n_elements}
+        scales: ${from_data.force_scale}
+        shifts: ${from_data.energy_shifts}
+        field: nodes.energy
+
+      # Final total energy
+      - _target_: tensorial.gcnn.NodewiseReduce
+        field: energy
+        out_field: predicted_energy # Global energy
