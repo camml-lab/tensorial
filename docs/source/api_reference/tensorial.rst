@@ -10,6 +10,7 @@ Subpackages
    tensorial.datasets
    tensorial.gcnn
    tensorial.geometry
+   tensorial.mlip
    tensorial.reaxkit
    tensorial.signals
    tensorial.training

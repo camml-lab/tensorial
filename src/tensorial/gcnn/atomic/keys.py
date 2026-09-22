@@ -10,6 +10,8 @@ __all__ = (
     "VIRIAL",
     "PBC",
     "ATOMIC_NUMBERS",
+    "SPIN",
+    "CHARGE",
     "ASE_GLOBAL_KEYS",
     "ASE_ATOM_KEYS",
 )
@@ -22,6 +24,10 @@ STRESS: Final[str] = "stress"
 VIRIAL: Final[str] = "virial"
 PBC: Final[str] = "pbc"
 ATOMIC_NUMBERS: Final[str] = "atomic_numbers"
+# Per-atom spin magnetic moment (e.g. for ferromagnetic systems)
+SPIN: Final[str] = "spin"
+# Per-atom charge
+CHARGE: Final[str] = "charge"
 
 # Global quantities
 ASE_GLOBAL_KEYS: Final[set[str]] = {"energy", "free_energy", "stress", "magmom"}

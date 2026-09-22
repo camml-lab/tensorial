@@ -25,6 +25,7 @@ keywords = ['machine learning', 'e3nn-jax', 'physics']
 requires-python = '>=3.10'
 dependencies = [
     'beartype',
+    'ase',
     "flax>=0.10.7",
     "hydra-core",
     "hydra-colorlog",
@@ -68,7 +69,6 @@ dev = [
     'pylint',
     'black',
     # Optional external libraries that we interact with
-    "ase",
     "pymatgen",
 ]
 
@@ -91,6 +91,10 @@ exclude = [
 "atomic/avg_num_neighbours" = "tensorial.gcnn.atomic:AvgNumNeighbours"
 "atomic/force_std" = "tensorial.gcnn.atomic:ForceStd"
 "atomic/energy_per_atom_lstsq" = "tensorial.gcnn.atomic:EnergyPerAtomLstsq"
+"atomic/energy_per_atom_rmse" = "tensorial.mlip.metrics:EnergyPerAtomRmse"
+"atomic/energy_per_atom_mae" = "tensorial.mlip.metrics:EnergyPerAtomMae"
+"atomic/force_rmse" = "tensorial.mlip.metrics:ForceRmse"
+"atomic/stress_rmse" = "tensorial.mlip.metrics:StressRmse"
 
 [tool.flynt]
 line-length = 100
