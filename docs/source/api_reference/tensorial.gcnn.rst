@@ -30,6 +30,14 @@ tensorial.gcnn.derivatives module
    :undoc-members:
    :show-inheritance:
 
+tensorial.gcnn.graph_ops module
+-------------------------------
+
+.. automodule:: tensorial.gcnn.graph_ops
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 tensorial.gcnn.keys module
 --------------------------
 
@@ -46,10 +54,26 @@ tensorial.gcnn.losses module
    :undoc-members:
    :show-inheritance:
 
+tensorial.gcnn.mace module
+--------------------------
+
+.. automodule:: tensorial.gcnn.mace
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 tensorial.gcnn.metrics module
 -----------------------------
 
 .. automodule:: tensorial.gcnn.metrics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tensorial.gcnn.nequip module
+----------------------------
+
+.. automodule:: tensorial.gcnn.nequip
    :members:
    :undoc-members:
    :show-inheritance:

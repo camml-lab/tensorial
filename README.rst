@@ -24,10 +24,6 @@ tensorial
 .. image:: https://img.shields.io/pypi/l/tensorial.svg
     :target: https://pypi.python.org/pypi/tensorial/
 
-.. image:: https://img.shields.io/badge/License-AGPL%20v3-blue.svg
-    :target: https://www.gnu.org/licenses/agpl-3.0
-    :alt: License
-
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
     :target: https://github.com/psf/black
 

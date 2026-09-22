@@ -47,6 +47,7 @@ Table Of Contents
 
    starting/about.rst
    starting/quickstart.rst
+   starting/gcnn_guide.rst
    starting/concepts.rst
    API <api_reference/modules>
 

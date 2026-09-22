@@ -80,6 +80,10 @@ datamodule / model / trainer / listeners in a YAML file, then call
 Tensorial's :func:`tensorial.reaxkit.evaluate` does the same for evaluation
 runs.
 
+For a full worked example of wiring up a :mod:`tensorial.gcnn` model (a MACE
+block with a loss, metrics, and optimizer) in a single config, see the
+:doc:`gcnn_guide <gcnn_guide>`.
+
 4. Inspect metrics
 ------------------
 
