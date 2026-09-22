@@ -118,3 +118,53 @@ def test_optional_import_missing_with_extra():
 def test_optional_import_missing_without_extra():
     with pytest.raises(ImportError, match="required for this feature"):
         utils.optional_import("nonexistent_module_xyz")
+
+
+@pytest.mark.parametrize(
+    "parity, expected",
+    [
+        ("o + e", "8x0o + 8x0e + 8x1o + 8x1e + 8x2o + 8x2e"),
+        ("e + o", "8x0e + 8x0o + 8x1e + 8x1o + 8x2e + 8x2o"),
+        ("e", "8x0e + 8x1e + 8x2e"),
+        ("o", "8x0o + 8x1o + 8x2o"),
+        ("sh", "8x0e + 8x1o + 8x2e"),
+    ],
+)
+def test_make_irreps(parity, expected):
+    assert utils.make_irreps(8, 2, parity=parity) == e3j.Irreps(expected)
+
+
+def test_make_irreps_defaults_to_both_parities_odd_first():
+    assert utils.make_irreps(4, 1) == e3j.Irreps("4x0o + 4x0e + 4x1o + 4x1e")
+
+
+def test_make_irreps_parity_ignores_spaces():
+    assert utils.make_irreps(2, 1, parity="e+o") == utils.make_irreps(2, 1, parity="e + o")
+
+
+def test_make_irreps_ell_max_zero():
+    assert utils.make_irreps(3, 0) == e3j.Irreps("3x0o + 3x0e")
+    assert utils.make_irreps(3, 0, parity="sh") == e3j.Irreps("3x0e")
+
+
+def test_make_irreps_sh_matches_spherical_harmonics():
+    assert utils.make_irreps(1, 4, parity="sh") == e3j.Irreps.spherical_harmonics(4)
+
+
+def test_make_irreps_is_exported_at_top_level():
+    import tensorial  # pylint: disable=import-outside-toplevel
+
+    assert tensorial.make_irreps is utils.make_irreps
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        (dict(mul=0, ell_max=2), "'mul'"),
+        (dict(mul=8, ell_max=-1), "'ell_max'"),
+        (dict(mul=8, ell_max=2, parity="x"), "Unknown parity"),
+    ],
+)
+def test_make_irreps_invalid(kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        utils.make_irreps(**kwargs)
