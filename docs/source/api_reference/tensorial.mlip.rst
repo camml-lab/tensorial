@@ -9,9 +9,7 @@ Subpackages
 
    tensorial.mlip.calculators
 
-   tensorial.mlip.data
-
-   tensorial.mlip.io
+    tensorial.mlip.io
 
 Submodules
 ----------

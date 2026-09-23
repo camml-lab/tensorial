@@ -5,9 +5,8 @@ r_max: 5.0
 seed: 0 # seed for random number generators in jax, numpy and python.random
 
 data:
-  _target_: tensorial.mlip.data.AtomGraphModule
-
-  dataloader:
+  _target_: tensorial.gcnn.data.GraphDataModule
+  dataset:
     _target_: tensorial.gcnn.data.AseDataLoader
     path: ${paths.data_dir}/sitraj.xyz
     as_graphs:

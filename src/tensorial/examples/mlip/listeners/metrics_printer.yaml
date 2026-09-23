@@ -1,0 +1,2 @@
+metrics_printer:
+  _target_: tensorial.reaxkit.MetricsPrinter
