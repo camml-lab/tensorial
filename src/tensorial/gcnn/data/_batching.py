@@ -294,22 +294,17 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         pad_to_multiple: int | str | jax.Device | None = None,
     ) -> "tensorial.gcnn.data.GraphPadding":
         """Calculate the padding necessary to fit the given graphs into a batch"""
-        if with_shuffle:
-            # Calculate the maximum possible number of nodes and edges over any possible shuffling
-            pad_nodes = (
-                sum(sorted([graph.n_node[0] for graph in graphs], reverse=True)[:batch_size]) + 1
-            )
-            pad_edges = sum(
-                sorted([graph.n_edge[0] for graph in graphs], reverse=True)[:batch_size]
-            )
-        else:
-            pad_nodes = 0
-            pad_edges = 0
-
-            for batch in _chunks(graphs, batch_size):
-                pad_nodes = max(pad_nodes, sum(graph.n_node.item() for graph in batch))
-                pad_edges = max(pad_edges, sum(graph.n_edge.item() for graph in batch))
-            pad_nodes += 1
+        # A batch contains at most ``batch_size`` graphs.  Under DDP those
+        # graphs are not guaranteed to be ``batch_size`` *distinct* graphs of
+        # the dataset (the per-rank block is a misaligned contiguous slice,
+        # and its trailing batch can replay a repeated index; see
+        # ``reax.data.samplers.DistributedSampler.__iter__``).  The only
+        # bound that is safe in every case -- for both the ``shuffle`` and the
+        # ``shuffle = False`` (DDP) paths -- is therefore: the sum of the
+        # ``batch_size`` largest graphs.  This bounds any batch regardless of
+        # whether its elements are distinct or duplicated.
+        pad_nodes = sum(sorted([g.n_node.item() for g in graphs], reverse=True)[:batch_size]) + 1
+        pad_edges = sum(sorted([g.n_edge.item() for g in graphs], reverse=True)[:batch_size])
 
         pad_multiple = _get_pad_multiple(pad_to_multiple)
         if pad_multiple is not None:
