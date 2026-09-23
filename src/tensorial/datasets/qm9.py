@@ -43,27 +43,6 @@ QM9_XYZ_LABELS: Final[list[str]] = [
 ]
 
 
-class GraphOptions(TypedDict):
-    """Configuration for converting a Qm9 molecule entry into a `jraph.GraphsTuple`.
-
-    Args:
-        r_max: Cutoff radius (Angstrom) for building the k-nearest-neighbour graph.
-        self_edges: Whether to add self-edges (i == j) to the graph.
-        node_attrs: Node attribute keys to copy onto the graph. Each item is either
-            a string key (used for both input and output labels) or a
-            ``(raw_key, output_label)`` tuple to rename the attribute.
-        graph_attrs: Graph-level attribute keys to copy onto the graph, with the
-            same key / rename semantics as ``node_attrs``.
-        np_: NumPy module to use for array ops (e.g. ``numpy`` or ``jax.numpy``).
-    """
-
-    r_max: float
-    self_edges: bool
-    node_attrs: list[str | tuple[str, str]]
-    graph_attrs: list[str | tuple[str, str]]
-    np_: types.ModuleType
-
-
 class Qm9(collections.abc.Sequence):
     """The Qm9 dataset (134k small organic molecules, Isayev et al. 2017).
 
