@@ -1,0 +1,5 @@
+parity_plotter:
+  _target_: tensorial.reaxkit.GraphParityPlotter
+  targets: globals.energy
+  predictions: globals.predicted_energy
+  fit_plot_every: 20

@@ -1,0 +1,23 @@
+
+globals:
+  r_max: 4.
+
+
+TOTAL_ENERGY: total_energy
+PER_ATOM_ENERGY: energy/atom
+
+model:
+  - _target_: tensorial.mlip.potentials.LennardJonesEnergy
+    sigma: 3.
+
+  # Final total energy
+  - _target_: tensorial.gcnn.NodewiseReduce
+    field: ${PER_ATOM_ENERGY}
+    out_field: ${TOTAL_ENERGY}
+
+  - _target_: tensorial.gcnn.Grad
+    _partial_: True
+    of: globals.${TOTAL_ENERGY}
+    wrt: nodes.positions
+    sign: -1
+    out_field: nodes.forces

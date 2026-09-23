@@ -1,0 +1,15 @@
+_target_: tensorial.gcnn.data.GraphDataModule
+dataset:
+  _target_: tensorial.gcnn.data.AseDataLoader
+  path: ${paths.data_dir}/sitraj.xyz
+  as_graphs:
+    r_max: ${r_max}
+    atom_include_keys:
+      - numbers
+      - forces
+    global_include_keys:
+      - energy
+      - stress
+
+train_val_test_split: [ 0.8, 0.1, 0.1 ]
+batch_size: 7 # Needs to be divisible by the number of devices (e.g., if in a distributed setup)

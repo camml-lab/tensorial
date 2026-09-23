@@ -1,0 +1,13 @@
+_target_: tensorial.gcnn.data.GraphDataModule
+
+dataset:
+  _target_: tensorial.datasets.Qm9
+  data_dir: ${paths.data_dir}
+  limit: 10000
+  as_graphs:
+    r_max: ${r_max}
+    graph_attrs:
+      - [U0, energy]
+
+batch_size: 128 # Needs to be divisible by the number of devices (e.g., if in a distributed setup)
+train_val_test_split: [ 0.85, 0.05, 0.1 ]

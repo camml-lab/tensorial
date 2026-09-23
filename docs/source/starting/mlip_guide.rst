@@ -96,12 +96,11 @@ forces) and can be hung off a training stage directly.
 Data
 ----
 
-:mod:`tensorial.mlip.data` provides two ``reax`` datamodules:
-
-- :class:`tensorial.mlip.AtomGraphModule` — wrap an existing iterable of
-  ``jraph.GraphsTuple`` into train/val/test loaders with automatic padding.
-- :class:`tensorial.mlip.Qm9DataModule` — download and parse the QM9
-  (134k-molecule) dataset, converting each molecule to a graph for you.
+Graph data is provided via :class:`tensorial.gcnn.data.GraphDataModule`, which
+wraps a dataset of ``jraph.GraphsTuple`` into train/val/test dataloaders with
+automatic padding and k-fold cross-validation. For example, the QM9 dataset is
+served by ``tensorial.datasets.Qm9`` (see
+:doc:`tensorial.datasets <../api_reference/tensorial.datasets>`).
 
 A simple potential
 ------------------

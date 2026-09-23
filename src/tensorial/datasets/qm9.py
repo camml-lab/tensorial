@@ -158,7 +158,7 @@ class Qm9(collections.abc.Sequence):
                 os.remove(local_file)
                 raise ValueError(
                     "Download failed: Server returned 0 bytes of data. "
-                    f"Could not download {filename}, please try download it in your browser and "
+                    f"Could not download {url}, please try download it in your browser and "
                     f"saving to {out_file}."
                 )
 
