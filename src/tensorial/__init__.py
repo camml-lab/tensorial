@@ -14,8 +14,6 @@ from . import (
 from .base import *
 from .reaxkit import ReaxModule
 from .tensors import *
-from .training import *
-from .training import ReaxModule
 from .utils import make_irreps
 
 __version__ = "0.6.5"

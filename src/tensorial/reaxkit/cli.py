@@ -58,6 +58,24 @@ def _variant_group(example_path: pathlib.Path):
     return None
 
 
+#: Matches ``# requires: <path> [<path> ...]`` comments in example files.
+REQUIRES_RE: Final[re.Pattern[str]] = re.compile(r"^\s*#\s*requires:\s*(.+?)\s*$", re.M)
+
+
+def _required_files(yaml_file: pathlib.Path):
+    """Return the paths declared in a variant file's ``# requires:`` comments.
+
+    Each declared path is taken relative to the variant file's directory and
+    copied next to it when the example is initialised, so that the dataset the
+    configuration points at (e.g. ``./data/sitraj.xyz``) lands where
+    ``${paths.data_dir}`` expects it.
+    """
+    files = []
+    for line in REQUIRES_RE.findall(yaml_file.read_text(encoding="utf-8")):
+        files.extend(part for part in line.split() if part)
+    return files
+
+
 def _list_examples():
     with resources.as_file(_examples_root()) as root_path:
         names = _dotted_example_names(root_path)
@@ -125,7 +143,17 @@ def _init_example(name: str, dest: pathlib.Path):
                 # sibling datasets the user didn't ask for.
                 target = dest_folder / item.name
                 target.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(item / f"{choice}.yaml", target / f"{choice}.yaml")
+                source_yaml = item / f"{choice}.yaml"
+                shutil.copy2(source_yaml, target / f"{choice}.yaml")
+                # Copy the data files the variant declares it needs.
+                for rel in _required_files(source_yaml):
+                    src = item / rel
+                    if not src.is_file():
+                        print(f"error: '{name}' requires '{rel}' but {src} does not exist")
+                        sys.exit(1)
+                    dst = target / rel
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
             elif item.is_dir():
                 shutil.copytree(item, dest_folder / item.name, dirs_exist_ok=True)
 

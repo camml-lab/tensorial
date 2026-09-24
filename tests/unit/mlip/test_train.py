@@ -5,12 +5,12 @@ from hydra.core import hydra_config
 
 import tensorial.reaxkit as rkit
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 
-
-def test_train_simple(train_simple_mlip_config: pathlib.Path, tmpdir):
-    path = REPO_ROOT / "data" / "sitraj.xyz"
-
+def test_train_simple(
+    train_simple_mlip_config: pathlib.Path,
+    mlip_si_data: pathlib.Path,
+    tmpdir: pathlib.Path,
+):
     with hydra.initialize(
         config_path=train_simple_mlip_config.parent.name,
         job_name="test_app",
@@ -22,7 +22,7 @@ def test_train_simple(train_simple_mlip_config: pathlib.Path, tmpdir):
         cfg.hydra.runtime.output_dir = str(tmpdir)
         cfg.hydra.runtime.cwd = str(pathlib.Path.cwd())
 
-        cfg.data.dataset.path = str(path)
+        cfg.data.dataset.path = str(mlip_si_data)
 
         hydra_config.HydraConfig().set_config(cfg)
 
