@@ -243,3 +243,152 @@ def test_graph_spec():
     spec = _diff.GraphEntrySpec.create("nodes.positions:ij")
     assert spec.key_path == ("nodes", "positions")
     assert spec.indices == "ij"
+
+
+def moment_energy_fn(graph_) -> jraph.GraphsTuple:
+    """E = sum_k (mu_k . r_k)(B . r_k), chosen because the mixed second derivative
+
+        d2E / dmu_{k,i} dB_j = r_{k,i} r_{k,j}
+
+    is known in closed form, and because the two levels want opposite modes: the inner
+    derivative has a scalar output and 3N inputs, the outer has 3 inputs and 3N outputs.
+    """
+    pos = tensorial.as_array(graph_.nodes[keys.POSITIONS])
+    mu = tensorial.as_array(graph_.nodes["mu"])
+    field = tensorial.as_array(graph_.globals["field"])  # (n_graph, 3)
+    # Shaped (n_graph,) so that the 'g' index in the specs below is real
+    energy = jnp.sum((mu * pos).sum(-1) * (pos @ field[0])).reshape(1)
+    return experimental.update_graph(graph_).set("globals.energy", energy).get()
+
+
+def moment_graph():
+    pos = jnp.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.5, -0.5],
+            [-1.0, 0.25, 1.0],
+            [0.5, -1.0, 0.25],
+            [-0.25, 0.75, -1.0],
+        ]
+    )
+    return gcnn.graph_from_points(
+        pos,
+        r_max=4.0,
+        nodes={"mu": jnp.zeros_like(pos)},
+        graph_globals={"field": jnp.zeros((1, 3))},
+    )
+
+
+def test_auto_picks_reverse_for_scalar_output():
+    """Many inputs, one output: reverse mode gets the whole gradient in a single pass."""
+    graph = moment_graph()
+    deriv = _diff.SingleDerivative.create(
+        of="globals.energy:g", wrt="nodes.positions:Iα", out=":Iα"
+    )
+    # 'g' is summed away by _pre_process, so a scalar is what actually gets differentiated
+    assert deriv.differentiated_size(graph) == 1
+    assert deriv.choose_mode(graph, graph.nodes[keys.POSITIONS]) == "rev"
+
+
+def test_auto_picks_forward_for_few_inputs():
+    """Few inputs, many outputs: forward mode costs one pass per input component."""
+    graph = moment_graph()
+    deriv = _diff.SingleDerivative.create(of="nodes.mu:Iγ", wrt="globals.field:gα", out=":Iγα")
+    assert deriv.differentiated_size(graph) == 3 * graph.n_node.sum()  # 3 per node
+    assert deriv.choose_mode(graph, graph.globals["field"]) == "fwd"
+
+
+def test_auto_sizes_a_chain_intermediate_from_its_labels():
+    """A chain's intermediate has no key path, so its extents come from the other links.
+
+    Regression: sizing it from the spec alone made the node index look like a Cartesian
+    one, which flipped the outer derivative to reverse mode once n_graphs grew.
+    """
+    graph = moment_graph()
+    n_nodes = int(graph.n_node.sum())
+    deriv = _diff.MultiDerivative.create(
+        of="globals.energy:g", wrt=["nodes.mu:Iα", "globals.field:gβ"], out=":Iαβ"
+    )
+    args = (graph.nodes["mu"], graph.globals["field"])
+    extents = deriv.index_extents(graph, args)
+    assert extents["I"] == n_nodes
+    assert extents["α"] == 3
+
+    inner, outer = deriv[0], deriv[1]
+    assert inner.differentiated_size(graph, extents) == 1  # scalar energy
+    assert outer.differentiated_size(graph, extents) == 3 * n_nodes
+    # Without them, 'I' is indistinguishable from a Cartesian index
+    assert outer.differentiated_size(graph) == _diff.CARTESIAN_DIM**2
+    assert inner.choose_mode(graph, args[0], extents) == "rev"
+    assert outer.choose_mode(graph, args[1], extents) == "fwd"
+
+
+def test_auto_sizes_survive_batching():
+    """The mis-sizing only changes the chosen mode once the batch is big enough.
+
+    Estimating an intermediate's node index as Cartesian caps the outer derivative's output
+    at CARTESIAN_DIM ** 2 = 9.  Its input is 3 * n_graphs, so from four graphs on the estimate
+    says reverse is cheaper when it is not -- worth 15x peak memory on a real model.
+    """
+    graph = jraph.batch([moment_graph() for _ in range(4)])
+    deriv = _diff.MultiDerivative.create(
+        of="globals.energy:g", wrt=["nodes.mu:Iα", "globals.field:gβ"], out=":Iαβ"
+    )
+    args = (graph.nodes["mu"], graph.globals["field"])
+    extents = deriv.index_extents(graph, args)
+    outer = deriv[1]
+
+    assert outer.differentiated_size(graph, extents) == 3 * int(graph.n_node.sum())
+    assert outer.choose_mode(graph, args[1], extents) == "fwd"
+    # What the un-propagated estimate produced, kept to pin the regression
+    assert outer.differentiated_size(graph) == _diff.CARTESIAN_DIM**2
+    assert outer.choose_mode(graph, args[1]) == "rev"
+
+
+@pytest.mark.parametrize("jit", [False, True])
+@pytest.mark.parametrize("mode", ["rev", "fwd", "auto"])
+def test_auto_matches_explicit_modes(jit, mode):
+    """Every mode must agree with the analytic mixed derivative r_k (x) r_k."""
+    graph = moment_graph()
+    pos = tensorial.as_array(graph.nodes[keys.POSITIONS])
+
+    diff = gcnn.diff(
+        moment_energy_fn,
+        "globals.energy:g",
+        wrt=["nodes.mu:Iα", "globals.field:gβ"],
+        out=":Iαβ",
+        mode=mode,
+    )
+    if jit:
+        diff = jax.jit(diff)
+
+    res = diff(graph, jnp.zeros_like(pos), jnp.zeros((1, 3)))
+    expected = jax.vmap(jnp.outer)(pos, pos)
+    assert res.shape == expected.shape
+    assert jnp.allclose(res, expected, atol=1e-6), f"{mode} gave {res}, expected {expected}"
+
+
+def test_auto_mixes_modes_along_a_chain(caplog):
+    """The whole point of "auto": the two links of one chain choose differently."""
+    import logging
+
+    graph = moment_graph()
+    pos = tensorial.as_array(graph.nodes[keys.POSITIONS])
+    diff = gcnn.diff(
+        moment_energy_fn,
+        "globals.energy:g",
+        wrt=["nodes.mu:Iα", "globals.field:gβ"],
+        out=":Iαβ",
+        mode="auto",
+    )
+    with caplog.at_level(logging.DEBUG, logger="tensorial.gcnn._diff"):
+        diff(graph, jnp.zeros_like(pos), jnp.zeros((1, 3)))
+
+    picked = [rec.getMessage() for rec in caplog.records if "choosing" in rec.getMessage()]
+    assert any("choosing rev" in msg for msg in picked), picked
+    assert any("choosing fwd" in msg for msg in picked), picked
+
+
+def test_unknown_mode_raises():
+    with pytest.raises(ValueError, match="mode must be one of"):
+        gcnn.diff(energy_fn, "globals.energy", wrt="nodes.positions:Iα", mode="reverse")

@@ -23,6 +23,19 @@ _LOGGER = logging.getLogger(__name__)
 DERIV_DELIMITER: Final[str] = ","
 ArgumentSpecifier = Union[int, "gcnn.typing.TreePath"]
 
+#: Differentiation modes accepted by :func:`diff`.
+MODES: Final[tuple[str, ...]] = ("rev", "fwd", "auto")
+#: Assumed extent of an index that is not the leading (graph-extensive) one.  Only used by
+#: ``mode="auto"`` to compare input and output sizes; the comparison is decided by the
+#: extensive factor, so this value only matters for near-ties.
+CARTESIAN_DIM: Final[int] = 3
+
+
+def _check_mode(mode: str) -> str:
+    if mode not in MODES:
+        raise ValueError(f"mode must be one of {MODES}, got: {mode!r}")
+    return mode
+
 
 class DerivableGraphFunction(Protocol):
     def __call__(
@@ -147,9 +160,25 @@ class Derivative(abc.ABC):
 
     @abc.abstractmethod
     def build_derivative_fn(
-        self, func: DerivableGraphFunction, return_graph: bool, argnum: int, mode: str = "rev"
+        self,
+        func: DerivableGraphFunction,
+        return_graph: bool,
+        argnum: int,
+        mode: str = "rev",
+        extents: "dict[str, int] | None" = None,
     ) -> DerivableGraphFunction:
         """Get evaluate function from derivative"""
+
+    @abc.abstractmethod
+    def index_extents(
+        self, graph: jraph.GraphsTuple, args: "Sequence[jt.PyTree]"
+    ) -> dict[str, int]:
+        """Map each index label to its extent, for ``mode="auto"``.
+
+        The ``wrt`` values are concrete by the time this is called, so the labels they carry
+        are exact.  For a chain this is what lets a later link size an intermediate whose
+        shape is not otherwise knowable without tracing the model.
+        """
 
     def adapt(self, func: "gcnn.typing.ExGraphFunction") -> DerivableGraphFunction:
         return _base.adapt(
@@ -287,18 +316,90 @@ class SingleDerivative(Derivative):
         wrt = GraphEntrySpec.create(other)
         return MultiDerivative((self, SingleDerivative.create(self.out, wrt)))
 
+    def broadcast_wrt(self, graph: jraph.GraphsTuple, value: jt.Array) -> jt.Array:
+        """Give ``value`` its leading graph dimension if it was passed without one."""
+        if (
+            self.wrt.rank is not None
+            and not isinstance(value, float)
+            and value.ndim == self.wrt.rank - 1
+        ):
+            return jnp.broadcast_to(
+                value, (_tree.num_entries(self.wrt.key_path[0], graph), *value.shape)
+            )
+        return value
+
+    def index_extents(
+        self, graph: jraph.GraphsTuple, args: "Sequence[jt.PyTree]"
+    ) -> dict[str, int]:
+        extents: dict[str, int] = {}
+        if self.wrt.indices and args:
+            value = base.as_array(self.broadcast_wrt(graph, args[0]))
+            for i, label in enumerate(self.wrt.indices):
+                if i < len(value.shape):
+                    extents[label] = value.shape[i]
+        if self.of.indices and self.of.key_path and not isinstance(self.of.key_path, int):
+            # The leading index of a graph entry counts its nodes / edges / graphs
+            extents.setdefault(self.of.indices[0], _tree.num_entries(self.of.key_path[0], graph))
+        return extents
+
+    def differentiated_size(
+        self, graph: jraph.GraphsTuple, extents: "dict[str, int] | None" = None
+    ) -> int:
+        """Number of scalars in the value that gets differentiated.
+
+        This is the size of ``of`` *after* :meth:`_pre_process` has summed away the indices
+        that do not survive into the output, which is what sets the cost of reverse mode:
+        one backward pass per output.
+
+        The leading index of a graph entry is exact (it is the node/edge/graph count); any
+        other surviving index is assumed to be :data:`CARTESIAN_DIM`.  Only the extensive
+        factor decides the comparison in practice, so the assumption is not load bearing.
+        """
+        if self.of.indices is None:
+            return 1
+
+        extents = extents or {}
+        size = 1
+        for i, label in enumerate(self.of.indices):
+            if i in self._pre_reduce:
+                continue  # summed away before the derivative is taken
+            if label in extents:
+                size *= extents[label]
+            elif i == 0 and self.of.key_path and not isinstance(self.of.key_path, int):
+                size *= _tree.num_entries(self.of.key_path[0], graph)
+            else:
+                size *= CARTESIAN_DIM
+        return size
+
+    def choose_mode(
+        self,
+        graph: jraph.GraphsTuple,
+        wrt_value: jt.Array,
+        extents: "dict[str, int] | None" = None,
+    ) -> str:
+        """Pick forward or reverse mode from the shapes of this derivative.
+
+        Reverse mode costs one pass per *output* of the differentiated function, forward mode
+        one pass per *input*, so the cheaper one is decided by which side is smaller.  Ties go
+        to forward mode, which needs no tape and so has the smaller memory footprint.
+        """
+        n_out = self.differentiated_size(graph, extents)
+        n_in = base.as_array(wrt_value).size
+        mode = "rev" if n_out < n_in else "fwd"
+        _LOGGER.debug("%s: choosing %s mode (%i outputs vs %i inputs)", self, mode, n_out, n_in)
+        return mode
+
     def build_derivative_fn(
-        self, func: DerivableGraphFunction, return_graph: bool, argnum: int, mode: str = "rev"
+        self,
+        func: DerivableGraphFunction,
+        return_graph: bool,
+        argnum: int,
+        mode: str = "rev",
+        extents: "dict[str, int] | None" = None,
     ) -> DerivableGraphFunction:
         if not argnum >= 0:
             raise ValueError(f"argnum must be >= 0, got: {argnum}")
-
-        if not self.out.indices:
-            # Scalar valued
-            diff_fn = jax.grad
-        else:
-            # Vector valued; forward mode is more memory-efficient when dim(input) << dim(output)
-            diff_fn = jax.jacfwd if mode == "fwd" else jax.jacrev
+        _check_mode(mode)
 
         def _diff_and_pre_process(
             graph: jraph.GraphsTuple, *args: jt.PyTree
@@ -308,7 +409,18 @@ class SingleDerivative(Derivative):
 
             return value, graph
 
-        do_diff = diff_fn(_diff_and_pre_process, argnums=1 + argnum, has_aux=True)
+        built: dict[str, DerivableGraphFunction] = {}
+
+        def do_diff(mode_: str) -> DerivableGraphFunction:
+            """Build (and cache) the jax transform for one mode."""
+            if mode_ not in built:
+                if not self.out.indices:
+                    # Scalar valued: a single VJP gives the whole gradient, mode is irrelevant
+                    diff_fn = jax.grad
+                else:
+                    diff_fn = jax.jacfwd if mode_ == "fwd" else jax.jacrev
+                built[mode_] = diff_fn(_diff_and_pre_process, argnums=1 + argnum, has_aux=True)
+            return built[mode_]
 
         def _diff_fn(
             graph: jraph.GraphsTuple, *args: jt.PyTree
@@ -321,20 +433,16 @@ class SingleDerivative(Derivative):
                 )
 
             value = args[argnum]
-            if (
-                self.wrt.rank is not None
-                and not isinstance(value, float)
-                and value.ndim == self.wrt.rank - 1
-            ):
+            broadcast = self.broadcast_wrt(graph, value)
+            if broadcast is not value:
                 # Broadcast to correct leading dimension based on the graph's number of entries
-                value = jnp.broadcast_to(
-                    value, (_tree.num_entries(self.wrt.key_path[0], graph), *value.shape)
-                )
+                value = broadcast
                 args = (*args[:argnum], value, *args[argnum + 1 :])
 
             self._check_shape("wrt", self.wrt, value)
 
-            value, graph = do_diff(graph, *args)
+            chosen = self.choose_mode(graph, value, extents) if mode == "auto" else mode
+            value, graph = do_diff(chosen)(graph, *args)
             value, graph = self._post_process(value, graph)
 
             if return_graph:
@@ -459,9 +567,31 @@ class MultiDerivative(Derivative):
         yield from self.parts.__iter__()
 
     def build_derivative_fn(
-        self, func: DerivableGraphFunction, return_graph: bool, argnum: int, mode: str = "rev"
+        self,
+        func: DerivableGraphFunction,
+        return_graph: bool,
+        argnum: int,
+        mode: str = "rev",
+        extents: "dict[str, int] | None" = None,
     ) -> DerivableGraphFunction:
-        # Work our way from right to left creating the derivative evaluators
+        # Each link gets the same `mode`, but "auto" is resolved per link at call time, so a
+        # chain whose levels want different modes will get them.
+        _check_mode(mode)
+
+        argnums = self._part_argnums()
+
+        func = self[0].build_derivative_fn(
+            func, return_graph=return_graph, argnum=argnums[0], mode=mode, extents=extents
+        )
+        for part, argnum_ in zip(self[1:], argnums[1:]):
+            func = part.build_derivative_fn(
+                func, return_graph=return_graph, argnum=argnum_, mode=mode, extents=extents
+            )
+
+        return func
+
+    def _part_argnums(self) -> list[int]:
+        """Position in the argument tuple that each link differentiates with respect to."""
         argnums = []
         for part in self:
             wrt_path = part.wrt.key_path
@@ -469,16 +599,21 @@ class MultiDerivative(Derivative):
                 argnums.append(self.argnum_paths[wrt_path])
             else:
                 argnums.append(self.graph_tuple_paths[wrt_path])
+        return argnums
 
-        func = self[0].build_derivative_fn(
-            func, return_graph=return_graph, argnum=argnums[0], mode=mode
-        )
-        for part, argnum_ in zip(self[1:], argnums[1:]):
-            func = part.build_derivative_fn(
-                func, return_graph=return_graph, argnum=argnum_, mode=mode
-            )
+    def index_extents(
+        self, graph: jraph.GraphsTuple, args: "Sequence[jt.PyTree]"
+    ) -> dict[str, int]:
+        """Merge the extents every link can see.
 
-        return func
+        Intermediate ``of`` specs carry no key path, so their labels can only be sized from
+        the links that introduced them -- which is exactly what this merge provides.
+        """
+        extents: dict[str, int] = {}
+        for part, argnum in zip(self, self._part_argnums()):
+            if argnum < len(args):
+                extents.update(part.index_extents(graph, (args[argnum],)))
+        return extents
 
 
 def process_paths(parts: Sequence[SingleDerivative]):
@@ -518,13 +653,23 @@ class Evaluator:
 
     # will be set in __post_init__
     _evaluate_at: DerivableGraphFunction = dataclasses.field(init=False)
+    # Shared with the built closures; refreshed on every call so that "auto" sees the
+    # current graph's dimensions rather than whatever the last call had.
+    _extents: dict[str, int] = dataclasses.field(init=False, default_factory=dict, hash=False)
 
     def __post_init__(self):
+        _check_mode(self.mode)
+        extents: dict[str, int] = {}
+        object.__setattr__(self, "_extents", extents)
         object.__setattr__(
             self,
             "_evaluate_at",
             self.spec.build_derivative_fn(
-                self.func, return_graph=True, argnum=self.argnum, mode=self.mode
+                self.func,
+                return_graph=True,
+                argnum=self.argnum,
+                mode=self.mode,
+                extents=extents,
             ),
         )
 
@@ -544,6 +689,9 @@ class Evaluator:
             values[idx] = value
 
         diff_args = tuple(value for _, value in sorted(values.items())) + args
+        if self.mode == "auto":
+            self._extents.clear()
+            self._extents.update(self.spec.index_extents(graph, diff_args))
         value, graph_out = self._evaluate_at(graph, *diff_args)
         if self.spec.out.indices is not None and not len(value.shape) == len(self.spec.out.indices):
             raise ValueError(
@@ -607,7 +755,13 @@ def diff(
             function returns the raw derivative tensor. Defaults to False.
         mode: "rev" (default) uses reverse-mode AD (jax.jacrev). "fwd" uses
             forward-mode AD (jax.jacfwd), which is more memory-efficient when
-            dim(input) << dim(output).
+            dim(input) << dim(output).  "auto" picks per derivative from the shapes:
+            reverse mode costs one pass per output and forward mode one pass per input,
+            so whichever side is smaller wins, with ties going to forward mode.  In a
+            chain (several entries in ``wrt``) each link chooses independently, which
+            matters when the levels disagree -- a mixed second derivative such as
+            d2E/dmu dB_ext wants reverse for the inner (scalar energy, many inputs) and
+            forward for the outer (few inputs, many outputs).
 
     Returns:
         A callable object that takes a Graph and returns the computed derivative
@@ -632,6 +786,8 @@ def diff(
                 "arguments and `of`"
             )
         func, of = func_of
+
+    _check_mode(mode)
 
     if isinstance(wrt, str):
         deriv = SingleDerivative.create(of, wrt, out)
