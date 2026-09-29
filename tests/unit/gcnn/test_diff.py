@@ -243,3 +243,31 @@ def test_graph_spec():
     spec = _diff.GraphEntrySpec.create("nodes.positions:ij")
     assert spec.key_path == ("nodes", "positions")
     assert spec.indices == "ij"
+
+
+@pytest.mark.parametrize("mode", ["fwd", "rev"])
+@pytest.mark.parametrize("jit", [True, False])
+def test_diff_irreps_array_without_reduction(jit, mode):
+    """Differentiate an ``IrrepsArray`` field when nothing needs reducing.
+
+    Only the reduction branches used to turn the value into a plain array, so differentiating an
+    ``IrrepsArray`` with respect to a variable that carries no graph index -- e.g. one external
+    field shared by the whole batch -- failed in the final permutation with an AttributeError.
+    """
+    import e3nn_jax as e3j  # pylint: disable=import-outside-toplevel
+
+    graph = gcnn.graph_from_points(jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]), r_max=2.0)
+    graph = graph._replace(globals={"field": jnp.zeros(3)})
+    scales = jnp.array([1.0, 2.0])  # a different linear response on each node
+
+    def response_fn(g):
+        b = scales[:, None] * g.globals["field"][None, :]  # b_k = s_k * field
+        return experimental.update_graph(g).set(("nodes", "b"), e3j.IrrepsArray("1e", b)).get()
+
+    diff = gcnn.diff(response_fn, "nodes.b:Iγ", wrt=["globals.field:α"], out=":Iγα", mode=mode)
+    if jit:
+        diff = jax.jit(diff)
+
+    res = diff(graph, jnp.zeros(3))
+    assert res.shape == (2, 3, 3)
+    assert jnp.allclose(res, scales[:, None, None] * jnp.eye(3))
