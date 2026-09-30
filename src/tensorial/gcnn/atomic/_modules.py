@@ -10,10 +10,10 @@ import jraph
 
 from tensorial.typing import Array
 
-from . import keys
+from ... import nn_utils
 from .. import _modules as gcnn_modules
 from .. import keys as gcnn_keys
-from ... import nn_utils
+from . import keys
 
 __all__ = "SpeciesTransform", "per_species_rescale"
 
@@ -40,9 +40,7 @@ class SpeciesTransform(equinox.Module):
         self.out_field = out_field
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def __call__(
-        self, graph: jraph.GraphsTuple
-    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         nodes = graph.nodes
         nodes[self.out_field] = nn_utils.vwhere(nodes[self.field], self.atomic_numbers)
 

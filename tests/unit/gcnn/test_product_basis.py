@@ -326,7 +326,7 @@ def test_joint_product_basis_output_linear_has_learnable_params():
                     info["paths"].append(s)
 
     for (a, b), info in sorted(summary.items()):
-        print(f"({a}, {b}): {info['n_leaves']} leaves, " f"{info['n_params']} params")
+        print(f"({a}, {b}): {info['n_leaves']} leaves, {info['n_params']} params")
         for p in info["paths"]:
             print(f"    {p}")
 

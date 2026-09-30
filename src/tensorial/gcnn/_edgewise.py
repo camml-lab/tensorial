@@ -7,8 +7,8 @@ from flax import linen
 import jax
 import jraph
 
-from . import _base, _spatial, keys
 from .. import base
+from . import _base, _spatial, keys
 
 if TYPE_CHECKING:
     import tensorial
@@ -67,9 +67,7 @@ class EdgewiseEmbedding(linen.Module):
     out_field: str = keys.ATTRIBUTES
 
     @_base.shape_check
-    def __call__(
-        self, graph: jraph.GraphsTuple
-    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         # Create the encoding
         encoded = base.create_tensor(self.attrs, graph.edges)
         # Store in output field
@@ -146,9 +144,7 @@ class RadialBasisEdgeEmbedding(linen.Module):
         return None
 
     @_base.shape_check
-    def __call__(
-        self, graph: jraph.GraphsTuple
-    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         edge_dict = _spatial.with_edge_vectors(graph).edges
         r = base.as_array(edge_dict[keys.EDGE_LENGTHS])[:, 0]
         embedded = self.radial_embedding(r)
@@ -168,9 +164,7 @@ class EdgeVectors(linen.Module):
 
     @linen.compact
     @_base.shape_check
-    def __call__(
-        self, graph: jraph.GraphsTuple
-    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         return _spatial.with_edge_vectors(
             graph, with_lengths=True, as_irreps_array=self.as_irreps_arrays
         )

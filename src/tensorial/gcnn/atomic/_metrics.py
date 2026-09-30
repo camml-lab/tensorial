@@ -12,10 +12,10 @@ from typing_extensions import override
 
 from tensorial.typing import Array
 
-from . import keys
 from .. import keys as _keys
 from .. import keys as graph_keys
 from .. import metrics
+from . import keys
 
 if TYPE_CHECKING:
     from tensorial import gcnn

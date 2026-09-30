@@ -73,7 +73,7 @@ class ReaxModule(reax.Module[InputT, OutputT_co]):
         )
         self._output: Final[tuple[str, ...]] = self._init_output(output)
         self._loss_fn: Final[LossFn] = loss_fn
-        self._loss_reduction: "Final[reax.types.ReduceFn | None]" = loss_reduction
+        self._loss_reduction: Final[reax.types.ReduceFn | None] = loss_reduction
         self._model: Final[linen.Module] = model
 
         # State

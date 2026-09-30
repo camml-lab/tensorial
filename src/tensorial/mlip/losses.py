@@ -1,7 +1,7 @@
 import optax
 
-from . import keys
 from .. import gcnn
+from . import keys
 from .keys import predicted
 
 

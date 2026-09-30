@@ -13,9 +13,9 @@ from pytray import tree
 import reax
 from typing_extensions import override
 
-from .. import experimental, keys, typing
 from ... import config, gcnn
 from ...gcnn import _tree, atomic
+from .. import experimental, keys, typing
 
 
 class Calculator(calculator.Calculator):

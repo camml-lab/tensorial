@@ -6,8 +6,7 @@ import logging
 import os
 import pathlib
 import tarfile
-import types
-from typing import Any, Final, TypedDict
+from typing import Any, Final
 import urllib.request
 
 import jraph

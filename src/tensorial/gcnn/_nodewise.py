@@ -6,8 +6,8 @@ from flax import linen
 import jax.numpy as jnp
 import jraph
 
-from . import _base, _tree, graph_ops, keys, utils
 from .. import base
+from . import _base, _tree, graph_ops, keys, utils
 from .experimental import utils as exp_utils
 
 if TYPE_CHECKING:
@@ -143,7 +143,7 @@ class NodewiseEmbedding(linen.Module):
             for key, attr in self.attrs.items():
                 path = _tree.path_from_str(key)
                 if len(path) > 1:
-                    if not path[0] in ("nodes", "globals"):
+                    if path[0] not in ("nodes", "globals"):
                         raise ValueError(f"The attribute key must not contain '.', got: {key}")
                 else:
                     # Assume it is a node attribute

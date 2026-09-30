@@ -7,8 +7,8 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import override
 
-from . import radials
 from .. import base
+from . import radials
 
 
 class SphericalBasis(base.Attr):

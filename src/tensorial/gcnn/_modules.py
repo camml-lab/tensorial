@@ -90,9 +90,7 @@ class Rescale(linen.Module):
 
     @linen.compact
     @_base.shape_check
-    def __call__(
-        self, graph: jraph.GraphsTuple
-    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         graph_dict = utils.UpdateDict(graph._asdict())
 
         # Scale first
@@ -265,11 +263,9 @@ class IndexedLinear(linen.Module):
 
     @linen.compact
     @_base.shape_check
-    def __call__(
-        self, graph: jraph.GraphsTuple
-    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         index_field = utils.path_from_str(self.index_field)
-        field: "gcnn.TreePath" = utils.path_from_str(self.field)
+        field: gcnn.TreePath = utils.path_from_str(self.field)
         out_field = field if self.out_field is None else utils.path_from_str(self.out_field)
         linear = e3j.flax.Linear(
             self.irreps_out,

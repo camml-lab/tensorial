@@ -50,7 +50,7 @@ def load_module(
         "Instantiating model <%s>",
         cfg[keys.MODEL]._target_,  # pylint: disable=protected-access
     )
-    module: "reaxkit.ReaxModule" = hydra.utils.instantiate(cfg[keys.MODEL], _convert_="object")
+    module: reaxkit.ReaxModule = hydra.utils.instantiate(cfg[keys.MODEL], _convert_="object")
 
     if ckpt_path:
         if checkpointing is None:

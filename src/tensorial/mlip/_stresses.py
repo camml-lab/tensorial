@@ -6,11 +6,10 @@ import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
 
-from . import keys
-from .. import gcnn, nn_utils
+from .. import gcnn, nn_utils, utils
 from .. import typing as tt
-from .. import utils
 from ..gcnn import atomic
+from . import keys
 from .keys import predicted
 
 __all__ = ("CalcStresses",)

@@ -50,7 +50,8 @@ def train(cfg: omegaconf.DictConfig | dict):
     logger: list[reax.Logger] = utils.instantiate_loggers(cfg.get("logger"))
 
     _LOGGER.debug(
-        "Instantiating trainer <%s>", cfg[keys.TRAINER]._target_  # pylint: disable=protected-access
+        "Instantiating trainer <%s>",
+        cfg[keys.TRAINER]._target_,  # pylint: disable=protected-access
     )
     trainer: reax.Trainer = hydra.utils.instantiate(
         cfg[keys.TRAINER],
@@ -60,7 +61,8 @@ def train(cfg: omegaconf.DictConfig | dict):
     )
 
     _LOGGER.debug(
-        "Instantiating datamodule <%s>", cfg.data._target_  # pylint: disable=protected-access
+        "Instantiating datamodule <%s>",
+        cfg.data._target_,  # pylint: disable=protected-access
     )
     datamodule: reax.DataModule = hydra.utils.instantiate(cfg.data, _convert_="object")
 

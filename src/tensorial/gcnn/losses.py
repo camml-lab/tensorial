@@ -7,7 +7,7 @@ for logging/monitoring.
 
 import abc
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Final, Literal, Optional
+from typing import TYPE_CHECKING, Final, Literal
 
 import beartype
 import equinox
@@ -20,8 +20,8 @@ import optax.losses
 from pytray import tree
 import reax
 
-from . import _tree, graph_ops, keys, typing, utils
 from .. import base
+from . import _tree, graph_ops, keys, typing, utils
 
 if TYPE_CHECKING:
     from tensorial import gcnn
@@ -78,7 +78,7 @@ class Loss(GraphLoss):
     _loss_fn: PureLossFn
     _target_field: "gcnn.typing.TreePath"
     _prediction_field: "gcnn.typing.TreePath"
-    _mask_field: "Optional[gcnn.typing.TreePath]"
+    _mask_field: "gcnn.typing.TreePath | None"
     _reduction: Literal["sum", "mean"]
 
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -158,7 +158,9 @@ class Loss(GraphLoss):
 
         root: str = self._target_field[0]
         if root in ("nodes", "edges"):
-            segments: Int[Array, "n_graph"] = targets.n_node if root == "nodes" else targets.n_edge
+            segments: Int[Array, "n_graph"] = (  # noqa: UP037
+                targets.n_node if root == "nodes" else targets.n_edge
+            )
 
             loss: Float[Array, "n_graph ..."] = graph_ops.segment_reduce(
                 loss, segments, reduction=self._reduction, mask=mask, segment_mask=graph_mask

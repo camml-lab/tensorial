@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 import math
-from typing import TYPE_CHECKING, ClassVar, Literal, Optional, TypeVar
+from typing import TYPE_CHECKING, ClassVar, TypeVar
 
 import beartype
 import jax.numpy as jnp
@@ -12,10 +12,12 @@ from pytray import tree
 import reax
 from typing_extensions import override
 
-from .. import _tree, keys
 from ... import nn_utils
+from .. import _tree, keys
 
 if TYPE_CHECKING:
+    from typing import Literal
+
     from tensorial import gcnn
 
 OutT = TypeVar("OutT")
@@ -27,9 +29,9 @@ __all__ = "GraphMetric", "graph_metric", "AvgNumNeighboursByType"
 def graph_metric(
     metric: str | reax.Metric | type[reax.Metric],
     predictions: "gcnn.typing.TreePathLike",
-    targets: "Optional[gcnn.TreePathLike]" = None,
-    mask: "Optional[gcnn.TreePathLike | Literal['auto']]" = "auto",
-    normalise_by: "Optional[gcnn.TreePathLike]" = None,
+    targets: "gcnn.TreePathLike | None" = None,
+    mask: "gcnn.TreePathLike | Literal['auto'] | None" = "auto",
+    normalise_by: "gcnn.TreePathLike | None" = None,
 ) -> "GraphMetric":
     predictions_from = _tree.path_from_str(predictions)
     targets_from = _tree.path_to_str(targets) if targets is not None else None
@@ -65,9 +67,9 @@ def mdiv(
 class GraphMetric(reax.Metric):
     parent: ClassVar[reax.Metric]
     pred_key: "ClassVar[gcnn.typing.TreePathLike]"
-    target_key: "ClassVar[Optional[gcnn.typing.TreePathLike]]" = None
-    mask_key: "ClassVar[Optional[gcnn.typing.TreePathLike]]" = "auto"
-    normalise_by: "ClassVar[Optional[gcnn.typing.TreePathLike]]" = None
+    target_key: "ClassVar[gcnn.typing.TreePathLike | None]" = None
+    mask_key: "ClassVar[gcnn.typing.TreePathLike | None]" = "auto"
+    normalise_by: "ClassVar[gcnn.typing.TreePathLike | None]" = None
 
     _state: reax.Metric[OutT] | None
 
@@ -214,7 +216,8 @@ class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
             state=[
                 avg.merge(other_avg)
                 for avg, other_avg in zip(
-                    self._state, other._state  # pylint: disable=protected-access
+                    self._state,
+                    other._state,  # pylint: disable=protected-access
                 )
             ],
         )

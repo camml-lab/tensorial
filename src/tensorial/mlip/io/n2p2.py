@@ -10,8 +10,8 @@ import numpy as np
 def _write_n2p2(fid, atoms, comment="", with_charges=False, with_energy_and_forces="auto"):
     # float_form = "{: 13.8f}" # looks nicer but, results can be very sensitive
     float_form = "{: 1.16E}"  # {: 1.16E} is what N2P2 uses in outout.data so we should match them
-    lattice_format = "lattice  %s  %s  %s\n" % tuple(3 * [float_form])
-    atom_format = "atom %s %s %s   {} %s %s %s %s %s\n" % tuple(8 * [float_form])
+    lattice_format = f"lattice  {float_form}  {float_form}  {float_form}\n"
+    atom_format = f"atom {float_form} {float_form} {float_form}   {{}} {float_form} {float_form} {float_form} {float_form} {float_form}\n"
     unused_column = [0.0]
 
     fid.write("begin\n")

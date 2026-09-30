@@ -5,8 +5,8 @@ This module exposes some commonly used metrics
 import e3nn_jax
 import reax.metrics
 
-from . import keys
 from .. import gcnn
+from . import keys
 
 __all__ = (
     "EnergyPerAtomRmse",

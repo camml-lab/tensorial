@@ -11,10 +11,7 @@ def _required_files_of(text: str, tmp_path: pathlib.Path):
 
 def test_required_files_parse(tmp_path: pathlib.Path):
     files = _required_files_of(
-        "# Top comment\n"
-        "# requires: data/foo.xyz data/bar.json\n"
-        "key: value\n"
-        "# requires: qux.xyz\n",
+        "# Top comment\n# requires: data/foo.xyz data/bar.json\nkey: value\n# requires: qux.xyz\n",
         tmp_path,
     )
     assert files == ["data/foo.xyz", "data/bar.json", "qux.xyz"]

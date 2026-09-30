@@ -20,9 +20,9 @@ import jaxtyping as jt
 from jaxtyping import Array, Bool, Float, Int
 import jraph
 
-from . import _base, _message_passing, _product_basis, experimental, keys
 from .. import nn_utils
 from ..typing import IntoIrreps, IrrepsArrayShape
+from . import _base, _message_passing, _product_basis, experimental, keys
 
 __all__ = "Mace", "MaceLayer", "InteractionBlock", "NonLinearReadoutBlock"
 
@@ -483,7 +483,7 @@ class Mace(linen.Module):
         node_types = graph.nodes[keys.SPECIES][:, 0]
 
         # Interactions
-        outputs: "list[IrrepsArrayShape['n_node output_irreps']]" = []
+        outputs: list[IrrepsArrayShape["n_node output_irreps"]] = []
         # Deal with the y0 values of the expansion
         if self.y0_values is not None:
             outputs.append(self._y0[node_types])

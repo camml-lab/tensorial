@@ -11,8 +11,8 @@ import reax.metrics
 
 from tensorial.typing import Array, CellType, PbcType
 
-from . import keys
 from .. import base, geometry, nn_utils
+from . import keys
 
 _LOGGER = logging.getLogger(__name__)
 

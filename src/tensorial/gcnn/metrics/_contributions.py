@@ -11,8 +11,8 @@ from pytray import tree
 import reax
 from typing_extensions import override
 
-from .. import _tree, graph_ops, keys, typing
 from ... import nn_utils, utils
+from .. import _tree, graph_ops, keys, typing
 
 __all__ = "TypeContributionLstsq", "PropertyContributionLstsq"
 
@@ -266,7 +266,9 @@ class PropertyContributionLstsq(reax.Metric):
             raise RuntimeError("Nothing to compute, metric is empty!")
         return self._metric.compute(regularization=regularization)
 
-    def _fun(self, graphs: jraph.GraphsTuple, *_) -> tuple[
+    def _fun(
+        self, graphs: jraph.GraphsTuple, *_
+    ) -> tuple[
         Float[Array, "batch_size k"],
         Float[Array, "batch_size ..."],
         Bool[Array, "batch_size"] | None,
