@@ -319,6 +319,15 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
                 f"({self._batch_size}), got {len(idxs)}"
             )
 
+        if len(idxs) == 0:
+            if self._mode is _common.BatchMode.IMPLICIT and self._padding is None:
+                raise ValueError(
+                    "Cannot produce an empty batch without padding; use ``pad=True`` "
+                    "(or supply a ``padding``) when a sampler may yield empty batches "
+                    f"(e.g. {reax.data.samplers.DistributedSampler!r})"
+                )
+            return self._blank_batch()
+
         if self._mode is _common.BatchMode.IMPLICIT:
             return self._fetch_batch(self._graphs, idxs)
 
@@ -357,6 +366,82 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         batch = stack_graphs_tuple(graph_list, np_=np_)
 
         return batch
+
+    def _blank_batch(self, np_=np) -> jraph.GraphsTuple:
+        """Build a fully-masked batch with the same structure as a real batch.
+
+        A distributed sampler may hand a rank a completely empty batch (``[]``)
+        to keep the per-rank step count uniform across ranks (see
+        ``reax.data.samplers.DistributedSampler``).  We replace such a batch
+        with a ``GraphsTuple`` that has exactly the same pytree structure and
+        shapes as a real (padded) batch, but with all feature values set to
+        zero and every mask set to ``False``, so that any aggregation or
+        pooling over the batch contributes nothing for this rank.
+
+        The structure is obtained by constructing a real batch from the first
+        graph in the dataset and then zeroing every leaf.  This guarantees the
+        shapes match whatever ``fetch`` would produce for a real batch, which
+        is the property JAX needs in order to avoid re-tracing on placeholder
+        steps.
+
+        If the dataset contains no graphs at all, there is no template graph
+        from which to derive feature shapes, so we fall back to
+        :meth:`_empty_blank_batch`.
+        """
+        if not self._graphs:
+            return self._empty_blank_batch(np_=np)
+
+        if self._mode is _common.BatchMode.EXPLICIT:
+            real = self._fetch_batch_explicit(self._graphs, [0])
+        else:
+            # A real (padded) batch of a single template graph.
+            real = self._fetch_batch(self._graphs, [0])
+
+        def zeros(x):
+            return np_.zeros_like(np_.asarray(x))
+
+        # Zero every leaf: features become dummy zeros, and masks (which are
+        # stored as boolean leaves) become ``False`` automatically.
+        return jraph.GraphsTuple(
+            nodes=jax.tree.map(zeros, real.nodes),
+            edges=jax.tree.map(zeros, real.edges),
+            globals=jax.tree.map(zeros, real.globals),
+            senders=zeros(real.senders),
+            receivers=zeros(real.receivers),
+            n_node=zeros(real.n_node),
+            n_edge=zeros(real.n_edge),
+        )
+
+    def _empty_blank_batch(self, np_=np) -> jraph.GraphsTuple:
+        """Placeholder batch for a batcher whose dataset contains no graphs.
+
+        Without a template graph we cannot know the feature keys, dtypes, or
+        trailing dimensions of a real batch, so we emit graphs with zero-length
+        arrays carrying only the mask structure.  Every mask leaf is ``False``,
+        so any masked aggregation over the batch is a no-op, and any code path
+        that reads only the masks (the common case) sees a structurally valid
+        ``GraphsTuple`` rather than an error.
+
+        In explicit mode the count fields keep their conventional
+        ``(batch_size, 2)`` shape so that downstream reshape operations remain
+        well-defined; all other fields are zero-length.
+        """
+        if self._mode is _common.BatchMode.EXPLICIT:
+            n_graphs_shape = (self._batch_size, 2)
+            feature_prefix = (self._batch_size, 0)
+        else:
+            n_graphs_shape = (0,)
+            feature_prefix = (0,)
+
+        return jraph.GraphsTuple(
+            nodes={keys.MASK: np_.zeros(feature_prefix, dtype=bool)},
+            edges={keys.MASK: np_.zeros(feature_prefix, dtype=bool)},
+            globals={keys.MASK: np_.zeros((feature_prefix[0],), dtype=bool)},
+            senders=np_.zeros(feature_prefix, dtype=np.int32),
+            receivers=np_.zeros(feature_prefix, dtype=np.int32),
+            n_node=np_.zeros(n_graphs_shape, dtype=np.int32),
+            n_edge=np_.zeros(n_graphs_shape, dtype=np.int32),
+        )
 
 
 def _chunks(iterable: Iterable, batch_size: int):
