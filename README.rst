@@ -24,8 +24,8 @@ tensorial
 .. image:: https://img.shields.io/pypi/l/tensorial.svg
     :target: https://pypi.python.org/pypi/tensorial/
 
-.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
-    :target: https://github.com/psf/black
+.. image:: https://img.shields.io/badge/lint-ruff-79C0E6.svg
+    :target: https://github.com/astral-sh/ruff
 
 Library for machine learning on physical tensors
 

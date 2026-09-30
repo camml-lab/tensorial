@@ -53,9 +53,9 @@ def test_graph_from_ase(ase_cubic_si):  # pylint: disable=redefined-outer-name
 
 def test_graph_from_pymatgen(ase_cubic_si):  # pylint: disable=redefined-outer-name
     pymatgen = pytest.importorskip("pymatgen")
-    import pymatgen.io.ase
+    import pymatgen.io.ase  # noqa: F811
 
-    si_structure: "pymatgen.Structure" = pymatgen.io.ase.AseAtomsAdaptor.get_structure(ase_cubic_si)
+    si_structure: pymatgen.Structure = pymatgen.io.ase.AseAtomsAdaptor.get_structure(ase_cubic_si)
     si_graph = atomic.graph_from_pymatgen(si_structure, r_max=1.1)
 
     # Graph

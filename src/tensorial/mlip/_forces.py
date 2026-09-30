@@ -2,8 +2,8 @@ from flax import linen
 import jraph
 from typing_extensions import override
 
-from . import keys
 from .. import gcnn
+from . import keys
 from .keys import predicted
 
 __all__ = ("CalcForces",)

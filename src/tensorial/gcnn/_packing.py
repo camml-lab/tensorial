@@ -6,8 +6,8 @@ import jax.numpy as jnp
 import jraph
 from pytray import tree
 
-from . import _base, _tree, keys
 from .. import base
+from . import _base, _tree, keys
 
 if TYPE_CHECKING:
     import tensorial

@@ -7,9 +7,9 @@ import numpy as np
 
 from tensorial.typing import Array, CellType, PbcType
 
-from . import keys
-from .. import _spatial as gcnn_graphs
 from ... import base, utils
+from .. import _spatial as gcnn_graphs
+from . import keys
 
 if TYPE_CHECKING:
     import ase

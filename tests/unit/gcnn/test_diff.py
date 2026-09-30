@@ -53,9 +53,9 @@ def test_single_derivative_basic(jit):
     if jit:
         diff = jax.jit(diff)
     result_2 = diff(graph, **{"nodes.positions": new_pos})
-    assert jnp.allclose(
-        result_2, scale * result, atol=1e-5
-    ), f"Unexpected derivative result: {result}"
+    assert jnp.allclose(result_2, scale * result, atol=1e-5), (
+        f"Unexpected derivative result: {result}"
+    )
 
     diff = gcnn.diff(
         energy_fn, "globals.energy", wrt="nodes.positions:Iα", out=":Iα", return_graph=True

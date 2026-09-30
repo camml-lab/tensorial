@@ -12,7 +12,7 @@ instead of repeating the full ``jaxtyping``/``Annotated`` spellings.
 """
 
 from collections.abc import Sequence
-from typing import Annotated, Generic, TypeVar, Union
+from typing import Annotated, Generic, TypeVar
 
 import e3nn_jax as e3j
 import jax.typing
@@ -48,20 +48,20 @@ class _Helper(Generic[ArrayT, ValueT]):
 
 IrrepLike = str | e3j.Irrep
 IrrepsLike = str | e3j.Irreps | tuple[e3j.MulIrrep]
-IntoIrreps = Union[
-    None,
-    e3j.Irrep,
-    e3j.MulIrrep,
-    str,
-    e3j.Irreps,
-    Sequence[str | e3j.Irrep | e3j.MulIrrep | tuple[int, "IntoIrreps"]],
-]
+IntoIrreps = (
+    None
+    | e3j.Irrep
+    | e3j.MulIrrep
+    | str
+    | e3j.Irreps
+    | Sequence[str | e3j.Irrep | e3j.MulIrrep | tuple[int, "IntoIrreps"]]
+)
 # "IrrepsArray with explicit shape"
 IrrepsArrayShape = _Helper(e3j.IrrepsArray, Float)
 
 
-Array = Union[jax.Array, np.ndarray]
-ArrayType = Union[jax.Array, np.ndarray]
+Array = jax.Array | np.ndarray
+ArrayType = jax.Array | np.ndarray
 # "Integer array that is used as an index"
 IndexArray = _Helper(Array, Int)  # pylint: disable=invalid-name
 CellType = Annotated[Float[ArrayType, "3 3"], "Unit cell array i.e. rows containing cell vectors"]

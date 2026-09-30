@@ -17,9 +17,9 @@ import jraph
 
 from tensorial.typing import Array, IndexArray, IntoIrreps, IrrepsArrayShape
 
-from . import _base, _message_passing, keys
 from .. import nn_utils
 from .. import utils as tensorial_utils
+from . import _base, _message_passing, keys
 
 __all__ = "NequipLayer", "Nequip"
 
@@ -188,9 +188,7 @@ class NequipLayer(linen.Module):
     @linen.compact
     @jt.jaxtyped(typechecker=beartype.beartype)
     @_base.shape_check
-    def __call__(
-        self, graph: jraph.GraphsTuple
-    ) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
         """Apply a standard NequIP layer followed by an optional resnet step
 
         Args:

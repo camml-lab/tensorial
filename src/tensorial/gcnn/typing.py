@@ -1,7 +1,7 @@
 """Shared type aliases and protocols for the ``tensorial.gcnn`` namespace."""
 
 from collections.abc import Callable
-from typing import Protocol, Union
+from typing import Protocol
 
 import jraph
 
@@ -9,7 +9,7 @@ __all__ = "TreePath", "TreePathLike", "GraphFunction"
 
 
 TreePath = tuple[str, ...]
-TreePathLike = Union[str, TreePath]
+TreePathLike = str | TreePath
 
 # Function that takes a graph and returns a graph
 GraphFunction = Callable[[jraph.GraphsTuple], jraph.GraphsTuple]

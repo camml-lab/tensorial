@@ -243,7 +243,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
             if pad and padding is None:
                 # Automatically determine padding
                 padding = self.calculate_padding(
-                    graphs, batch_size, with_shuffle=shuffle, pad_to_multiple=pad_to_multiple
+                    graphs, batch_size, pad_to_multiple=pad_to_multiple
                 )
         else:  # explicit batching
             # The padding now applies to each graph and not the batches themselves
@@ -290,7 +290,6 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
     def calculate_padding(
         graphs: Sequence[jraph.GraphsTuple],
         batch_size: int,
-        with_shuffle: bool = False,
         pad_to_multiple: int | str | jax.Device | None = None,
     ) -> "tensorial.gcnn.data.GraphPadding":
         """Calculate the padding necessary to fit the given graphs into a batch"""

@@ -45,7 +45,7 @@ def evaluate(cfg: omegaconf.DictConfig) -> None:
         cfg[keys.TRAINER]._target_,  # pylint: disable=protected-access
     )
     trainer: reax.Trainer = hydra.utils.instantiate(cfg[keys.TRAINER], logger=logger)
-    model: "reaxkit.ReaxModule" = config.load_module(cfg[keys.CONFIG_PATH], cfg[keys.CKPT_PATH])
+    model: reaxkit.ReaxModule = config.load_module(cfg[keys.CONFIG_PATH], cfg[keys.CKPT_PATH])
 
     object_dict = {
         "cfg": cfg,

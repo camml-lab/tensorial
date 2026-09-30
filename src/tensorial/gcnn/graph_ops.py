@@ -15,8 +15,8 @@ from jaxtyping import Bool, Float, Int
 import jraph
 from pytray import tree
 
-from . import keys, utils
 from .. import nn_utils
+from . import keys, utils
 
 __all__ = (
     "segment_sum",
@@ -34,7 +34,7 @@ def _prepare_segments(
     num_segments: int = segment_sizes.shape[0]
 
     # 1. Generate segment IDs (map each data point to its graph index)
-    segment_ids: Int[jax.Array, "num_segments"] = jnp.arange(num_segments)
+    segment_ids: Int[jax.Array, num_segments] = jnp.arange(num_segments)
     # total_repeat_length ensures correct size even with padding/dynamic shapes
     segment_ids = jnp.repeat(
         segment_ids, segment_sizes, axis=0, total_repeat_length=total_repeat_length
@@ -378,8 +378,7 @@ def segment_reduce(
         # Raise an error using JAX's preferred method for errors in jitted regions
         # (Though, generally better to handle non-jittable logic outside the jit block)
         raise ValueError(
-            f"Unsupported reduction type: {reduction}. "
-            f"Must be one of {list(_REDUCTIONS.keys())}."
+            f"Unsupported reduction type: {reduction}. Must be one of {list(_REDUCTIONS.keys())}."
         ) from None
 
 

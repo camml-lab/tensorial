@@ -39,7 +39,8 @@ class Unary(reax.Metric[bool]):
     @override
     def merge(self, other: "Unary") -> "Unary":
         return type(self)(
-            self.oper, self.oper([self._state, other._state])  # pylint: disable=protected-access
+            self.oper,
+            self.oper([self._state, other._state]),  # pylint: disable=protected-access
         )
 
     @override

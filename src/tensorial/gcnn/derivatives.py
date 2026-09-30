@@ -19,8 +19,8 @@ import jaxtyping as jt
 import jraph
 from pytray import tree
 
-from . import _base, _tree
 from .. import base
+from . import _base, _tree
 
 if TYPE_CHECKING:
     import tensorial

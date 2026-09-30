@@ -62,9 +62,9 @@ def test_jax_open_boundary(self_interaction):
     free = geometry.jax_neighbours.OpenBoundary(cutoff, include_self=self_interaction)
     get_neighbours = equinox.filter_jit(free.get_neighbours)
     nlist = get_neighbours(positions, max_neighbours=free.estimate_neighbours(positions))
-    assert (
-        not nlist.did_overflow
-    ), f"Neighbour list has overflown, need at least {nlist.actual_max_neighbours} max neighbours"
+    assert not nlist.did_overflow, (
+        f"Neighbour list has overflown, need at least {nlist.actual_max_neighbours} max neighbours"
+    )
 
     from_idx, to_idx, cells = nlist.get_edges()
     # This has open boundary conditions so cells should all be zero
@@ -175,9 +175,9 @@ def test_jax_periodic_boundary(self_interaction, cutoff, cell_angles: tuple[floa
 
     tensorial_edges = neighbours.get_edges()
     edge_vecs = geometry.unit_cells.get_edge_vectors(positions, tensorial_edges, cell)
-    assert np.all(
-        np.sum(edge_vecs**2, axis=1) <= (cutoff * cutoff)
-    ), "Edges returned that are longer than the cutoff"
+    assert np.all(np.sum(edge_vecs**2, axis=1) <= (cutoff * cutoff)), (
+        "Edges returned that are longer than the cutoff"
+    )
 
     # Compare to results from ASE
     ase_edges = geometry.Edges(
@@ -191,9 +191,9 @@ def test_jax_periodic_boundary(self_interaction, cutoff, cell_angles: tuple[floa
         )
     )
 
-    assert len(tensorial_edges.from_idx) == len(
-        ase_edges.from_idx
-    ), "Number of edges don't match result from ASE"
+    assert len(tensorial_edges.from_idx) == len(ase_edges.from_idx), (
+        "Number of edges don't match result from ASE"
+    )
     for i in range(len(positions)):
         tensorial_neighs = tensorial_edges.to_idx[tensorial_edges.from_idx == i]
         ase_neighs = ase_edges.to_idx[ase_edges.from_idx == i]
@@ -246,9 +246,9 @@ def test_np_periodic_boundary(self_interaction, cutoff, cell_angles: tuple[float
 
     tensorial_edges = neighbours.get_edges()
     edge_vecs = geometry.unit_cells.get_edge_vectors(positions, tensorial_edges, cell)
-    assert np.all(
-        np.sum(edge_vecs**2, axis=1) <= (cutoff * cutoff)
-    ), "Edges returned that are longer than the cutoff"
+    assert np.all(np.sum(edge_vecs**2, axis=1) <= (cutoff * cutoff)), (
+        "Edges returned that are longer than the cutoff"
+    )
 
     # Compare to results from ASE
     ase_edges = geometry.Edges(
@@ -262,9 +262,9 @@ def test_np_periodic_boundary(self_interaction, cutoff, cell_angles: tuple[float
         )
     )
 
-    assert len(tensorial_edges.from_idx) == len(
-        ase_edges.from_idx
-    ), "Number of edges don't match result from ASE"
+    assert len(tensorial_edges.from_idx) == len(ase_edges.from_idx), (
+        "Number of edges don't match result from ASE"
+    )
     for i in range(len(positions)):
         tensorial_neighs = tensorial_edges.to_idx[tensorial_edges.from_idx == i]
         ase_neighs = ase_edges.to_idx[ase_edges.from_idx == i]
