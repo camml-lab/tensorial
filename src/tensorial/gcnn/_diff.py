@@ -360,7 +360,9 @@ class SingleDerivative(Derivative):
         if self._post_reduce:
             value = base.as_array(value).sum(axis=self._post_reduce)
         if self._post_permute:
-            value = value.transpose(self._post_permute)
+            # Reductions above already produce a plain array, but without one the value can still
+            # be an IrrepsArray, which has no transpose
+            value = base.as_array(value).transpose(self._post_permute)
         self._check_shape("out", self.out, value)
 
         return value, graph
