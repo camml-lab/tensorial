@@ -134,6 +134,7 @@ extend-ignore = [
     'F401',  # module imported but unused
     'F821',  # undefined name
     'F722',  # error message is string constant
+    'UP037', # Remove quotes from type annotation
 ]
 
 [tool.ruff.lint.isort]
