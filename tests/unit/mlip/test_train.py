@@ -22,7 +22,7 @@ def test_train_simple(
         cfg.hydra.runtime.output_dir = str(tmpdir)
         cfg.hydra.runtime.cwd = str(pathlib.Path.cwd())
 
-        cfg.data.dataset.path = str(mlip_si_data)
+        cfg.data.path = str(mlip_si_data)
 
         hydra_config.HydraConfig().set_config(cfg)
 

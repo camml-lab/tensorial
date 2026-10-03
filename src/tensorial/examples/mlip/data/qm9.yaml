@@ -1,5 +1,4 @@
-_target_: tensorial.gcnn.data.GraphDataModule
-
+_target_: tensorial.gcnn.data.GraphDataModule.from_random_split
 dataset:
   _target_: tensorial.datasets.Qm9
   data_dir: ${paths.data_dir}
