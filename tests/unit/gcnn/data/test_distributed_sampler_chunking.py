@@ -59,14 +59,17 @@ def test_ddp_no_shuffle_partition_respects_padding_bound():
 
     num_ranks = 2
     for rank in range(num_ranks):
+        # reax's DistributedSampler is a *sharding wrapper over an inner
+        # index-producing sampler*, not a dataset.  Feed it a
+        # ``SequentialSampler`` over the dataset's indices (shuffle=False, so
+        # the natural order is preserved).
         sampler = samplers.DistributedSampler(
-            graphs,
+            samplers.SequentialSampler(len(graphs)),
             num_replicas=num_ranks,
             process_index=rank,
-            shuffle=False,
             drop_last=False,
         )
-        indices = list(sampler)
+        indices = [int(i) for i in sampler]
         assert len(indices) == batch_size
 
         # 1) Numerical invariant: batch's total edge count stays within the bound.

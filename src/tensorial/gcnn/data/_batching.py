@@ -16,7 +16,7 @@ from .. import keys, utils
 from ... import utils as tensorial_utils
 
 if TYPE_CHECKING:
-    import tensorial.gcnn.data
+    from tensorial import gcnn
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ __all__ = (
 )
 
 
-def max_padding(*padding: "tensorial.gcnn.data.GraphPadding") -> "tensorial.gcnn.data.GraphPadding":
+def max_padding(*padding: "gcnn.data.GraphPadding") -> "gcnn.data.GraphPadding":
     """Get a padding that contains the maximum number of nodes, edges and graphs over all the
     provided paddings
     """
@@ -46,12 +46,12 @@ def max_padding(*padding: "tensorial.gcnn.data.GraphPadding") -> "tensorial.gcnn
 
 
 def generated_padded_graphs(
-    dataset: "tensorial.gcnn.data.GraphDataset",
+    dataset: "gcnn.data.GraphDataset",
     add_mask=False,
     num_nodes=None,
     num_edges=None,
     num_graphs=None,
-) -> "Iterator[tensorial.gcnn.data.GraphBatch]":
+) -> "Iterator[gcnn.data.GraphBatch]":
     """Provides an iterator over graphs tuple batches that are padded to make the number of nodes,
     edges and graphs in each batch equal to the maximum found in the dataset
     """
@@ -215,10 +215,10 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         shuffle: bool = False,
         pad: bool = False,
         add_mask: bool = True,
-        padding: "tensorial.gcnn.data.GraphPadding | None" = None,
+        padding: "gcnn.data.GraphPadding | None" = None,
         pad_to_multiple: "int | str | jax.Device | None" = None,
         drop_last: bool = False,
-        mode: "str | tensorial.gcnn.data.BatchMode" = _common.BatchMode.IMPLICIT,
+        mode: "str | gcnn.data.BatchMode" = _common.BatchMode.IMPLICIT,
     ):
         if add_mask and not pad:
             _LOGGER.warning(
@@ -230,7 +230,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         # Params
         self._batch_size: int = batch_size
         self._add_mask: bool = add_mask
-        self._mode: "tensorial.gcnn.data.BatchMode" = _common.BatchMode(mode)
+        self._mode: "gcnn.data.BatchMode" = _common.BatchMode(mode)
 
         if isinstance(graphs, jraph.GraphsTuple):
             graphs = jraph.unbatch_np(graphs)
@@ -273,7 +273,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         return self._batch_size
 
     @property
-    def padding(self) -> "tensorial.gcnn.data.GraphPadding":
+    def padding(self) -> "gcnn.data.GraphPadding":
         return self._padding
 
     def __len__(self) -> int:
@@ -291,7 +291,7 @@ class GraphBatcher(Iterable[jraph.GraphsTuple]):
         graphs: Sequence[jraph.GraphsTuple],
         batch_size: int,
         pad_to_multiple: int | str | jax.Device | None = None,
-    ) -> "tensorial.gcnn.data.GraphPadding":
+    ) -> "gcnn.data.GraphPadding":
         """Calculate the padding necessary to fit the given graphs into a batch"""
         # A batch contains at most ``batch_size`` graphs.  Under DDP those
         # graphs are not guaranteed to be ``batch_size`` *distinct* graphs of

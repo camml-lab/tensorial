@@ -3,6 +3,7 @@
 from . import (
     base,
     config,
+    data,
     datasets,
     gcnn,
     geometry,
@@ -22,6 +23,7 @@ __all__ = (
     base.__all__
     + tensors.__all__
     + (
+        "data",
         "datasets",
         "config",
         "gcnn",
