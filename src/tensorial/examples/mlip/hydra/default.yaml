@@ -12,8 +12,29 @@ sweep:
   dir: ${paths.log_dir}/${task_name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
   subdir: ${hydra.job.num}
 
+# Rank-aware logging:
+#  - a RankFilter on each handler injects ``record.rank`` and drops records
+#    from any non-zero rank (so worker processes stay quiet in DDP runs);
+#  - the formatters print ``rank:%(rank)s`` on each line so the source rank
+#    is always visible (rank 0 in single-process runs, e.g. ``rank:0``).
+#
+# ``job_logging`` is handed to ``logging.config.dictConfig`` by Hydra, so
+# custom filters follow the dictConfig schema: a top-level ``filters`` map
+# with a ``'()'`` dotted path naming the class, and a ``filters`` list on
+# each handler listing the keys to attach.
 job_logging:
+  filters:
+    rank_filter:
+      '()': tensorial.reaxkit.utils.pylogger.RankFilter
+  formatters:
+    colorlog:
+      format: '[%(cyan)s%(asctime)s%(reset)s][%(blue)s%(name)s%(reset)s][%(log_color)s%(levelname)s%(reset)s][%(cyan)srank:%(rank)s%(reset)s] - %(message)s'
+    simple:
+      format: '[%(asctime)s][%(name)s][%(levelname)s][rank:%(rank)s] - %(message)s'
   handlers:
+    console:
+      filters: [rank_filter]
     file:
       # Incorporates fix from https://github.com/facebookresearch/hydra/pull/2242
       filename: ${hydra.runtime.output_dir}/${task_name}.log
+      filters: [rank_filter]

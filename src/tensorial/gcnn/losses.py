@@ -158,9 +158,7 @@ class Loss(GraphLoss):
 
         root: str = self._target_field[0]
         if root in ("nodes", "edges"):
-            segments: Int[Array, "n_graph"] = (  # noqa: UP037
-                targets.n_node if root == "nodes" else targets.n_edge
-            )
+            segments: Int[Array, "n_graph"] = targets.n_node if root == "nodes" else targets.n_edge
 
             loss: Float[Array, "n_graph ..."] = graph_ops.segment_reduce(
                 loss, segments, reduction=self._reduction, mask=mask, segment_mask=graph_mask

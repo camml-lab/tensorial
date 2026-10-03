@@ -37,8 +37,8 @@ class GraphDataModule(reax.DataModule):
             kfold: Index of the fold (in `[0, n_folds)`) to hold out as the test set for
                 this run. Required when `n_folds > 1`. Ignored when `n_folds == 1`.
             n_folds: Number of folds to partition `dataset` into for k-fold cross-validation.
-                Defaults to `1`, which disables k-fold entirely and falls back to the original
-                single random train/val/test split behaviour.
+                Defaults to `5`. Ignored when `kfold` is ``None`` (the default), in which case
+                the module falls back to the original single random train/val/test split behaviour.
             seed: Fixed seed used ONLY to determine the k-fold partition (i.e. which
                 sample ends up in which fold). This is intentionally separate from the
                 trainer/experiment seed (`cfg.seed`) so that the fold assignment is stable and
@@ -117,7 +117,7 @@ class GraphDataModule(reax.DataModule):
             #     batch.n_node.shape == (self._batch_size, self._batch_size + 1)
             # With this condition, we instead enforce:
             #     batch.n_node.shape == (self._batch_size, 2)
-            # which is the expected behavior for explicit batching.
+            # which is the expected behaviour for explicit batching.
             for graphs in graph_datasets.values():
                 if self._batch_mode is _common.BatchMode.IMPLICIT:
                     paddings.append(
