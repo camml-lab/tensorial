@@ -38,7 +38,7 @@ def infer_backend(pytree) -> types.ModuleType:
 
 
 def zeros(
-    irreps: IntoIrreps, leading_shape: tuple = (), dtype: jnp.dtype = None, np_=jnp
+    irreps: IntoIrreps, leading_shape: tuple = (), dtype: jnp.dtype | None = None, np_=jnp
 ) -> e3j.IrrepsArray:
     """Create a zero-valued :class:`e3nn_jax.IrrepsArray` with the given irreps.
 
@@ -70,7 +70,7 @@ def zeros_like(irreps_array: e3j.IrrepsArray) -> e3j.IrrepsArray:
 
 
 def ones(
-    irreps: IntoIrreps, leading_shape: tuple = (), dtype: jnp.dtype = None, np_=jnp
+    irreps: IntoIrreps, leading_shape: tuple = (), dtype: jnp.dtype | None = None, np_=jnp
 ) -> e3j.IrrepsArray:
     """Create a one-valued :class:`e3nn_jax.IrrepsArray` with the given irreps.
 

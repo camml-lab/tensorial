@@ -11,9 +11,9 @@ import numpy as np
 from pytray import tree
 import reax
 
-from . import _common, _graph_padding
-from .. import keys, utils
 from ... import utils as tensorial_utils
+from .. import keys, utils
+from . import _common, _graph_padding
 
 if TYPE_CHECKING:
     from tensorial import gcnn

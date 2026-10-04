@@ -459,7 +459,7 @@ def _tensorial_attrs_frozen_dict(irreps_obj: linen.FrozenDict) -> dict[str, Tens
     return tensorial_attrs(irreps_obj.unfreeze())
 
 
-def get(irreps_obj: type[IrrepsObj], tensor: Array, attr_name: str = None) -> Array:
+def get(irreps_obj: type[IrrepsObj], tensor: Array, attr_name: str | None = "") -> Array:
     """Extract a named attribute's slice from a flattened tensor.
 
     Given a tensor produced by :func:`create_tensor` for some

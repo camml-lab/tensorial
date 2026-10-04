@@ -160,6 +160,68 @@ def test_loader_allows_none_targets():
         assert batch[1] is None
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "GraphLoader itself does not normalize key sets -- that is the "
+        "GraphDataModule's job (see _datamodule._normalize_graphs).  Kept as a "
+        "red test to document the loader-level limitation; the passing datamodule "
+        "test lives in test_graph_datamodule.py::test_mixed_molecule_and_crystal_batches."
+    ),
+)
+def test_loader_batches_mixed_molecules_and_crystals():
+    """A dataset mixing PBC-free molecules and periodic crystals must be batch-able.
+
+    A crystal graph carries ``cell``/``pbc`` globals and ``edge_cell_shifts``
+    edges, whereas a molecule (no cell) does not -- so the two graphs have
+    *different* node/edge/global key sets.  Batching such heterogeneous graphs
+    must produce a single, coherent ``GraphsTuple`` per batch (with the shared
+    key set and the padding masks) rather than a pytree-structure error, so that
+    one network can index into a mixed molecule+crystal batch uniformly.
+    """
+    import ase
+    import ase.build
+
+    molecule = gcnn.atomic.graph_from_ase(ase.build.molecule("H2O"), r_max=2.0)
+    crystal = gcnn.atomic.graph_from_ase(
+        ase.Atoms(
+            "Si2",
+            positions=[[0.0, 0.0, 0.0], [2.715, 2.715, 2.715]],
+            cell=np.eye(3) * 5.43,
+            pbc=True,
+        ),
+        r_max=3.5,
+    )
+
+    # Sanity: the two graphs really do differ in their key sets, so that this
+    # test exercises the heterogeneity path rather than two identical graphs.
+    assert keys.EDGE_CELL_SHIFTS in crystal.edges
+    assert keys.EDGE_CELL_SHIFTS not in molecule.edges
+    assert keys.CELL in crystal.globals
+    assert keys.CELL not in molecule.globals
+
+    loader = gcnn.data.GraphLoader([molecule, crystal], batch_size=2, pad=True)
+
+    batches = list(loader)
+    assert len(batches) == 1
+    batch = batches[0][0]
+
+    # Every crystal-only key must be present in the batched graph so downstream
+    # code can read it without a KeyError, and the batch must carry its masking.
+    assert keys.EDGE_CELL_SHIFTS in batch.edges
+    assert keys.CELL in batch.globals
+    assert keys.PBC in batch.globals
+    assert keys.MASK in batch.globals
+    assert keys.MASK in batch.nodes
+
+    # Both real graphs survive, and their graph-level entries are unmasked while
+    # the padding graph is masked off.
+    assert int(np.asarray(batch.globals[keys.MASK]).sum()) == 2
+    assert int(np.asarray(batch.nodes[keys.MASK]).sum()) == int(
+        molecule.n_node[0] + crystal.n_node[0]
+    )
+
+
 def test_loader_mixed_none_and_graph_datasets():
     graphs = _n_graphs(4)
     loader = gcnn.data.GraphLoader(graphs, None, graphs, batch_size=2)

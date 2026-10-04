@@ -1,0 +1,15 @@
+# requires: sitraj.xyz
+_target_: tensorial.gcnn.data.ase_graph_module_from_datasets
+
+train: https://archive.materialscloud.org/records/c4ene-0mv14/files/mad-train.xyz?download=1
+val: https://archive.materialscloud.org/records/c4ene-0mv14/files/mad-val.xyz?download=1
+test: https://archive.materialscloud.org/records/c4ene-0mv14/files/mad-test.xyz?download=1
+as_graphs:
+  r_max: ${r_max}
+  atom_include_keys:
+    - numbers
+    - forces
+  global_include_keys:
+    - energy
+    - stress
+batch_size: 64 # Needs to be divisible by the number of devices (e.g., if in a distributed setup)
