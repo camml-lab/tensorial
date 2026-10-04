@@ -281,7 +281,7 @@ class ParityPlotter(reax.TrainerListener):
         if self._save_dir.is_absolute():
             return self._save_dir
 
-        return trainer.log_dir / self._save_dir
+        return pathlib.Path(trainer.log_dir) / self._save_dir
 
 
 class GraphParityPlotter(ParityPlotter):

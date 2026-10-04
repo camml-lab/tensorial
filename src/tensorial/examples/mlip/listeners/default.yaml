@@ -1,7 +1,7 @@
 defaults:
   - model_checkpoint
   - early_stopping
-  #  - model_summary
+#    - model_summary
   - metrics_printer
   - parity_plotter
   - _self_

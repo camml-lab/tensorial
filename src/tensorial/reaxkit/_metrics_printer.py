@@ -1,5 +1,6 @@
 import copy
 import logging
+import math
 import numbers
 import sys
 from typing import Final
@@ -85,7 +86,14 @@ class MetricsPrinter(reax.listeners.ProgressBar):
             if self._progress_bar is not None:
                 self._progress_bar.close()
             self._progress_bar = self.init_train_tqdm(stage)
-            self._progress_bar.reset(total=stage.max_iters)
+            total = stage.max_iters if stage.max_iters is not None else stage.max_batches
+            # tqdm only renders a determinate bar/percentage for finite totals, and
+            # `inf` overflows while formatting the ETA. Fall back to indeterminate mode.
+            if total is not None and math.isfinite(total):
+                total = int(total)
+            else:
+                total = None
+            self._progress_bar.reset(total=total)
             self._progress_bar.initial = 0
 
     @override

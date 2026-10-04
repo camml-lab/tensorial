@@ -7,23 +7,47 @@ import jax
 from lightning_utilities.core import rank_zero
 from omegaconf import OmegaConf
 
-__all__ = ("log_hyperparameters",)
+__all__ = ("log_model_size", "log_hyperparameters")
 
 _LOGGER = logging.getLogger(__name__)
 
 
 @rank_zero.rank_zero_only
-def log_hyperparameters(object_dict: dict[str, Any]) -> None:
-    """Controls which config parts are saved by Lightning loggers.
+def log_model_size(model: Any) -> None:
+    """Log a model's parameter count and memory size at INFO level.
 
-    Additionally, it saves:
-        - Number of model parameters
+    Computes the total parameter count and the total size on device
+    (``sum(arr.size * arr.dtype.itemsize)`` over ``jax.tree.leaves``) and
+    logs a single line such as
+    ``"Model size: 1,234,567 parameters (4.94 MB)"``.
+
+    Only runs on the zeroth rank.
 
     Args:
-        object_dict: A dictionary containing the following objects: -
-            `"cfg"`: A DictConfig object containing the main config. -
-            `"model"`: The Lightning model. - `"trainer"`: The Lightning
-            trainer.
+        model: A JAX-compatible object exposing a ``parameters()`` method.
+    """
+    params = jax.tree.leaves(model.parameters())
+    num_parameters = sum(arr.size for arr in params)
+    size_in_bytes = sum(arr.size * arr.dtype.itemsize for arr in params)
+    _LOGGER.info(
+        "Model size: %s parameters (%.2f MB)",
+        f"{num_parameters:,}",
+        size_in_bytes / 1_000_000,
+    )
+
+
+@rank_zero.rank_zero_only
+def log_hyperparameters(object_dict: dict[str, Any]) -> None:
+    """Log the hyperparameters of a run to all active Lightning loggers.
+
+    Only a subset of the config is forwarded and the total number of model
+    parameters is computed and recorded as ``model/params/total``.
+
+    Args:
+        object_dict: A mapping with the following keys:
+            - ``"cfg"``: An ``omegaconf.DictConfig`` containing the full config.
+            - ``"model"``: The JAX/Lightning model to inspect.
+            - ``"trainer"``: The Lightning trainer owning the loggers.
     """
     hparams = {}
 
