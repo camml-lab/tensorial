@@ -51,10 +51,10 @@ def per_species_rescale(
     num_types: int,
     field: str,
     *,
-    types_field: str = None,
-    out_field: str = None,
-    shifts: jax.typing.ArrayLike = None,
-    scales: jax.typing.ArrayLike = None,
+    types_field: str | None = None,
+    out_field: str | None = None,
+    shifts: jax.typing.ArrayLike | None = None,
+    scales: jax.typing.ArrayLike | None = None,
 ) -> gcnn_modules.IndexedRescale:
     types_field = types_field or ("nodes", gcnn_keys.SPECIES)
     return gcnn_modules.IndexedRescale(

@@ -240,8 +240,8 @@ def to_graph(
     entry: MoleculeDict,
     r_max: float,
     self_edges: bool = False,
-    node_attrs: list[str | tuple[str, str]] = None,
-    graph_attrs: list[str | tuple[str, str]] = None,
+    node_attrs: list[str | tuple[str, str]] | None = None,
+    graph_attrs: list[str | tuple[str, str]] | None = None,
     np_=np,
 ) -> jraph.GraphsTuple:
     """Convert a single Qm9 molecule entry into a `jraph.GraphsTuple`.

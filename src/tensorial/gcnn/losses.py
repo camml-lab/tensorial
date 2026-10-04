@@ -58,7 +58,7 @@ class GraphLoss(equinox.Module):
         return "mean"
 
     def __call__(
-        self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple = None
+        self, predictions: jraph.GraphsTuple, targets: jraph.GraphsTuple | None = None
     ) -> jax.Array:
         """Return the scalar loss between predictions and targets"""
         if targets is None:
@@ -89,7 +89,7 @@ class Loss(GraphLoss):
         predictions: str | None = None,
         *,
         reduction: Literal["sum", "mean"] = "mean",
-        label: str = None,
+        label: str | None = None,
         mask_field: str | None = None,
     ):
         """

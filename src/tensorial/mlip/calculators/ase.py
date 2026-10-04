@@ -58,7 +58,7 @@ class Calculator(calculator.Calculator):
         cls,
         config_path: str | pathlib.Path,
         checkpoint_path: str | pathlib.Path,
-        checkpointing: reax.training.Checkpointing = None,
+        checkpointing: reax.training.Checkpointing | None = None,
         **kwargs,
     ) -> "Calculator":
         cfg = omegaconf.OmegaConf.load(config_path)
@@ -78,7 +78,7 @@ class Calculator(calculator.Calculator):
     @override
     def calculate(
         self,
-        atoms: ase.Atoms = None,
+        atoms: ase.Atoms | None = None,
         properties=("energy",),
         system_changes=tuple(calculator.all_changes),
     ):

@@ -49,7 +49,9 @@ def graph_metric(
 
 
 def mdiv(
-    num: jax.typing.ArrayLike, denom: jax.typing.ArrayLike, where: jax.typing.ArrayLike = None
+    num: jax.typing.ArrayLike,
+    denom: jax.typing.ArrayLike,
+    where: jax.typing.ArrayLike | None = None,
 ):
     """Divide that supports supplying a mask, where `False` values will just return the numerator"""
     # Use prod here because `IrrepsArray` doesn't have `.size`

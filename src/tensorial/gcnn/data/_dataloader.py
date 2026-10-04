@@ -28,7 +28,7 @@ class GraphLoader(reax.DataLoader[_common.GraphsOrGraphsTuple, _common.GraphsOrG
         pad: bool | None = None,
         padding: "gcnn.data.GraphPadding | None" = None,
         batch_mode: "gcnn.data.BatchMode | str" = _common.BatchMode.IMPLICIT,
-        sampler: reax.data.Sampler = None,
+        sampler: reax.data.Sampler | None = None,
     ):
         # Params
         self._batch_size: Final[int] = batch_size

@@ -98,14 +98,14 @@ class SphericalHarmonic(base.Attr[jax.Array | e3j.IrrepsArray]):
         normalise,
         normalisation: Literal["integral", "component", "norm"] | None = None,
         *,
-        algorithm: tuple[str] = None,
+        algorithm: tuple[str] | None = None,
     ):
         super().__init__(irreps)
         self.normalise = normalise
         self.normalisation = normalisation
         self.algorithm = algorithm
 
-    def create_tensor(self, value: jax.Array | e3j.IrrepsArray) -> jnp.array:
+    def create_tensor(self, value: jax.Array | e3j.IrrepsArray) -> jnp.ndarray:
         """Build the tensor by evaluating spherical harmonics of the input vector(s)."""
         return e3j.spherical_harmonics(
             self.irreps,

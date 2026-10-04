@@ -43,7 +43,7 @@ class NeighbourList(equinox.Module, distances.NeighbourList):
         neighbours: jt.ArrayLike,
         cell_indices: jt.ArrayLike,
         actual_max_neighbours: jax.Array = -1,
-        finder: "NeighbourFinder" = None,
+        finder: "NeighbourFinder | None" = None,
     ):
         """Build the list, validating shapes and storing the fields.
 
@@ -103,7 +103,9 @@ class NeighbourList(equinox.Module, distances.NeighbourList):
 class NeighbourFinder(equinox.Module, distances.NeighbourFinder):
     """JAX-backed neighbour-finder base class for the backends below."""
 
-    def get_neighbours(self, positions: jt.ArrayLike, max_neighbours: int = None) -> NeighbourList:
+    def get_neighbours(
+        self, positions: jt.ArrayLike, max_neighbours: int | None = None
+    ) -> NeighbourList:
         """Get the neighbour list for the given positions."""
 
     def estimate_neighbours(self, positions: jt.ArrayLike) -> int:
@@ -121,7 +123,9 @@ class OpenBoundary(NeighbourFinder):
         self._cutoff = float(cutoff)
         self._include_self = include_self
 
-    def get_neighbours(self, positions: jt.ArrayLike, max_neighbours: int = None) -> NeighbourList:
+    def get_neighbours(
+        self, positions: jt.ArrayLike, max_neighbours: int | None = None
+    ) -> NeighbourList:
         """All (i, j) pairs with ``|p_i - p_j| < cutoff`` (plus self if requested)."""
         positions = jnp.asarray(positions)
         num_points = positions.shape[0]
@@ -204,7 +208,9 @@ class PeriodicBoundary(NeighbourFinder):
         self._include_self = include_self
         self._include_images = include_images
 
-    def get_neighbours(self, positions: jt.ArrayLike, max_neighbours: int = None) -> NeighbourList:
+    def get_neighbours(
+        self, positions: jt.ArrayLike, max_neighbours: int | None = None
+    ) -> NeighbourList:
         """Build the neighbour list for ``positions`` using the periodic grid-cell list.
 
         Each point is considered against every periodic image (cell shift); pairs
