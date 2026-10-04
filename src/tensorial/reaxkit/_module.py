@@ -369,7 +369,8 @@ def _get_batch_size(inputs: InputT):
         return None
 
     try:
-        mask = inputs.globals["mask"]
+        globals_dict = cast("dict[str, Any]", inputs.globals)
+        mask = globals_dict["mask"]
     except KeyError:
         mask = _graph_padding.get_graph_padding_mask(inputs)
 

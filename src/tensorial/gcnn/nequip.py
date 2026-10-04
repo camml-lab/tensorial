@@ -7,6 +7,7 @@ a faithful port of the NEquIP model commonly used for force-field regression.
 
 from collections.abc import Callable, Mapping
 import functools
+from typing import Any, cast
 
 import beartype
 import e3nn_jax as e3j
@@ -197,26 +198,27 @@ class NequipLayer(linen.Module):
         Returns:
             the output graph with node features updated
         """
-        species = graph.nodes.get(keys.SPECIES)
+        nodes = dict(cast("dict[str, Any]", graph.nodes))
+        edges = cast("dict[str, Any]", graph.edges)
+        species = nodes.get(keys.SPECIES)
         node_species = species[:, 0] if species is not None else None
 
         node_features = self._interaction_block(
-            graph.nodes[keys.FEATURES],
-            graph.edges[keys.ATTRIBUTES],
-            graph.edges[keys.RADIAL_EMBEDDINGS],
+            nodes[keys.FEATURES],
+            edges[keys.ATTRIBUTES],
+            edges[keys.RADIAL_EMBEDDINGS],
             graph.senders,
             graph.receivers,
             node_species=node_species,
-            node_mask=graph.nodes.get(keys.MASK),
-            edge_mask=graph.edges.get(keys.MASK),
+            node_mask=nodes.get(keys.MASK),
+            edge_mask=edges.get(keys.MASK),
         )
 
         # If enabled, perform ResNet operation by adding back the old node features
         if self.resnet:
-            node_features = node_features + graph.nodes[self.node_features_field]
+            node_features = node_features + nodes[self.node_features_field]
 
         # Update the graph
-        nodes = dict(graph.nodes)
         nodes[keys.FEATURES] = node_features
         return graph._replace(nodes=nodes)
 

@@ -7,7 +7,7 @@ for logging/monitoring.
 
 import abc
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Final, Literal
+from typing import TYPE_CHECKING, Any, Final, Literal, cast
 
 import beartype
 import equinox
@@ -154,7 +154,8 @@ class Loss(GraphLoss):
             else:
                 mask = mask & user_mask
 
-        graph_mask: Bool[jax.Array, "n_graph ..."] | None = targets.globals.get(keys.MASK)
+        globals_dict = cast("dict[str, Any]", targets.globals)
+        graph_mask: Bool[jax.Array, "n_graph ..."] | None = globals_dict.get(keys.MASK)
 
         root: str = self._target_field[0]
         if root in ("nodes", "edges"):

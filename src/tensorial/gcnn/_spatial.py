@@ -1,6 +1,6 @@
 import logging
 import numbers
-from typing import Final
+from typing import Any, Final, cast
 
 import e3nn_jax as e3j
 import jax.numpy as jnp
@@ -142,12 +142,14 @@ def with_edge_vectors(
     This will add edge attributes corresponding that cache the vectors and displacements, meaning
     that they will not be recalculated if already done so.
     """
-    edges = graph.edges
-    pos = graph.nodes[keys.POSITIONS]
+    nodes = cast("dict[str, Any]", graph.nodes)
+    edges = cast("dict[str, Any]", graph.edges)
+    globals_dict = cast("dict[str, Any]", graph.globals)
+    pos = nodes[keys.POSITIONS]
     edge_vecs = pos[graph.receivers] - pos[graph.senders]
 
-    if keys.CELL in graph.globals:
-        cell = graph.globals[keys.CELL]
+    if keys.CELL in globals_dict:
+        cell = globals_dict[keys.CELL]
         cell_shifts = edges[keys.EDGE_CELL_SHIFTS]
         shift_vectors = jnp.einsum(
             "ni,nij->nj",
@@ -156,7 +158,7 @@ def with_edge_vectors(
         )
         edge_vecs = edge_vecs + shift_vectors
 
-    edge_mask = graph.edges.get(keys.MASK)
+    edge_mask = edges.get(keys.MASK)
     if edge_mask is not None:
         edge_mask = reax.metrics.utils.prepare_mask(edge_vecs, edge_mask)
         edge_vecs = jnp.where(edge_mask, edge_vecs, 1.0)
@@ -194,7 +196,8 @@ def _pairwise_sq_distances(pos: Array, mask: Array | None) -> Array:
 def _update_positions(
     padded_graph: jraph.GraphsTuple, new_pos: Array, r_max: float
 ) -> jraph.GraphsTuple:
-    nodes_dict = padded_graph.nodes
+    nodes_dict = cast("dict[str, Any]", padded_graph.nodes)
+    edges_dict = cast("dict[str, Any]", padded_graph.edges)
     if not nodes_dict[keys.POSITIONS].shape == new_pos.shape:
         raise ValueError(
             f"New positions ({new_pos.shape}) and current position arrays "
@@ -211,7 +214,7 @@ def _update_positions(
         fill_value=-1,  # Use -1 to identify the padding values
     )
 
-    n_edge: Final = padded_graph.edges[keys.MASK].shape[0]
+    n_edge: Final = edges_dict[keys.MASK].shape[0]
     new_edge_mask = pairs[:, 0] >= 0  # i.e. not -1
     new_n_edge = sum(new_edge_mask)
     new_senders = jnp.where(new_edge_mask, pairs[:, 0], 0.0)

@@ -1,6 +1,6 @@
 from collections.abc import Callable
 import functools
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import e3nn_jax as e3j
 from flax import linen
@@ -42,7 +42,7 @@ class EdgewiseLinear(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple):
-        edges = graph.edges
+        edges = cast("dict[str, Any]", graph.edges)
         edges[self.out_field] = self.linear(edges[self.field])
         return graph._replace(edges=edges)
 
@@ -71,7 +71,7 @@ class EdgewiseEmbedding(linen.Module):
         # Create the encoding
         encoded = base.create_tensor(self.attrs, graph.edges)
         # Store in output field
-        edges = graph.edges
+        edges = cast("dict[str, Any]", graph.edges)
         edges[self.out_field] = encoded
         return graph._replace(edges=edges)
 
@@ -89,7 +89,7 @@ class EdgewiseDecoding(linen.Module):
         # Here, we need to split up the direct sum of irreps in the in field, and save the values
         # in the edges dict corresponding to the attrs keys
         idx = 0
-        edges_dict = graph.edges
+        edges_dict = cast("dict[str, Any]", graph.edges)
         irreps_tensor = edges_dict[self.in_field]
         for key, value in base.tensorial_attrs(self.attrs).items():
             irreps = base.irreps(value)
@@ -145,7 +145,7 @@ class RadialBasisEdgeEmbedding(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
-        edge_dict = _spatial.with_edge_vectors(graph).edges
+        edge_dict = cast("dict[str, Any]", _spatial.with_edge_vectors(graph).edges)
         r = base.as_array(edge_dict[keys.EDGE_LENGTHS])[:, 0]
         embedded = self.radial_embedding(r)
         if self._envelope is not None:

@@ -1,7 +1,7 @@
 import abc
 from collections.abc import Callable, Sequence
 import math
-from typing import TYPE_CHECKING, Final, Generic, NamedTuple, TypedDict, TypeVar
+from typing import TYPE_CHECKING, Any, Final, Generic, NamedTuple, TypedDict, TypeVar, cast
 
 import jraph
 import numpy as np
@@ -63,7 +63,11 @@ _OPTIONAL_GLOBAL_KEYS: Final[dict[str, Callable[[int], np.ndarray]]] = {
 
 
 def _graph_keys(graph: jraph.GraphsTuple) -> set[str]:
-    return set(graph.nodes) | set(graph.edges) | set(graph.globals)
+    return (
+        set(cast("dict[str, Any]", graph.nodes))
+        | set(cast("dict[str, Any]", graph.edges))
+        | set(cast("dict[str, Any]", graph.globals))
+    )
 
 
 def _normalize_graph_keys(graph: jraph.GraphsTuple, reference: set[str]) -> jraph.GraphsTuple:

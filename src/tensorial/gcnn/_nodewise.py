@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import e3nn_jax as e3j
 from flax import linen
@@ -56,7 +56,7 @@ class NodewiseLinear(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
-        nodes = graph.nodes
+        nodes = cast("dict[str, Any]", graph.nodes)
         if self.num_types:
             # We are using weights indexed by the type
             features = self.linear(nodes[self._types_field][:, 0], nodes[self.field])
@@ -138,6 +138,7 @@ class NodewiseEmbedding(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
+        nodes = cast("dict[str, Any]", graph.nodes)
         if isinstance(self.attrs, (dict, linen.FrozenDict)):
             values = []
             for key, attr in self.attrs.items():
@@ -166,7 +167,7 @@ class NodewiseEmbedding(linen.Module):
                         # This will not have a static shape, so will cause recompilation
                         total_repeat_length = jnp.sum(graph.n_node)
                     else:
-                        total_repeat_length = graph.nodes[self.node_shape_from].shape[0]
+                        total_repeat_length = nodes[self.node_shape_from].shape[0]
 
                     if len(value.shape) < 2:
                         value = value.broadcast_to((total_repeat_length, *value.shape))
@@ -183,12 +184,11 @@ class NodewiseEmbedding(linen.Module):
 
             encoded: e3j.IrrepsArray = e3j.concatenate(values)
         else:
-            values = graph.nodes
+            values = nodes
             # Create the embedding
             encoded: e3j.IrrepsArray = base.create_tensor(self.attrs, values)
 
         # Store in output field
-        nodes = graph.nodes
         nodes[self.out_field] = encoded
         return graph._replace(nodes=nodes)
 
@@ -206,7 +206,7 @@ class NodewiseDecoding(linen.Module):
         # Here, we need to split up the direct sum of irreps in the in field, and save the values
         # in the nodes dict corresponding to the attrs keys
         idx = 0
-        nodes_dict = graph.nodes
+        nodes_dict = cast("dict[str, Any]", graph.nodes)
         irreps_tensor = nodes_dict[self.in_field]
         for key, value in base.tensorial_attrs(self.attrs).items():
             irreps = base.irreps(value)
