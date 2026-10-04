@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import e3nn_jax as e3j
 from flax import linen
@@ -145,8 +145,9 @@ class Pack(linen.Module):
     ) -> e3j.IrrepsArray:
         """Repeat a per-graph global along the destination's leading axis."""
         if dest_component == "nodes":
-            if self.shape_from is not None and self.shape_from in graph.nodes:
-                length = graph.nodes[self.shape_from].shape[0]
+            nodes = cast("dict[str, Any]", graph.nodes)
+            if self.shape_from is not None and self.shape_from in nodes:
+                length = nodes[self.shape_from].shape[0]
             else:
                 length = jnp.sum(graph.n_node)
             n_per_graph = graph.n_node

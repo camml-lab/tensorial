@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from flax import linen
 import jraph
 from typing_extensions import override
@@ -31,5 +33,6 @@ class CalcForces(linen.Module):
     def __call__(  # pylint: disable=arguments-differ
         self, graph: jraph.GraphsTuple, /
     ) -> jraph.GraphsTuple:
-        forces, graph = self._forces_fn(graph, graph.nodes[keys.POSITIONS])
+        nodes = cast("dict[str, Any]", graph.nodes)
+        forces, graph = self._forces_fn(graph, nodes[keys.POSITIONS])
         return gcnn.experimental.update_graph(graph).set(("nodes", self.out_key), forces).get()

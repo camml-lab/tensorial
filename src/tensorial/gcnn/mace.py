@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping, Sequence
 import functools
 import logging
 import math
-from typing import Literal
+from typing import Any, Literal, cast
 
 import beartype
 import e3nn_jax as e3j
@@ -479,8 +479,11 @@ class Mace(linen.Module):
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         # Embeddings
-        node_feats: IrrepsArrayShape["n_node feature*irreps"] = graph.nodes[keys.FEATURES]
-        node_types = graph.nodes[keys.SPECIES][:, 0]
+        nodes = cast("dict[str, Any]", graph.nodes)
+        edges = cast("dict[str, Any]", graph.edges)
+        globals_dict = cast("dict[str, Any]", graph.globals)
+        node_feats: IrrepsArrayShape["n_node feature*irreps"] = nodes[keys.FEATURES]
+        node_types = nodes[keys.SPECIES][:, 0]
 
         # Interactions
         outputs: list[IrrepsArrayShape["n_node output_irreps"]] = []
@@ -493,14 +496,14 @@ class Mace(linen.Module):
             node_feats = layer(
                 node_features=node_feats,
                 node_types=node_types,
-                # Edge features are not mutated, so just take directly from graph
-                edge_features=graph.edges[keys.ATTRIBUTES],
-                radial_embedding=graph.edges[keys.RADIAL_EMBEDDINGS],
+                # Edge features are not mutated, so just read from the narrowed locals
+                edge_features=edges[keys.ATTRIBUTES],
+                radial_embedding=edges[keys.RADIAL_EMBEDDINGS],
                 senders=graph.senders,
                 receivers=graph.receivers,
                 n_node=graph.n_node,
-                global_features=graph.globals.get(keys.ATTRIBUTES),
-                edge_mask=graph.edges.get(keys.MASK),
+                global_features=globals_dict.get(keys.ATTRIBUTES),
+                edge_mask=edges.get(keys.MASK),
             )
             node_outputs: IrrepsArrayShape["n_node output_irreps"] = readout(node_feats)
 

@@ -1,4 +1,4 @@
-from typing import Final
+from typing import Any, Final, cast
 
 from flax import linen
 import jax
@@ -67,7 +67,8 @@ class CalcStresses(linen.Module):
             jraph.GraphsTuple: The input graph with updated node fields containing
             virials and optionally stresses.
         """
-        cell: CellArray = graph.globals[keys.CELL]
+        globals_dict = cast("dict[str, Any]", graph.globals)
+        cell: CellArray = globals_dict[keys.CELL]
         cell_displacement: DisplacementsArray = self._symmetric_displacements(cell)
         virial, graph = self._virial_fn(graph, cell_displacement)
 
@@ -82,8 +83,9 @@ class CalcStresses(linen.Module):
 
         if self.out_stresses is not None:
             volume = jax.vmap(gcnn.calc.cell_volume)(cell)
-            if keys.MASK in graph.globals:
-                mask = nn_utils.prepare_mask(graph.globals[keys.MASK], volume)
+            globals_dict = cast("dict[str, Any]", graph.globals)
+            if keys.MASK in globals_dict:
+                mask = nn_utils.prepare_mask(globals_dict[keys.MASK], volume)
                 volume = jnp.where(mask, volume, 1.0)
 
             stress = jax.vmap(jnp.divide)(virial, volume)
@@ -94,7 +96,8 @@ class CalcStresses(linen.Module):
     def virial_fn(
         self, graph: jraph.GraphsTuple, displacement: DisplacementsArray
     ) -> jraph.GraphsTuple:
-        pos = graph.nodes[keys.POSITIONS]
+        nodes = cast("dict[str, Any]", graph.nodes)
+        pos = nodes[keys.POSITIONS]
 
         # Apply the symmetrized displacements to each atomic position
         all_displacements = jnp.repeat(

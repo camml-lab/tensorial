@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 import math
-from typing import TYPE_CHECKING, ClassVar, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, cast
 
 import beartype
 import jax.numpy as jnp
@@ -261,7 +261,8 @@ class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
         types = nn_utils.vwhere(types, self._node_types)
 
         counts = jnp.bincount(graphs.senders, length=jnp.sum(graphs.n_node).item())
-        mask = reax.metrics.utils.prepare_mask(counts, graphs.nodes.get(keys.MASK))
+        nodes = cast("dict[str, Any]", graphs.nodes)
+        mask = reax.metrics.utils.prepare_mask(counts, nodes.get(keys.MASK))
         mask = mask if mask is not None else True
 
         num_classes = len(self._node_types)
