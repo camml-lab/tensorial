@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import cast
 
 from flax import linen
 import jraph

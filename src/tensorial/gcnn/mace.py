@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping, Sequence
 import functools
 import logging
 import math
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 import beartype
 import e3nn_jax as e3j

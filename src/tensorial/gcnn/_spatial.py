@@ -1,6 +1,6 @@
 import logging
 import numbers
-from typing import Any, Final, cast
+from typing import Final, cast
 
 import e3nn_jax as e3j
 import jax.numpy as jnp

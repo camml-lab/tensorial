@@ -1,4 +1,4 @@
-from typing import Any, Final, cast
+from typing import Final, cast
 
 from flax import linen
 import jax

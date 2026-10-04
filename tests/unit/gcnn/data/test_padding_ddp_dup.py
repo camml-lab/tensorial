@@ -114,5 +114,5 @@ def test_padding_budget_is_at_least_max_sliding_window():
         f"overflow at pad time."
     )
     assert pad.n_nodes >= max_nodes, (
-        f"Padding.n_nodes={pad.n_nodes} < max sliding-window " f"nodes={max_nodes}."
+        f"Padding.n_nodes={pad.n_nodes} < max sliding-window nodes={max_nodes}."
     )

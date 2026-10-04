@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import jraph
 import pytest
+import reax
 
 # Do not import ase here to avoid circular imports during collection
 from tensorial.gcnn.data._ase import (
@@ -87,13 +88,13 @@ def water_dataset_file(tmp_path):
     return str(file_path)
 
 
-class _Stage:
-    engine = None
+def _engine():
+    return reax.Engine(logger=False)
 
 
 def _build_and_setup(module):
     module.prepare_data()
-    module.setup(_Stage())
+    module.setup(_engine())
 
 
 def test_ase_data_fetcher_returns_ase_graphs(water_dataset_file):
@@ -277,9 +278,7 @@ def test_kfold_from_ase_builds_module(water_dataset_file):
 
 
 def test_from_datasets_ase_partial_splits(water_dataset_file):
-    module = ase_graph_module_from_datasets(
-        {"r_max": 5.0}, train=water_dataset_file, batch_size=2
-    )
+    module = ase_graph_module_from_datasets({"r_max": 5.0}, train=water_dataset_file, batch_size=2)
     _build_and_setup(module)
 
     assert len(module.data_train) == 10
@@ -293,4 +292,4 @@ def test_from_datasets_ase_all_none_rejected_at_setup(water_dataset_file):
     module = ase_graph_module_from_datasets({"r_max": 5.0}, batch_size=2)
     module.prepare_data()
     with pytest.raises(reax.exceptions.MisconfigurationException, match="all None datasets"):
-        module.setup(_Stage())
+        module.setup(_engine())

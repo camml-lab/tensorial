@@ -7,7 +7,7 @@ a faithful port of the NEquIP model commonly used for force-field regression.
 
 from collections.abc import Callable, Mapping
 import functools
-from typing import Any, cast
+from typing import cast
 
 import beartype
 import e3nn_jax as e3j

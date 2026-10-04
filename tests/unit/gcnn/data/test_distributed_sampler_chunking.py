@@ -75,7 +75,7 @@ def test_ddp_no_shuffle_partition_respects_padding_bound():
         # 1) Numerical invariant: batch's total edge count stays within the bound.
         batch_edges = int(sum(edge_counts[i] for i in indices))
         assert batch_edges <= bound, (
-            f"rank {rank}: batch {indices} has {batch_edges} edges, " f"exceeds bound {bound}"
+            f"rank {rank}: batch {indices} has {batch_edges} edges, exceeds bound {bound}"
         )
 
         # 2) End-to-end: actually pulling a padded batch through the

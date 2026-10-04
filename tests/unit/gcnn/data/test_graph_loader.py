@@ -48,6 +48,7 @@ def _graphs_with_globals(n: int) -> list[jraph.GraphsTuple]:
 
 # ---- Constructor / basic properties ---------------------------------------
 
+
 def test_loader_stores_params_and_properties():
     graphs = _n_graphs(5)
     loader = gcnn.data.GraphLoader(graphs, batch_size=2, shuffle=False, pad=True)
@@ -100,6 +101,7 @@ def test_loader_unbatches_multiple_positions():
 
 # ---- Iteration / batching -------------------------------------------------
 
+
 def test_loader_batches_all_inputs():
     n, bs = 10, 3
     graphs = _n_graphs(n)
@@ -139,6 +141,7 @@ def test_loader_iteration_is_repeatable():
 
 # ---- Shuffle ---------------------------------------------------------------
 
+
 def test_loader_shuffles_ordering():
     # Give each graph a distinguishable global value so shuffling is observable.
     graphs = _graphs_with_globals(8)
@@ -150,6 +153,7 @@ def test_loader_shuffles_ordering():
 
 
 # ---- None targets ----------------------------------------------------------
+
 
 def test_loader_allows_none_targets():
     graphs = _n_graphs(5)
@@ -234,13 +238,13 @@ def test_loader_mixed_none_and_graph_datasets():
 
 # ---- Sampler API -----------------------------------------------------------
 
+
 def test_loader_with_new_sampler_preserves_params():
     graphs = _n_graphs(8)
-    loader = gcnn.data.GraphLoader(graphs, batch_size=4, pad=True,
-                                   batch_mode=gcnn.data.BatchMode.IMPLICIT)
-    new_sampler = samplers.BatchSampler(
-        samplers.SequentialSampler(8), batch_size=4, drop_last=True
+    loader = gcnn.data.GraphLoader(
+        graphs, batch_size=4, pad=True, batch_mode=gcnn.data.BatchMode.IMPLICIT
     )
+    new_sampler = samplers.BatchSampler(samplers.SequentialSampler(8), batch_size=4, drop_last=True)
     new_loader = loader.with_new_sampler(new_sampler)
     assert new_loader.batch_size == 4
     assert new_loader.shuffle is loader.shuffle
@@ -279,6 +283,7 @@ def test_loader_with_new_sampler_returns_new_instance():
 
 
 # ---- Empty batch handling --------------------------------------------------
+
 
 def test_empty_batch_yields_fully_masked_graph():
     """The distributed sampler may hand a rank a completely empty batch to

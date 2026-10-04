@@ -1,7 +1,7 @@
 import abc
 from collections.abc import Callable, Sequence
 import math
-from typing import TYPE_CHECKING, Any, Final, Generic, NamedTuple, TypedDict, TypeVar, cast
+from typing import TYPE_CHECKING, Final, Generic, NamedTuple, TypedDict, TypeVar, cast
 
 import jraph
 import numpy as np
@@ -167,8 +167,8 @@ class SplitStrategy(Generic[D], abc.ABC):
 
     Contract:
 
-    * ``split`` must be **deterministic** given the same ``dataset``, ``rngs``,
-      and ``stage``.  Concretely, every process in a distributed run must
+    * ``split`` must be **deterministic** given the same ``dataset`` and
+      ``engine``.  Concretely, every process in a distributed run must
       observe the same split, otherwise different ranks will train on
       different data.
     * ``split`` must be **pure**: calling it twice with the same arguments
@@ -177,19 +177,17 @@ class SplitStrategy(Generic[D], abc.ABC):
     """
 
     @abc.abstractmethod
-    def split(self, dataset: D, *, rngs, stage: "reax.Stage") -> Split:
+    def split(self, dataset: D, engine: "reax.Engine", /) -> Split:
         """Produce the :class:`Split` of datasets.
 
         Args:
             dataset: The source data to split.  Its type depends on the
                 strategy (a single dataset, a ``PreSplitDataset`` mapping,
                 etc.); the type parameter ``D`` makes that explicit.
-            rngs: Random number generators for any randomised splitting.
-                Passing these in (rather than storing them on the strategy)
-                keeps the strategy free of hidden randomness and makes the
-                split reproducible from the caller's seed.
-            stage: The reax stage.  Strategies that behave differently under
-                ``fit`` vs. ``test`` vs. ``predict`` can branch on this.
+            engine: The reax engine.  Strategies that randomise their split
+                read the RNG stream from ``engine.rngs`` (rather than
+                storing it on the strategy), keeping the strategy free of
+                hidden randomness and reproducible from the engine's seed.
 
         Returns:
             A ``Split`` of datasets in train, val, test order.  Any of the
@@ -215,8 +213,8 @@ class RandomSplit(SplitStrategy[GraphDataset]):
         self._fractions: Final[tuple[float, ...]] = tuple(fractions)
 
     @override
-    def split(self, dataset: GraphDataset, *, rngs, stage) -> Split:
-        return Split(*reax.data.random_split(rngs, dataset, lengths=self._fractions))
+    def split(self, dataset: GraphDataset, engine: "reax.Engine", /) -> Split:
+        return Split(*reax.data.random_split(engine.rngs, dataset, lengths=self._fractions))
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(fractions={self._fractions})"
@@ -247,9 +245,9 @@ class KFoldSplit(SplitStrategy[GraphDataset]):
         self._test_fraction: Final[float] = test_fraction
         self._seed: Final[int | None] = seed
 
-    def split(self, dataset: GraphDataset, *, rngs, stage) -> Split:
+    def split(self, dataset: GraphDataset, engine: "reax.Engine", /) -> Split:
         rest, test = reax.data.random_split(
-            rngs,
+            engine.rngs,
             dataset,
             lengths=(1.0 - self._test_fraction, self._test_fraction),
         )
@@ -274,7 +272,7 @@ class PreSplit(SplitStrategy[PreSplitDataset]):
     non-``None``; this is checked by ``GraphDataModule.setup``.
     """
 
-    def split(self, dataset: PreSplitDataset, *, rngs, stage) -> Split:
+    def split(self, dataset: PreSplitDataset, engine: "reax.Engine", /) -> Split:
         return Split(
             train=dataset.get("train"),
             val=dataset.get("val"),
@@ -341,12 +339,12 @@ class GraphDataModule(Generic[D], reax.DataModule[jraph.GraphsTuple, jraph.Graph
             assert self._dataset is not None, "No dataset or fetcher provided"
 
     @override
-    def setup(self, stage: reax.Stage, /) -> None:
+    def setup(self, engine: "reax.Engine", /, *, stage: str | None = None) -> None:
         assert self._dataset is not None, "prepare_data() must be called before setup()"
 
         if self._setup_done:
             return
-        split = self._strategy.split(self._dataset, rngs=self.rngs, stage=stage)
+        split = self._strategy.split(self._dataset, engine)
         self.data_train, self.data_val, self.data_test = split
         if self.data_train is None and self.data_val is None and self.data_test is None:
             raise reax.exceptions.MisconfigurationException(
