@@ -1,6 +1,6 @@
 """Small helper functions used by :mod:`tensorial.nn` and :mod:`tensorial.tensors`."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 import jax
 import jax.nn
@@ -51,7 +51,9 @@ def prepare_mask(
     return mask.reshape(-1, *(1,) * len(array.shape[1:]))
 
 
-def vwhere(values: jax.Array, types: jax.Array) -> jax.Array:
+def vwhere(
+    values: jt.Int[jax.Array, "n"], types: jt.Int[jax.Array, "n"] | Sequence[int]
+) -> jax.Array:
     """Vectorised lookup of each value of ``values`` in the ``types`` array.
 
     Returns an integer array the same shape as ``values`` where entry ``i``
@@ -65,5 +67,6 @@ def vwhere(values: jax.Array, types: jax.Array) -> jax.Array:
         an ``int32`` array of the same shape as ``values`` containing the
         indices of each ``values[i]`` in ``types``.
     """
+    types = jnp.asarray(types)
     vectorized = jax.vmap(lambda num: jnp.argwhere(num == types, size=1)[0])
     return vectorized(values).reshape(*values.shape)

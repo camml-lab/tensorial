@@ -9,6 +9,8 @@ import reax
 
 from tensorial import gcnn
 from tensorial.data import PassthroughFetcher
+from tensorial.gcnn import keys
+from tensorial.gcnn.atomic import keys as atomic_keys
 from tensorial.gcnn.data import GraphDataModule, PreSplitDataset
 from tensorial.gcnn.data._datamodule import KFoldSplit
 
@@ -344,3 +346,284 @@ def test_kfold_split_validates_fold_out_of_range():
     # The validation lives on the strategy itself, not buried in setup().
     with pytest.raises(ValueError, match="fold must be in"):
         KFoldSplit(fold=4, n_folds=4)
+
+
+# ---- Graph-key reconciliation ---------------------------------------------
+
+
+def _molecule_and_crystal():
+    import ase
+    import ase.build
+
+    molecule = gcnn.atomic.graph_from_ase(ase.build.molecule("H2O"), r_max=2.0)
+    crystal = gcnn.atomic.graph_from_ase(
+        ase.Atoms(
+            "Si2",
+            positions=[[0.0, 0.0, 0.0], [2.715, 2.715, 2.715]],
+            cell=np.eye(3) * 5.43,
+            pbc=True,
+        ),
+        r_max=3.5,
+    )
+    return molecule, crystal
+
+
+def test_mixed_molecule_and_crystal_batches():
+    """A dataset mixing PBC-free molecules and periodic crystals must batch.
+
+    ``GraphDataModule.setup`` reconciles the node/edge/global key sets across
+    all graphs and fills in the convention-based optional keys (``cell`` /
+    ``edge_cell_shifts`` / ``stress``) with defaults that keep the batched
+    pytree coherent.  The resulting batch must expose every key -- shared and
+    reconciled -- with the padding masks, so one downstream network can index
+    into a mixed molecule+crystal batch uniformly.
+    """
+    molecule, crystal = _molecule_and_crystal()
+
+    # Sanity: the raw inputs really are heterogeneous, otherwise the test is
+    # not exercising the reconciliation code path.
+    assert keys.EDGE_CELL_SHIFTS in crystal.edges
+    assert keys.EDGE_CELL_SHIFTS not in molecule.edges
+    assert keys.CELL in crystal.globals
+    assert keys.CELL not in molecule.globals
+
+    dm = GraphDataModule.from_datasets(
+        PassthroughFetcher(PreSplitDataset(train=[molecule, crystal])),
+        batch_size=2,
+    )
+    dm.prepare_data()
+    dm.setup(_MockStage())
+
+    # Reconciliation: both graphs now share the same (superset) key set.
+    mol_keys = set(dm.data_train[0].nodes) | set(dm.data_train[0].edges) | set(dm.data_train[0].globals)
+    cry_keys = set(dm.data_train[1].nodes) | set(dm.data_train[1].edges) | set(dm.data_train[1].globals)
+    assert mol_keys == cry_keys
+
+    # The filled defaults carry the documented values.
+    assert keys.CELL in dm.data_train[0].globals
+    assert np.allclose(
+        np.asarray(dm.data_train[0].globals[keys.CELL]),
+        np.eye(3),
+    )
+    assert keys.EDGE_CELL_SHIFTS in dm.data_train[0].edges
+    assert np.allclose(
+        np.asarray(dm.data_train[0].edges[keys.EDGE_CELL_SHIFTS]),
+        0,
+    )
+
+    # Batching now yields a single coherent batch with every key -- and the
+    # padding masks -- present for downstream consumption.
+    loader = dm.train_dataloader()
+    batches = list(loader)
+    assert len(batches) == 1
+    batch = batches[0][0]
+    for key in (keys.CELL, keys.EDGE_CELL_SHIFTS, keys.PBC, keys.MASK):
+        assert key in batch.globals or key in batch.edges or key in batch.nodes
+    assert keys.PBC in batch.globals
+    assert keys.CELL in batch.globals
+    assert keys.EDGE_CELL_SHIFTS in batch.edges
+    assert keys.MASK in batch.globals
+
+
+def _crystal_with_stress(stress: np.ndarray | None) -> "jraph.GraphsTuple":
+    """A minimal periodic crystal graph that optionally carries a global ``stress``."""
+    globals_: dict[str, np.ndarray] = {
+        keys.CELL: np.asarray(np.eye(3) * 5.43, dtype=np.float32)[None],
+        keys.PBC: np.ones(3, dtype=bool)[None],
+    }
+    if stress is not None:
+        globals_[atomic_keys.STRESS] = np.asarray(stress, dtype=np.float32)[None]
+    return jraph.GraphsTuple(
+        n_node=np.array([2]),
+        n_edge=np.array([3]),
+        nodes={"f": np.ones((2, 1), dtype=np.float32)},
+        edges={"f": np.ones((3, 1), dtype=np.float32)},
+        globals=globals_,
+        senders=np.zeros(3, dtype=np.int32),
+        receivers=np.zeros(3, dtype=np.int32),
+    )
+
+
+def test_graph_missing_stress_is_filled_with_zeros():
+    """A pair of crystal graphs where one carries a global ``stress`` and the
+    other does not must be reconciled by zero-filling the missing key -- so that
+    a batch mixing "has stress" and "no stress" graphs stays coherent.
+    """
+    with_stress = _crystal_with_stress(np.array([[1.0, 0, 0], [0, -2.0, 0], [0, 0, 3.0]]))
+    without_stress = _crystal_with_stress(None)
+
+    assert atomic_keys.STRESS in with_stress.globals
+    assert atomic_keys.STRESS not in without_stress.globals
+
+    dm = GraphDataModule.from_datasets(
+        PassthroughFetcher(
+            PreSplitDataset(train=[without_stress, with_stress]),
+        ),
+        batch_size=2,
+    )
+    dm.prepare_data()
+    dm.setup(_MockStage())
+
+    # Both graphs share the reconciled (superset) key set now.
+    assert atomic_keys.STRESS in dm.data_train[0].globals
+    assert atomic_keys.STRESS in dm.data_train[1].globals
+
+    # The filled (missing) graph is zero-stressed; the carried one is untouched.
+    filled = np.asarray(dm.data_train[0].globals[atomic_keys.STRESS])
+    carried = np.asarray(dm.data_train[1].globals[atomic_keys.STRESS])
+    assert np.allclose(filled, 0)
+    assert np.allclose(carried, [[1.0, 0, 0], [0, -2.0, 0], [0, 0, 3.0]])
+
+
+def _pbc_molecule_and_crystal():
+    """A molecule / crystal pair that share every *non*-optional key and differ
+    only on the convention-based optional keys (``pbc`` / ``cell`` /
+    ``edge_cell_shifts``): the molecule lacks them, the crystal carries them.
+
+    Unlike :func:`_molecule_and_crystal`, where ``graph_from_ase`` already
+    populates ``pbc`` even for the open-boundary molecule, this pair genuinely
+    *omits* ``pbc`` on the molecule so the fill path is exercised.
+    """
+    e = np.array([1.0], dtype=np.float32)
+    node = {"f": np.ones((2, 1), dtype=np.float32)}
+    edge = {"f": np.ones((3, 1), dtype=np.float32)}
+    senders = np.zeros(3, dtype=np.int32)
+    receivers = np.zeros(3, dtype=np.int32)
+
+    molecule = jraph.GraphsTuple(
+        n_node=np.array([2]),
+        n_edge=np.array([3]),
+        nodes=node,
+        edges=edge,
+        globals={"e": e},
+        senders=senders,
+        receivers=receivers,
+    )
+    crystal = jraph.GraphsTuple(
+        n_node=np.array([2]),
+        n_edge=np.array([3]),
+        nodes=node,
+        edges=edge,
+        globals={
+            "e": e,
+            keys.PBC: np.ones(3, dtype=bool)[None],
+            keys.CELL: np.asarray(np.eye(3) * 5.43, dtype=np.float32)[None],
+        },
+        senders=senders,
+        receivers=receivers,
+    )
+    return molecule, crystal
+
+
+def test_graph_missing_pbc_is_filled_with_aperiodic_default():
+    """A molecule graph that legitimately lacks ``pbc`` must have it filled with
+    the all-False (aperiodic) default -- not raised -- when batched alongside a
+    crystal graph that carries ``pbc``.  ``graph_from_ase`` already sets ``pbc``
+    on open-boundary molecules, so the existing mixed test does not exercise this
+    fill path; :func:`_pbc_molecule_and_crystal` builds a molecule that truly
+    lacks the key.
+    """
+    molecule, crystal = _pbc_molecule_and_crystal()
+
+    # Sanity: the raw inputs really differ on the optional keys being filled,
+    # and otherwise agree on the non-optional keys.
+    assert keys.PBC not in molecule.globals
+    assert keys.CELL not in molecule.globals
+    assert keys.PBC in crystal.globals
+    assert keys.CELL in crystal.globals
+    assert np.all(np.asarray(crystal.globals[keys.PBC]))
+    assert set(molecule.nodes) == set(crystal.nodes)
+    assert set(molecule.edges) == set(crystal.edges)
+
+    dm = GraphDataModule.from_datasets(
+        PassthroughFetcher(PreSplitDataset(train=[molecule, crystal])),
+        batch_size=2,
+    )
+    dm.prepare_data()
+    dm.setup(_MockStage())
+
+    # Both graphs now agree on the reconciled (superset) key set...
+    mol_keys = set(dm.data_train[0].nodes) | set(dm.data_train[0].edges) | set(dm.data_train[0].globals)
+    cry_keys = set(dm.data_train[1].nodes) | set(dm.data_train[1].edges) | set(dm.data_train[1].globals)
+    assert mol_keys == cry_keys
+
+    # ...and the molecule's missing PBC is filled aperiodic (all-False), the
+    # neutral default consistent with the identity-cell / zero-stress defaults.
+    filled = np.asarray(dm.data_train[0].globals[keys.PBC])
+    assert filled.dtype == np.bool_
+    assert filled.shape == (1, 3)
+    assert not filled.all()
+
+    # The crystal's own PBC is untouched (all-True).
+    carried = np.asarray(dm.data_train[1].globals[keys.PBC])
+    assert carried.all()
+
+
+def test_dataset_with_unknown_key_disagreement_raises():
+    """A key that is present in some graphs but not others -- and is not
+    registered as optional-fillable -- is a data error, surfaced at setup time.
+    """
+    g_missing = jraph.GraphsTuple(
+        n_node=np.array([2]),
+        n_edge=np.array([3]),
+        nodes={"f": np.ones((2, 1), dtype=np.float32)},
+        edges={"f": np.ones((3, 1), dtype=np.float32)},
+        globals={"base": np.array([1.0], dtype=np.float32)},
+        senders=np.zeros(3, dtype=np.int32),
+        receivers=np.zeros(3, dtype=np.int32),
+    )
+    g_with_extra = jraph.GraphsTuple(
+        n_node=np.array([2]),
+        n_edge=np.array([3]),
+        # Same base key but an *additional* global that the first graph lacks.
+        nodes={"f": np.ones((2, 1), dtype=np.float32)},
+        edges={"f": np.ones((3, 1), dtype=np.float32)},
+        globals={
+            "base": np.array([1.0], dtype=np.float32),
+            "extra": np.array([2.0], dtype=np.float32),
+        },
+        senders=np.zeros(3, dtype=np.int32),
+        receivers=np.zeros(3, dtype=np.int32),
+    )
+
+    dm = GraphDataModule.from_random_split(
+        PassthroughFetcher([g_missing, g_with_extra]),
+        batch_size=2,
+    )
+    dm.prepare_data()
+    with pytest.raises(ValueError, match="Graph key-set mismatch"):
+        dm.setup(_MockStage())
+
+
+def test_cross_split_key_set_mismatch_raises():
+    """A split carrying an *unknown* key that another split lacks must raise at
+    setup.  The reference key set now spans all splits (see
+    ``_reconcile_splits``), so the disagreement is caught by
+    ``_normalize_graph_keys`` -- not a separate per-split check -- when it tries
+    to fill the key into the split that has no registered default for it.
+    """
+    # Build a pair of splits where train has a key ``custom`` but val does not.
+    def graph_with(key: str | None, value: float = 1.0):
+        globals_ = {"g": np.array([value], dtype=np.float32)}
+        if key is not None:
+            globals_[key] = np.array([value], dtype=np.float32)
+        return jraph.GraphsTuple(
+            n_node=np.array([2]),
+            n_edge=np.array([3]),
+            nodes={"f": np.ones((2, 1), dtype=np.float32)},
+            edges={"f": np.ones((3, 1), dtype=np.float32)},
+            globals=globals_,
+            senders=np.zeros(3, dtype=np.int32),
+            receivers=np.zeros(3, dtype=np.int32),
+        )
+
+    train = [graph_with("custom", 1.0), graph_with("custom", 2.0)]
+    val = [graph_with(None, 3.0)]
+
+    dm = GraphDataModule.from_datasets(
+        PassthroughFetcher(PreSplitDataset(train=train, val=val, test=None)),
+        batch_size=2,
+    )
+    dm.prepare_data()
+    with pytest.raises(ValueError, match="Graph key-set mismatch"):
+        dm.setup(_MockStage())

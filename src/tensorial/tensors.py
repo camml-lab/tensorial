@@ -7,15 +7,16 @@ tensors, ...) and pairs naturally with the generic machinery in
 :mod:`tensorial.base`.
 """
 
+from collections.abc import Sequence
 from typing import Literal
 
 import beartype
 import e3nn_jax as e3j
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 from jaxtyping import Array, Float, Int
-import numpy as np
 
 from tensorial.typing import IrrepsArrayShape
 
@@ -132,9 +133,9 @@ class OneHot(base.Attr[Int[Array, "n_vals 1"]]):
         ValueError: if neither ``num_classes`` nor ``types`` is provided.
     """
 
-    _types: np.ndarray
+    _types: tuple[int, ...] = eqx.field(static=True)
 
-    def __init__(self, num_classes: int = None, types: list[int] = None):
+    def __init__(self, num_classes: int | None = None, types: Sequence[int] | None = None):
         if num_classes is None:
             if types is None:
                 raise ValueError(
@@ -142,12 +143,11 @@ class OneHot(base.Attr[Int[Array, "n_vals 1"]]):
                     "got neither."
                 )
             num_classes = len(types)
-            types = np.array(types)
         else:
-            types = np.arange(num_classes)
+            types = range(num_classes)
 
         super().__init__(num_classes * e3j.Irrep(0, 1))
-        self._types = types
+        self._types = tuple(types)
 
     @property
     def num_classes(self) -> int:

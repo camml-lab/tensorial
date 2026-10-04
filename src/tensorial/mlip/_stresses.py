@@ -67,10 +67,6 @@ class CalcStresses(linen.Module):
             jraph.GraphsTuple: The input graph with updated node fields containing
             virials and optionally stresses.
         """
-        if keys.CELL not in graph.globals:
-            # Skip: no unit cell so can't calculate stresses, just pass to the energy function
-            return self.energy_fn(graph)
-
         cell: CellArray = graph.globals[keys.CELL]
         cell_displacement: DisplacementsArray = self._symmetric_displacements(cell)
         virial, graph = self._virial_fn(graph, cell_displacement)

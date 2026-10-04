@@ -1,7 +1,7 @@
 """Module for loading ase.Atoms objects as graphs"""
 
 from collections.abc import Sequence
-
+import os
 from typing import TYPE_CHECKING, Any, Final
 
 import jraph
@@ -9,6 +9,7 @@ import jraph
 from ... import data, utils
 from .. import atomic
 from . import _common, _datamodule
+from . import _urls as urls
 
 if TYPE_CHECKING:
     import jax
@@ -87,24 +88,35 @@ class AseGraphs(Sequence[jraph.GraphsTuple]):
 
 
 class AseDataFetcher(data.DataFetcher[Sequence[jraph.GraphsTuple]]):
-    """Fetch ASE structures from file(s) and convert them to graphs.
+    """Fetch ASE structures from file(s) or URL(s) and convert them to graphs.
 
     Reads one or more files containing ASE :class:`ase.Atoms` objects (e.g. CIF, XYZ,
     extxyz) with :func:`ase.io.read`, and serves them as a single :class:`AseGraphs`
-    sequence from :meth:`fetch`.  Use :class:`AseDataFetchers` to fetch several named
-    datasets.
+    sequence from :meth:`fetch`.  Local paths are read directly, while URLs (``http``,
+    ``https``, ``ftp``) are downloaded to ``cache_dir`` and read from there, with a
+    progress bar and an atomic, cached download.  Use :class:`AseDataFetchers` to
+    fetch several named datasets.
 
     Args:
-        path: a path, or sequence of paths, to files containing ASE structures
+        path: a path or URL (or sequence of them) to files containing ASE structures
         as_graphs: keyword arguments for
             :func:`~tensorial.gcnn.atomic.graph_from_ase`, e.g. ``{"r_max": 5.0}``
         limit: the maximum number of structures to read from each file
         read_kwargs: keyword arguments passed to :func:`ase.io.read`
+        cache_dir: directory in which to store downloaded files.  Defaults to
+            ``.cache/tensorial`` relative to the current working directory; pass an
+            explicit value on shared storage in distributed runs so every rank sees
+            the same cache.
 
     Example:
         >>> fetcher = AseDataFetcher("structures.xyz", as_graphs={"r_max": 5.0})
         >>> graphs = fetcher.fetch()
+        >>> fetcher = AseDataFetcher("https://example.com/structures.xyz",
+        ...                          as_graphs={"r_max": 5.0}, cache_dir="/tmp/cache")
+        >>> graphs = fetcher.fetch()
     """
+
+    DEFAULT_CACHE_DIR = ".cache/tensorial"
 
     def __init__(
         self,
@@ -112,14 +124,17 @@ class AseDataFetcher(data.DataFetcher[Sequence[jraph.GraphsTuple]]):
         as_graphs: dict[str, Any],
         limit: int | None = None,
         read_kwargs: dict[str, Any] | None = None,
+        cache_dir: str | os.PathLike | None = None,
     ):
         # Params
         self._filepath: Final[tuple[str]] = (path,) if isinstance(path, str) else tuple(path)
         self._as_graphs: Final[dict[str, Any]] = as_graphs
         self._read_kwargs: Final[dict[str, Any]] = _init_kwargs(limit, read_kwargs)
+        self._cache_dir: Final[str] = str(cache_dir or self.DEFAULT_CACHE_DIR)
 
     def fetch(self) -> Sequence[jraph.GraphsTuple] | dict[str, Sequence[jraph.GraphsTuple]]:
-        return self._make_sequence(self._read(self._filepath))
+        resolved = urls.resolve_spec(self._filepath, self._cache_dir)
+        return self._make_sequence(self._read(resolved))
 
     def _make_sequence(self, structures: "list[ase.Atoms]") -> AseGraphs:
         return AseGraphs(structures, as_graphs=self._as_graphs)
@@ -150,12 +165,14 @@ class AseDataFetchers(data.DataFetcher[dict[str, Sequence[jraph.GraphsTuple]]]):
     name to its :class:`AseGraphs` sequence.
 
     Args:
-        paths: mapping of name to a path, or sequence of paths, to files containing
-            ASE structures
+        paths: mapping of name to a path or URL (or sequence of them) to files
+            containing ASE structures
         as_graphs: keyword arguments for
             :func:`~tensorial.gcnn.atomic.graph_from_ase`, e.g. ``{"r_max": 5.0}``
         limit: the maximum number of structures to read from each file
         read_kwargs: keyword arguments passed to :func:`ase.io.read`
+        cache_dir: directory in which to store downloaded files.  Defaults to
+            ``.cache/tensorial`` relative to the current working directory.
 
     Example:
         >>> fetchers = AseDataFetchers(
@@ -164,23 +181,31 @@ class AseDataFetchers(data.DataFetcher[dict[str, Sequence[jraph.GraphsTuple]]]):
         >>> datasets = fetchers.fetch()
     """
 
+    DEFAULT_CACHE_DIR = AseDataFetcher.DEFAULT_CACHE_DIR
+
     def __init__(
         self,
         paths: dict[str, PathSpec],
         as_graphs: dict[str, Any],
         limit: int | None = None,
         read_kwargs: dict[str, Any] | None = None,
+        cache_dir: str | os.PathLike | None = None,
     ):
         # Params
         self._filepaths: Final[dict[str, PathSpec]] = paths
         self._as_graphs: Final[dict[str, Any]] = as_graphs
         self._read_kwargs: Final[dict[str, Any]] = _init_kwargs(limit, read_kwargs)
+        self._cache_dir: Final[str | None] = (
+            str(cache_dir) if cache_dir is not None else None
+        )
 
     def fetch(self) -> dict[str, Sequence[jraph.GraphsTuple]]:
         # ``None`` paths are legal (a split the user did not provide); skip them so
         # the resulting mapping may be a proper subset of ``self._filepaths``.
         return {
-            name: AseDataFetcher(path=path, as_graphs=self._as_graphs).fetch()
+            name: AseDataFetcher(
+                path=path, as_graphs=self._as_graphs, cache_dir=self._cache_dir
+            ).fetch()
             for name, path in self._filepaths.items()
             if path is not None
         }

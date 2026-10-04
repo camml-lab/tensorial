@@ -1,21 +1,23 @@
 import abc
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 import math
-
 from typing import TYPE_CHECKING, Final, Generic, NamedTuple, TypedDict, TypeVar
 
 import jraph
+import numpy as np
 import reax
 from typing_extensions import override
 
 from ... import data
+from .. import keys as gcnn_keys
+from ..atomic import keys as atomic_keys
 from . import _batching, _common, _dataloader
 
 if TYPE_CHECKING:
     import jax
 
-    import tensorial.data
     from tensorial import gcnn
+    import tensorial.data
 
 __all__ = (
     "GraphDataset",
@@ -36,6 +38,95 @@ D = TypeVar("D")
 
 GraphDataset = Sequence[jraph.GraphsTuple]
 GraphDataFetcher = data.DataFetcher[D]
+
+
+# Keys that a single graph may legitimately omit but which are required for a
+# mixed molecule + crystal dataset to be batch-able, together with a
+# per-graph-size factory for the value to fill in.  This is the set of keys
+# whose presence is a *convention* (not an invariant): an open-boundary molecule
+# graph is allowed to lack them, but every graph in a batch must agree.
+_OPTIONAL_EDGE_KEYS: Final[dict[str, Callable[[int], np.ndarray]]] = {
+    gcnn_keys.EDGE_CELL_SHIFTS: lambda n: np.zeros((n, 3), dtype=np.float32),
+}
+_OPTIONAL_GLOBAL_KEYS: Final[dict[str, Callable[[int], np.ndarray]]] = {
+    gcnn_keys.CELL: lambda n: np.repeat(np.eye(3, dtype=np.float32)[None], n, axis=0),
+    # Open-boundary molecule: no dimension is periodic.  An all-False mask is the
+    # neutral default, consistent with the identity-cell default above -- the
+    # neighbour finder applies no cell transform on axes it sees as aperiodic.
+    gcnn_keys.PBC: lambda n: np.zeros((n, 3), dtype=np.bool_),
+    # Experimental stress (target), ``[n_graphs, 3, 3]`` in Cartesian form (the
+    # Voigt 6-vector is normalised to 3x3 by ``gcnn.atomic.from_ase``).  A
+    # molecule (no cell) has no well-defined stress, so a zero tensor is the
+    # neutral default -- consistent with the identity-cell default above.
+    atomic_keys.STRESS: lambda n: np.zeros((n, 3, 3), dtype=np.float32),
+}
+
+
+def _graph_keys(graph: jraph.GraphsTuple) -> set[str]:
+    return set(graph.nodes) | set(graph.edges) | set(graph.globals)
+
+
+def _normalize_graph_keys(graph: jraph.GraphsTuple, reference: set[str]) -> jraph.GraphsTuple:
+    """Return *graph* with any ``reference`` key missing from it filled in.
+
+    Only keys registered in ``_OPTIONAL_EDGE_KEYS`` / ``_OPTIONAL_GLOBAL_KEYS``
+    may be missing (they are filled with a sensible default).  Any other missing
+    key is a hard error -- callers should not be able to silently drop arbitrary
+    node/edge/global features.
+    """
+    missing = reference - _graph_keys(graph)
+    edge_updates: dict[str, np.ndarray] = {}
+    global_updates: dict[str, np.ndarray] = {}
+    unknown: set[str] = set()
+
+    n_edge = int(np.asarray(graph.n_edge).sum())
+    n_graph = int(np.asarray(graph.n_node).shape[0])
+    for key in missing:
+        if key in _OPTIONAL_EDGE_KEYS:
+            edge_updates[key] = _OPTIONAL_EDGE_KEYS[key](n_edge)
+        elif key in _OPTIONAL_GLOBAL_KEYS:
+            global_updates[key] = _OPTIONAL_GLOBAL_KEYS[key](n_graph)
+        else:
+            unknown.add(key)
+
+    if unknown:
+        raise ValueError(
+            f"Graph key-set mismatch: this graph is missing keys {sorted(unknown)} which "
+            f"are present in other graphs in the dataset.  Either add them to this graph "
+            f"or register them as optional fillable keys in "
+            f"``_OPTIONAL_EDGE_KEYS`` / ``_OPTIONAL_GLOBAL_KEYS`` in this module."
+        )
+
+    return graph._replace(
+        edges=dict(graph.edges, **edge_updates),
+        globals=dict(graph.globals, **global_updates),
+    )
+
+
+def _normalize_graphs(
+    graphs: Sequence[jraph.GraphsTuple], reference: set[str]
+) -> Sequence[jraph.GraphsTuple]:
+    """Return *graphs* with each graph's key set reconciled to *reference*.
+
+    *reference* is the union of keys present across the **whole** dataset
+    (every split), not just this one -- that is what lets a molecule-only split
+    and a crystal-only split settle onto a single shared schema.  Missing keys
+    that are
+    registered in ``_OPTIONAL_EDGE_KEYS`` / ``_OPTIONAL_GLOBAL_KEYS`` are filled
+    with a neutral default (identity cell, zero edge-cell-shifts, zero stress)
+    so an open-boundary molecule can sit in the same batch as a periodic crystal.
+    Any *other* missing key raises :class:`ValueError` so the user is forced to
+    reconcile it rather than silently dropping a real feature.
+    """
+    needs_update = {i for i, graph in enumerate(graphs) if _graph_keys(graph) != reference}
+    if not needs_update:
+        # Already homogeneous against *reference*: return the original sequence
+        # untouched (avoids needlessly rebuilding every GraphsTuple in the common
+        # case where the dataset is already coherent).  Also covers empty input.
+        return graphs
+
+    updated = {i: _normalize_graph_keys(graphs[i], reference) for i in needs_update}
+    return [updated.get(i, g) for i, g in enumerate(graphs)]
 
 
 class Split(NamedTuple):
@@ -257,7 +348,13 @@ class GraphDataModule(Generic[D], reax.DataModule[jraph.GraphsTuple, jraph.Graph
             raise reax.exceptions.MisconfigurationException(
                 f"SplitStrategy {self._strategy!r} returned all None datasets, have no data"
             )
-        self._max_padding = self._compute_shared_padding()
+
+        (
+            self.data_train,
+            self.data_val,
+            self.data_test,
+            self._max_padding,
+        ) = self._reconcile_splits()
         self._setup_done = True
 
     @override
@@ -337,25 +434,73 @@ class GraphDataModule(Generic[D], reax.DataModule[jraph.GraphsTuple, jraph.Graph
             batch_mode=self._batch_mode,
         )
 
-    def _compute_shared_padding(self) -> "gcnn.data.GraphPadding":
-        # Called only from ``setup()`` after the "all-None" guard has raised,
-        # so at least one split is non-``None`` and ``paddings`` is guaranteed
-        # non-empty.
-        paddings = []
-        for graphs in (self.data_train, self.data_val, self.data_test):
-            if graphs is not None:
-                if self._batch_mode is _common.BatchMode.IMPLICIT:
-                    paddings.append(
-                        _batching.GraphBatcher.calculate_padding(
-                            graphs,
-                            self._batch_size,
-                            pad_to_multiple=self._pad_to_multiple,
-                        )
-                    )
-                else:
-                    paddings.append(_batching.GraphBatcher.calculate_padding(graphs, 1))
+    def _reconcile_splits(
+        self,
+    ) -> tuple[
+        GraphDataset | None,
+        GraphDataset | None,
+        GraphDataset | None,
+        "gcnn.data.GraphPadding | None",
+    ]:
+        """Reconcile the key sets across every split and compute the shared padding.
 
-        return _batching.max_padding(*paddings)
+        Two passes, in the only correct order:
+
+        1. **Reference key set** is computed *across all splits* (not per split),
+           so a molecule-only train split and a crystal-only val split settle onto
+           one shared schema.  Normalization is "fill in keys present somewhere
+           in the dataset", which requires this global reference to be known first
+           -- hence normalization cannot be fused into this pass or made
+           order-dependent.
+        2. **Normalize + pad** each split against that one reference.  Padding is
+           derived from the *normalized* graphs (the filled-in ``cell`` /
+           ``stress`` arrays are part of what the padding sees), so the
+           normalize-then-pad dependency is encoded here rather than left to the
+           line order of ``setup``.
+
+        Called only from ``setup()`` after the "all-None" guard has raised, so at
+        least one split is non-``None``.  The shared padding is the elementwise
+        max over the per-split paddings.
+        """
+        splits = {
+            "train": self.data_train,
+            "val": self.data_val,
+            "test": self.data_test,
+        }
+
+        reference: set[str] = set()
+        for ds in splits.values():
+            # An ``is not None`` check (not truthiness) so an *empty* split is
+            # iterated here: it contributes no keys, but is still normalised and
+            # padded in the second pass.  Deliberately asymmetric with the
+            # ``is None: continue`` guard below -- both are the same intent.
+            if ds is not None:
+                for graph in ds:
+                    reference |= _graph_keys(graph)
+
+        batch_size = self._batch_size if self._batch_mode is _common.BatchMode.IMPLICIT else 1
+        pad_to_multiple = (
+            self._pad_to_multiple if self._batch_mode is _common.BatchMode.IMPLICIT else None
+        )
+
+        normalized: dict[str, GraphDataset | None] = {}
+        paddings: "list[gcnn.data.GraphPadding]" = []
+        for name, ds in splits.items():
+            if ds is None:
+                normalized[name] = None
+                continue
+            ds = _normalize_graphs(ds, reference)
+            normalized[name] = ds
+            paddings.append(
+                _batching.GraphBatcher.calculate_padding(
+                    ds,
+                    batch_size,
+                    pad_to_multiple=pad_to_multiple,
+                )
+            )
+
+        shared = _batching.max_padding(*paddings) if paddings else None
+        return normalized["train"], normalized["val"], normalized["test"], shared
 
     @classmethod
     def from_random_split(

@@ -1,3 +1,6 @@
+from functools import partial
+import http.server
+import threading
 from unittest.mock import patch
 
 import jraph
@@ -9,9 +12,9 @@ from tensorial.gcnn.data._ase import (
     AseDataFetchers,
     AseDataLoader,
     AseGraphs,
-    ase_graph_module_random_split,
     ase_graph_module_from_datasets,
     ase_graph_module_kfold,
+    ase_graph_module_random_split,
 )
 
 
@@ -132,6 +135,109 @@ def test_ase_data_fetchers_skips_none_paths(water_dataset_file):
     fetched = fetchers.fetch()
 
     assert set(fetched) == {"train", "test"}
+
+
+# ---- URL support -----------------------------------------------------------
+
+
+class _CountingHandler(http.server.SimpleHTTPRequestHandler):
+    """Serves a fixed directory and appends each GET to ``self.server.hits``."""
+
+    def do_GET(self):
+        self.server.hits.append(1)
+        super().do_GET()
+
+    def log_message(self, *args):
+        pass  # keep test output clean
+
+
+@pytest.fixture
+def http_server(tmp_path):
+    """Serve ``tmp_path`` over HTTP and yield ``(local_path, url, hits)``.
+
+    A 10-structure water.xyz is written into the served directory so the same
+    file can be referenced both locally and via its URL, and ``hits`` accumulates
+    the number of GET requests the server has received.
+    """
+    import ase.build
+    import ase.io
+
+    file_path = tmp_path / "water.xyz"
+    ase.io.write(str(file_path), [ase.build.molecule("H2O")] * 10)
+
+    server = http.server.ThreadingHTTPServer(
+        ("127.0.0.1", 0), partial(_CountingHandler, directory=str(tmp_path))
+    )
+    server.hits: list = []
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        yield str(file_path), f"http://127.0.0.1:{server.server_port}/water.xyz", server.hits
+    finally:
+        server.shutdown()
+
+
+def test_fetcher_downloads_url_and_caches(http_server, tmp_path):
+    local_path, url, hits = http_server
+    cache_dir = tmp_path / "cache"
+
+    fetcher = AseDataFetcher(url, as_graphs={"r_max": 5.0}, cache_dir=cache_dir)
+    graphs = fetcher.fetch()
+
+    assert isinstance(graphs, AseGraphs)
+    assert len(graphs) == 10
+    assert int(graphs[0].n_node[-1]) == 3
+    # the file was fetched from the URL and stored in the cache
+    assert list(cache_dir.glob("*.xyz")), "expected a cached download"
+    assert len(hits) == 1
+
+
+def test_fetcher_reuses_cache_on_second_fetch(http_server, tmp_path):
+    _, url, hits = http_server
+    cache_dir = tmp_path / "cache"
+
+    fetcher = AseDataFetcher(url, as_graphs={"r_max": 5.0}, cache_dir=cache_dir)
+    fetcher.fetch()
+    first_hits = len(hits)
+
+    fetcher.fetch()
+
+    # the cached file is served on the second fetch, so no new download occurs
+    assert len(hits) == first_hits
+
+
+def test_fetcher_local_path_uses_no_cache(http_server, tmp_path):
+    local_path, url, hits = http_server
+    cache_dir = tmp_path / "cache"
+
+    fetcher = AseDataFetcher(local_path, as_graphs={"r_max": 5.0}, cache_dir=cache_dir)
+    graphs = fetcher.fetch()
+
+    assert isinstance(graphs, AseGraphs)
+    assert len(graphs) == 10
+    # local files are read directly: nothing downloaded, nothing cached
+    assert len(hits) == 0
+    assert not cache_dir.exists()
+
+
+def test_fetchers_mixes_url_local_and_none(http_server, tmp_path):
+    local_path, url, hits = http_server
+    cache_dir = tmp_path / "cache"
+
+    fetchers = AseDataFetchers(
+        {"train": url, "val": None, "test": local_path},
+        as_graphs={"r_max": 5.0},
+        cache_dir=cache_dir,
+    )
+    fetched = fetchers.fetch()
+
+    assert set(fetched) == {"train", "test"}
+    assert all(isinstance(v, AseGraphs) for v in fetched.values())
+    assert all(len(v) == 10 for v in fetched.values())
+    # only the URL split is downloaded into the cache
+    assert len(hits) == 1
+    assert list(cache_dir.glob("*.xyz")), "expected a cached download for the URL split"
+    # the local split is read from disk, not downloaded
+    assert len(fetched["test"]) == 10
 
 
 # ---- GraphDataModule builders ---------------------------------------------
