@@ -43,8 +43,8 @@ def _trivial_graphs(n: int) -> list[jraph.GraphsTuple]:
     return graphs
 
 
-class _MockStage:
-    engine = None
+def _engine() -> "reax.Engine":
+    return reax.Engine(logger=False)
 
 
 # ---- Constructor -----------------------------------------------------------
@@ -114,7 +114,7 @@ def test_dataloader_before_setup_raises(method):
 
 def _setup(dm: GraphDataModule) -> None:
     dm.prepare_data()
-    dm.setup(_MockStage())
+    dm.setup(_engine())
 
 
 def test_setup_populates_datasets():
@@ -392,11 +392,15 @@ def test_mixed_molecule_and_crystal_batches():
         batch_size=2,
     )
     dm.prepare_data()
-    dm.setup(_MockStage())
+    dm.setup(_engine())
 
     # Reconciliation: both graphs now share the same (superset) key set.
-    mol_keys = set(dm.data_train[0].nodes) | set(dm.data_train[0].edges) | set(dm.data_train[0].globals)
-    cry_keys = set(dm.data_train[1].nodes) | set(dm.data_train[1].edges) | set(dm.data_train[1].globals)
+    mol_keys = (
+        set(dm.data_train[0].nodes) | set(dm.data_train[0].edges) | set(dm.data_train[0].globals)
+    )
+    cry_keys = (
+        set(dm.data_train[1].nodes) | set(dm.data_train[1].edges) | set(dm.data_train[1].globals)
+    )
     assert mol_keys == cry_keys
 
     # The filled defaults carry the documented values.
@@ -462,7 +466,7 @@ def test_graph_missing_stress_is_filled_with_zeros():
         batch_size=2,
     )
     dm.prepare_data()
-    dm.setup(_MockStage())
+    dm.setup(_engine())
 
     # Both graphs share the reconciled (superset) key set now.
     assert atomic_keys.STRESS in dm.data_train[0].globals
@@ -540,11 +544,15 @@ def test_graph_missing_pbc_is_filled_with_aperiodic_default():
         batch_size=2,
     )
     dm.prepare_data()
-    dm.setup(_MockStage())
+    dm.setup(_engine())
 
     # Both graphs now agree on the reconciled (superset) key set...
-    mol_keys = set(dm.data_train[0].nodes) | set(dm.data_train[0].edges) | set(dm.data_train[0].globals)
-    cry_keys = set(dm.data_train[1].nodes) | set(dm.data_train[1].edges) | set(dm.data_train[1].globals)
+    mol_keys = (
+        set(dm.data_train[0].nodes) | set(dm.data_train[0].edges) | set(dm.data_train[0].globals)
+    )
+    cry_keys = (
+        set(dm.data_train[1].nodes) | set(dm.data_train[1].edges) | set(dm.data_train[1].globals)
+    )
     assert mol_keys == cry_keys
 
     # ...and the molecule's missing PBC is filled aperiodic (all-False), the
@@ -592,7 +600,7 @@ def test_dataset_with_unknown_key_disagreement_raises():
     )
     dm.prepare_data()
     with pytest.raises(ValueError, match="Graph key-set mismatch"):
-        dm.setup(_MockStage())
+        dm.setup(_engine())
 
 
 def test_cross_split_key_set_mismatch_raises():
@@ -602,6 +610,7 @@ def test_cross_split_key_set_mismatch_raises():
     ``_normalize_graph_keys`` -- not a separate per-split check -- when it tries
     to fill the key into the split that has no registered default for it.
     """
+
     # Build a pair of splits where train has a key ``custom`` but val does not.
     def graph_with(key: str | None, value: float = 1.0):
         globals_ = {"g": np.array([value], dtype=np.float32)}
@@ -626,4 +635,4 @@ def test_cross_split_key_set_mismatch_raises():
     )
     dm.prepare_data()
     with pytest.raises(ValueError, match="Graph key-set mismatch"):
-        dm.setup(_MockStage())
+        dm.setup(_engine())

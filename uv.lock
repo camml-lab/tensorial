@@ -4873,7 +4873,7 @@ wheels = [
 
 [[package]]
 name = "reax"
-version = "0.6.14"
+version = "0.7.0.dev1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beartype" },
@@ -4900,9 +4900,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b8/83/4c0902b0b49dc1b226e61b87d1667bd92bc6da9ed278be95a846ad21caad/reax-0.6.14.tar.gz", hash = "sha256:4ea7064e6e4f3aceeda12fa47c7d6b5058a06da04daab3b98a1ad02d6d287f3b", size = 138466, upload-time = "2026-09-02T11:07:48.504Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ba/ed/110bfbe6cc2966743842e2a835b5e56560b03c6907b406f029201290dd46/reax-0.7.0.dev1.tar.gz", hash = "sha256:06a2590eee6c9919acc221e18af36913f1689f61fdda4a9eb33d0e1ec26dd82e", size = 140531, upload-time = "2026-10-04T17:30:36.526Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/bf/3eafc9d5bad011be5c27aa403ccd185b4433bcfad81b677a9be0850d42b1/reax-0.6.14-py3-none-any.whl", hash = "sha256:16c205b86ef952c93cc32afc8aed47bdb6872e3e806620b5520e28366e30cad2", size = 180046, upload-time = "2026-09-02T11:07:47.14Z" },
+    { url = "https://files.pythonhosted.org/packages/8a/d6/4de73844bf5ff291abc789ffbb1d74e0c5810a0409713c16d54a6067fd1b/reax-0.7.0.dev1-py3-none-any.whl", hash = "sha256:c1fb8e057d694691fdb67346c3bb8ac241f0b1131551a5e72782dee63aa9bbf4", size = 182327, upload-time = "2026-10-04T17:30:35.321Z" },
 ]
 
 [[package]]
@@ -5993,6 +5993,7 @@ dependencies = [
     { name = "jraph" },
     { name = "pytray" },
     { name = "reax" },
+    { name = "requests" },
     { name = "rich" },
     { name = "typing-extensions" },
 ]
@@ -6058,7 +6059,8 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "pytest-env", marker = "extra == 'dev'" },
     { name = "pytray" },
-    { name = "reax", specifier = ">=0.6.13.dev2,<0.7" },
+    { name = "reax", specifier = ">=0.7.0.dev1,<0.8" },
+    { name = "requests" },
     { name = "rich" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "sphinx", marker = "extra == 'docs'" },

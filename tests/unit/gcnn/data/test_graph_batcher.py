@@ -37,6 +37,7 @@ def _unbatch_explicit(batched_graph: jraph.GraphsTuple) -> list[jraph.GraphsTupl
 
 # ---- Implicit batching -----------------------------------------------------
 
+
 def test_generate_batches(rng_key):
     """Implicit batching produces batches of uniform padded size."""
     dataset_size = 5
@@ -83,9 +84,7 @@ def test_generate_batches_with_mask(rng_key):
     dataset_size = 5
     batch_size = 2
     inputs = tuple(gcnn.random.spatial_graph(rng_key, 2, cutoff=3) for _ in range(dataset_size))
-    batches = tuple(
-        gcnn.data.GraphBatcher(inputs, batch_size=batch_size, pad=True, add_mask=True)
-    )
+    batches = tuple(gcnn.data.GraphBatcher(inputs, batch_size=batch_size, pad=True, add_mask=True))
 
     # Check the first and last batch (the last has fewer real graphs)
     for batch_idx in (0, -1):
@@ -96,6 +95,7 @@ def test_generate_batches_with_mask(rng_key):
 
 
 # ---- Explicit batching -----------------------------------------------------
+
 
 @pytest.mark.parametrize("drop_last", [True, False])
 def test_generate_batches_explicit(rng_key, drop_last: bool):
@@ -140,6 +140,7 @@ def test_generate_batches_explicit(rng_key, drop_last: bool):
 
 
 # ---- Padding helpers -------------------------------------------------------
+
 
 def test_add_padding_mask(cube_graph: jraph.GraphsTuple):
     """``add_padding_mask`` should produce a ``keys.MASK`` whose first
@@ -196,6 +197,7 @@ def test_max_padding():
 
 
 # ---- Error cases -----------------------------------------------------------
+
 
 def test_batcher_rejects_batched_sequence_input():
     """A *sequence* of batched graphs is invalid: only a single batched

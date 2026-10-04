@@ -7,7 +7,7 @@ for logging/monitoring.
 
 import abc
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, Final, Literal, cast
+from typing import TYPE_CHECKING, Final, Literal, cast
 
 import beartype
 import equinox

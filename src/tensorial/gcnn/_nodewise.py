@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import e3nn_jax as e3j
 from flax import linen

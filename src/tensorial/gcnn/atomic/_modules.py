@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import Any, cast
+from typing import cast
 
 import beartype
 import equinox

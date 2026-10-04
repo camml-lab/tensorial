@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 import pytest
+import reax
 from reax import results
 from reax.data import utils
 
@@ -22,7 +23,7 @@ def test_batch_size_and_logged_loss(cube_graph, batch_mode):
         batch_mode=batch_mode,
     )
     dm.prepare_data()
-    dm.setup(None)
+    dm.setup(reax.Engine(logger=False))
 
     loader = dm.train_dataloader()
     batches = tuple(loader)
