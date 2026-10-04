@@ -23,7 +23,7 @@ DEFAULT_CKPT_FILE: Final[str] = "params.ckpt"
 def load_module(
     config_path: str = DEFAULT_CONFIG_FILE,
     ckpt_path: str = DEFAULT_CKPT_FILE,
-    checkpointing: reax.training.Checkpointing = None,
+    checkpointing: reax.training.Checkpointing | None = None,
     return_config: bool = False,
 ) -> "reaxkit.ReaxModule | tuple[reaxkit.ReaxModule, omegaconf.DictConfig]":
     """Load a REAX module from a YAML configuration file, optionally restoring parameters

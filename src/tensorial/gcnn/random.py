@@ -20,7 +20,7 @@ LiteralOrRandom = jax.typing.ArrayLike | RandomFn
 @jt.jaxtyped(typechecker=beartype.beartype)
 def spatial_graph(
     rng_key: jax.Array,
-    num_nodes: int = None,
+    num_nodes: int | None = None,
     num_graphs=None,
     cutoff=0.4,
     nodes: dict[str, LiteralOrRandom] | None = None,

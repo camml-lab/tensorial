@@ -565,7 +565,7 @@ def diff(
     *func_of,
     wrt: GraphEntrySpecLike | Sequence[GraphEntrySpecLike],
     of: GraphEntrySpecLike | None = None,
-    out: GraphEntrySpecLike = None,
+    out: GraphEntrySpecLike | None = None,
     scale: float = 1.0,
     at: dict | None = None,
     return_graph=False,

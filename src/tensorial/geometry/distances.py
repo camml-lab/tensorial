@@ -42,6 +42,6 @@ class NeighbourFinder(abc.ABC):
 
     @abc.abstractmethod
     def get_neighbours(
-        self, positions: jax.typing.ArrayLike, max_neighbours: int = None
+        self, positions: jax.typing.ArrayLike, max_neighbours: int | None = None
     ) -> NeighbourList:
         """Build the :class:`NeighbourList` containing all neighbours within the cutoff."""

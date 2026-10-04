@@ -10,7 +10,7 @@ from . import bases, functions
 @functools.singledispatch
 def expand(  # pylint: disable=unused-argument
     basis: bases.RadialSphericalBasis, function: functions.Function
-) -> jnp.array:
+) -> jnp.ndarray:
     """Expand a function in the given basis.
 
     This is a singledispatch function: the implementation is chosen based on
@@ -19,7 +19,7 @@ def expand(  # pylint: disable=unused-argument
 
 
 @expand.register
-def expand_(basis: bases.SimpleRadialSphericalBasis, function: functions.Function) -> jnp.array:
+def expand_(basis: bases.SimpleRadialSphericalBasis, function: functions.Function) -> jnp.ndarray:
     """Expand a function in a :class:`.SimpleRadialSphericalBasis`."""
     if isinstance(function, functions.DiracDelta):
         return function.weight * basis.evaluate(function.pos)
