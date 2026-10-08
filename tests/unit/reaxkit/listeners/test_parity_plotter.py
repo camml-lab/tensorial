@@ -89,3 +89,46 @@ def test_irreps_graph_parity_plotter(tmp_path):
     # Expected values
     np.testing.assert_allclose(decomposed["0e"], 2.0)
     np.testing.assert_allclose(decomposed["1o"], jnp.array([[1.0, 0.0, -1.0]]))
+
+
+def test_irreps_graph_parity_plotter_repeated_irreps():
+    import e3nn_jax as e3j
+
+    tensor = e3j.IrrepsArray("2x0e + 1x1o + 1x0e", jnp.arange(6.0).reshape(1, 6))
+    plotter = reaxkit.listeners.IrrepsGraphParityPlotter(targets="nodes.tensors")
+
+    decomposed = plotter._decompose_data(tensor)
+
+    # Each segment keeps only its own channels, even when an irrep is repeated
+    np.testing.assert_allclose(decomposed["0e"], [[0.0, 1.0]])
+    np.testing.assert_allclose(decomposed["1o"], [[2.0, 3.0, 4.0]])
+    np.testing.assert_allclose(decomposed["0e_2"], [[5.0]])
+
+
+def test_irreps_graph_parity_plotter_masked_nodes():
+    import e3nn_jax as e3j
+
+    irreps = e3j.Irreps("0e + 1o")
+    values = jnp.arange(12.0).reshape(3, 4)
+    mask = jnp.array([True, False, True])
+    targets = jraph.GraphsTuple(
+        nodes={"tensors": e3j.IrrepsArray(irreps, values), "mask": mask},
+        edges=None,
+        senders=None,
+        receivers=None,
+        globals=None,
+        n_node=jnp.array([3]),
+        n_edge=jnp.array([0]),
+    )
+    predictions = targets._replace(
+        nodes={**targets.nodes, keys.predicted("tensors"): e3j.IrrepsArray(irreps, -values)}
+    )
+
+    plotter = reaxkit.listeners.IrrepsGraphParityPlotter(targets="nodes.tensors")
+    plotter._collect_batch_data("test", predictions, (targets, targets))
+
+    (gt,), (pred,) = plotter.data_store["test"]
+    # The mask is applied without losing the irreps, so every irrep gets its own entry
+    np.testing.assert_allclose(gt["0e"], [[0.0], [8.0]])
+    np.testing.assert_allclose(gt["1o"], [[1.0, 2.0, 3.0], [9.0, 10.0, 11.0]])
+    np.testing.assert_allclose(pred["1o"], -gt["1o"])

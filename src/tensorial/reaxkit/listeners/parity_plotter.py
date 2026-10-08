@@ -452,12 +452,18 @@ class GraphParityPlotter(ParityPlotter):
         except KeyError:
             pass
         else:
-            targets = np.array(base.as_array(targets))
-            predictions = np.array(base.as_array(predictions))
-            targets = targets[mask]
-            predictions = predictions[mask]
+            targets = _apply_mask(targets, mask)
+            predictions = _apply_mask(predictions, mask)
 
         return targets, predictions
+
+
+def _apply_mask(value: Any, mask: np.ndarray) -> Any:
+    """Select the unmasked rows of ``value``, keeping ``IrrepsArray``s so their irreps survive."""
+    if isinstance(value, e3j.IrrepsArray):
+        return value[mask]
+
+    return np.array(base.as_array(value))[mask]
 
 
 class IrrepsGraphParityPlotter(GraphParityPlotter):
@@ -487,13 +493,14 @@ class IrrepsGraphParityPlotter(GraphParityPlotter):
         if isinstance(data, e3j.IrrepsArray):
             # Decompose IrrepsArray into its constituent irrep segments
             results = {}
-            for i, (_mul, ir) in enumerate(data.irreps):
+            for i, ((_mul, ir), segment) in enumerate(zip(data.irreps, data.irreps.slices())):
                 # We use the irrep string as the name.
                 # If multiple segments have same irrep, we append index.
                 name = str(ir)
                 if name in results:
                     name = f"{name}_{i}"
-                results[name] = np.array(data[..., ir].array)
+                # Slice the segment itself, indexing by irrep would give the last segment of it
+                results[name] = np.array(data.array[..., segment])
             return results
 
         return {"value": np.array(base.as_array(data))}
