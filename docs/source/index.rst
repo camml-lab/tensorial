@@ -49,6 +49,7 @@ Table Of Contents
    starting/quickstart.rst
    starting/gcnn_guide.rst
    starting/mlip_guide.rst
+   starting/profiling.rst
    starting/concepts.rst
    API <api_reference/modules>
 

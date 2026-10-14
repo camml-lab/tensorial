@@ -21,6 +21,91 @@ TRAIN_SCRIPT_DEFAULT: Final[str] = "configs/train.yaml"
 EVAL_SCRIPT_DEFAULT: Final[str] = "configs/eval.yaml"
 REAX_COMMAND: Final[str] = "REAX_COMMAND"
 
+# Defaults for the ``--profile`` option (see ``tensorial.reaxkit.listeners.ProfileTrace``)
+PROFILE_LISTENER: Final[str] = "profile_trace"
+PROFILE_WARMUP_DEFAULT: Final[int] = 3
+PROFILE_STEPS_DEFAULT: Final[int] = 10
+PROFILE_STAGES: Final[dict[str, tuple[str, ...]]] = {
+    TRAIN: ("train",),
+    PREDICT: ("validation", "test", "predict"),
+}
+
+
+def _add_profile_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the options that control profiling to a (sub-)command parser."""
+    group = parser.add_argument_group("profiling")
+    group.add_argument(
+        "--profile",
+        action="store_true",
+        help="Record a JAX profiler trace of a few steps, taken once the JIT has warmed up.  "
+        "The trace can be opened with xprof/TensorBoard or at https://ui.perfetto.dev",
+    )
+    group.add_argument(
+        "--profile-dir",
+        type=pathlib.Path,
+        default=None,
+        metavar="DIR",
+        help="Directory to write the trace to (implies --profile).  "
+        "Default: a 'profile' folder in the run's output directory",
+    )
+    group.add_argument(
+        "--profile-warmup",
+        type=int,
+        default=PROFILE_WARMUP_DEFAULT,
+        metavar="N",
+        help="Number of steps to run before tracing starts, so that everything is compiled "
+        f"(default: {PROFILE_WARMUP_DEFAULT})",
+    )
+    group.add_argument(
+        "--profile-steps",
+        type=int,
+        default=PROFILE_STEPS_DEFAULT,
+        metavar="N",
+        help=f"Number of steps to record (default: {PROFILE_STEPS_DEFAULT}).  "
+        "Keep this small, traces grow quickly",
+    )
+    group.add_argument(
+        "--profile-no-python",
+        action="store_true",
+        help="Leave python frames out of the trace.  Much smaller traces, but you lose the "
+        "host-side python call stacks",
+    )
+
+
+def _hydra_quote(value: str) -> str:
+    """Quote a string so that it is read back verbatim as a Hydra override value."""
+    # Hydra only treats a backslash specially when it precedes a quote, in which case it has to
+    # be doubled.  That includes the closing quote we are about to add.
+    value = re.sub(r"(\\+)$", lambda match: match.group(1) * 2, value)
+    value = re.sub(r"(\\*)'", lambda match: match.group(1) * 2 + "\\'", value)
+    return f"'{value}'"
+
+
+def _profile_overrides(args: argparse.Namespace) -> list[str]:
+    """Translate the ``--profile*`` options into Hydra overrides that add a ``ProfileTrace``
+    listener to the run.  Returns an empty list if profiling was not requested."""
+    if not (args.profile or args.profile_dir or args.profile_no_python):
+        return []
+    if args.profile_warmup < 0:
+        raise SystemExit("error: --profile-warmup must be >= 0")
+    if args.profile_steps < 1:
+        raise SystemExit("error: --profile-steps must be >= 1")
+
+    prefix = f"+listeners.{PROFILE_LISTENER}"
+    stages = ",".join(PROFILE_STAGES[args.command])
+    overrides = [
+        f"{prefix}._target_=tensorial.reaxkit.listeners.ProfileTrace",
+        f"{prefix}.warmup={args.profile_warmup}",
+        f"{prefix}.steps={args.profile_steps}",
+        f"{prefix}.stages=[{stages}]",
+    ]
+    if args.profile_no_python:
+        overrides.append(f"{prefix}.python_tracer_level=0")
+    if args.profile_dir:
+        log_dir = os.path.abspath(os.path.expanduser(args.profile_dir))
+        overrides.append(f"{prefix}.log_dir={_hydra_quote(log_dir)}")
+    return overrides
+
 
 def _examples_root():
     """The directory holding all bundled example configurations."""
@@ -194,9 +279,10 @@ def main_cli():
         help="Input file with training details",
         default=TRAIN_SCRIPT_DEFAULT,
     )
+    _add_profile_arguments(train_parser)
     # The 'predict' command
-    train_parser = commands.add_parser(PREDICT, help="Make predictions using a trained model")
-    train_parser.add_argument(
+    predict_parser = commands.add_parser(PREDICT, help="Make predictions using a trained model")
+    predict_parser.add_argument(
         "-i",
         "--input",
         nargs="?",
@@ -204,6 +290,7 @@ def main_cli():
         help="Input file with evaluation details",
         default=EVAL_SCRIPT_DEFAULT,
     )
+    _add_profile_arguments(predict_parser)
 
     # The 'examples' command.  Sub-arguments are handled manually from the
     # trailing (unparsed) arguments so that both
@@ -226,7 +313,7 @@ def main_cli():
 
     if args.command == TRAIN:
         # Set the command line arguments to what remains so hydra can deal with it
-        sys.argv = sys.argv[0:1] + _rest
+        sys.argv = sys.argv[0:1] + _rest + _profile_overrides(args)
         script_path: pathlib.Path = args.input
         hydra_fn = hydra.main(
             version_base="1.3",
@@ -235,7 +322,7 @@ def main_cli():
         )(rkit.train.main)
     elif args.command == PREDICT:
         # Set the command line arguments to what remains so hydra can deal with it
-        sys.argv = sys.argv[0:1] + _rest
+        sys.argv = sys.argv[0:1] + _rest + _profile_overrides(args)
 
         script_path = cast(pathlib.Path, args.input)
         if script_path.is_dir():
