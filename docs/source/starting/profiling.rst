@@ -173,6 +173,56 @@ keys to zoom in and out, and ``A`` and ``D`` to move left and right. Every
 training step appears as a block named ``train_step`` (``test_step`` when
 profiling ``predict``).
 
+.. figure:: images/perfetto_gpu_trace.png
+    :alt: A GPU training trace opened in Perfetto: the GPU rows at the top, with
+          short bursts of activity separated by long empty gaps, and the CPU rows
+          below.
+    :width: 100%
+
+    About 240 ms of a training run on one GPU (QM9 dataset, batches of 128
+    structures), opened in Perfetto. The whole recording lasts 938 ms.
+
+The figure above was made with this command:
+
+.. code-block:: shell
+
+    tensorial train -i train.yaml trainer=gpu trainer.accelerator=cuda trainer.devices=1 \
+        --profile-dir test1 '~model.metrics.frmse' data.batch_size=128 \
+        train.max_epochs=50 +trainer.enable_checkpointing=false
+
+Here is how to read it, from top to bottom (the times are approximate, read from
+the ruler at the top of the timeline):
+
+1. **The GPU** (``device:GPU:0``). The first row, ``Stream #14 (MemcpyD2D,
+   Compute)``, is where the GPU does its calculations. Each coloured block is a
+   short burst of about 7 ms; the thin coloured stripes inside it are the many
+   small calculations that make up the model. A burst comes roughly every 30 ms,
+   so a training step (about 60 ms here) contains **two bursts**: one computes the
+   model's predictions (energies), the other computes how to change the model to
+   reduce its error (the *gradients*).
+2. **The gaps on the GPU row.** Between two bursts, the GPU row is empty for more
+   than 20 ms: the GPU has nothing to do and waits for the processor (CPU) to send
+   it the next piece of work. In this example the GPU computes only about a
+   quarter of the time. Large gaps like these mean that the GPU is not fully used:
+   a bigger model or bigger batches would cost little extra time.
+3. **Copies between the computer's memory and the GPU.** ``Stream #15 (MemcpyH2D)``
+   shows the data being sent *to* the GPU (the next batch), and ``Stream #16`` to
+   ``#19 (MemcpyD2H)`` show results being sent *back* from the GPU (for example the
+   values of the loss that are written in the log). They happen once per step,
+   about every 60 ms, and the marks are very thin: moving the data is not what
+   takes time here.
+4. **The processor** (``host:CPU``). The ``Host Threads`` and
+   ``pjrt_async_work_runner`` rows show the CPU preparing and launching the work.
+   Their marks are grouped at the same moments as the copies: this is when a new
+   step starts. The rest of the time is spent in Python code, which is hidden in
+   this view.
+
+.. tip::
+
+    This recording was made *with* the details of the Python code, which slows
+    the Python part down a little. To check that the gaps are not caused by the
+    recording itself, record again with ``--profile-no-python`` and compare.
+
 **With xprof.** If you prefer the TensorBoard-style views, install it and point
 it at the profile folder:
 
