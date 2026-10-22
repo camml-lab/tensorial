@@ -3,3 +3,30 @@
 h1.logo {
     text-align: center !important;
 }
+
+/* Brand colour. pydata-sphinx-theme uses "primary" for links, active nav items and buttons, and
+   "secondary" for link hover, the active nav underline and focus outlines. Both are set to the
+   brand pink, so links keep the same colour on hover (the underline marks the hover). Dark mode
+   uses a lighter tint of the same hue so that text stays readable on the dark background. */
+html[data-theme="light"] {
+    --pst-color-primary: #bf016b;
+    --pst-color-primary-highlight: #9a0156;
+    --pst-color-primary-text: #fff;
+    --pst-color-primary-bg: #f5d9e9;
+}
+
+html[data-theme="dark"] {
+    --pst-color-primary: #ff5fb0;
+    --pst-color-primary-highlight: #e8418f;
+    --pst-color-primary-text: #14181e;
+    --pst-color-primary-bg: #36132d;
+}
+
+html[data-theme="light"],
+html[data-theme="dark"] {
+    --pst-color-secondary: var(--pst-color-primary);
+    --pst-color-secondary-highlight: var(--pst-color-primary-highlight);
+    --pst-color-secondary-text: var(--pst-color-primary-text);
+    --pst-color-secondary-bg: var(--pst-color-primary-bg);
+    --pst-color-link-higher-contrast: var(--pst-color-primary);
+}

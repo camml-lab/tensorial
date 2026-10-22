@@ -6,7 +6,7 @@ whole graph batch.
 """
 
 from functools import singledispatch
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import e3nn_jax as e3j
 import jax
@@ -17,6 +17,9 @@ from pytray import tree
 
 from .. import nn_utils
 from . import keys, utils
+
+if TYPE_CHECKING:
+    from tensorial import gcnn
 
 __all__ = (
     "segment_sum",

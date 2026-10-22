@@ -1,7 +1,7 @@
 """NequIP-style equivariant graph neural network layers.
 
 Provides `InteractionBlock`, `NequipLayer` (a full convolution layer wrapping
-an interaction block plus invariant layers) and `Nequip` (a stack of `NequipLayer`s),
+an interaction block plus invariant layers) and `Nequip` (a stack of `NequipLayer` layers),
 a faithful port of the NEquIP model commonly used for force-field regression.
 """
 

@@ -299,6 +299,11 @@ class GraphDataModule(Generic[D], reax.DataModule[jraph.GraphsTuple, jraph.Graph
         batch_mode: "gcnn.data.BatchMode | str" = _common.BatchMode.IMPLICIT,
         pad_to_multiple: "int | str | jax.Device | None" = None,
     ) -> None:
+        """Create a data module that splits ``dataset`` using ``strategy``.
+
+        Prefer the :meth:`from_random_split`, :meth:`from_kfold` and :meth:`from_datasets`
+        constructors, which pick the strategy for you.
+        """
         super().__init__()
         self._fetcher, self._dataset = self._init_fetcher_dataset(dataset)
 

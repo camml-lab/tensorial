@@ -8,8 +8,7 @@ Subpackages
    :maxdepth: 4
 
    tensorial.mlip.calculators
-
-    tensorial.mlip.io
+   tensorial.mlip.io
 
 Submodules
 ----------
