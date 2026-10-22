@@ -72,6 +72,27 @@ jobs:
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v5
 
+  docs-build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra docs
+
+      # Treat warnings as errors, but report all of them rather than stopping at the first
+      - name: Build docs
+        env:
+          JAX_PLATFORMS: cpu
+        run: uv run make -C docs html SPHINXOPTS="-W --keep-going"
+
   publish:
     name: Publish to PyPI
     needs: [ pre-commit, pylint, tests ]
