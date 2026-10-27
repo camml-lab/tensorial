@@ -3,6 +3,7 @@ from typing import Any, Final, TypedDict, TypeVar, cast
 
 import beartype
 import equinox as eqx
+import equinox.internal as eqxi
 from flax import linen
 import jax
 import jaxtyping as jt
@@ -27,6 +28,31 @@ Optimizer = optax.GradientTransformation | Callable[[], optax.GradientTransforma
 # functions conventionally return an average, and this is also `reax`'s default for raw logged
 # values.
 _DEFAULT_LOSS_REDUCTION: Final = "mean"
+
+
+def _jit_without_waiting(fun: Callable) -> Callable:
+    """Compile ``fun`` like `eqx.filter_jit`, but return as soon as the work is sent to the device.
+
+    `eqx.filter_jit` calls ``block_until_ready`` after every call (to report Equinox runtime
+    errors), which stops the CPU until the device has finished.  Here the arrays in the arguments
+    are traced and everything else (functions, settings...) is treated as static, as with
+    `eqx.filter_jit`, but the call returns straight away and the results are computed in the
+    background, as with `jax.jit`.
+    """
+
+    @jax.jit
+    def _run(dynamic, static: eqxi.Static):
+        args = eqx.combine(dynamic, static.value)
+        out = fun(*args)
+        dynamic_out, static_out = eqx.partition(out, eqx.is_array)
+        return dynamic_out, eqxi.Static(static_out)
+
+    def call(*args):
+        dynamic, static = eqx.partition(args, eqx.is_array)
+        dynamic_out, static_out = _run(dynamic, eqxi.Static(static))
+        return eqx.combine(dynamic_out, static_out.value)
+
+    return call
 
 
 class StepOutput(TypedDict):
@@ -86,6 +112,15 @@ class ReaxModule(reax.Module[InputT, OutputT_co]):
             else:
                 self.step = eqx.filter_jit(self.step)
 
+        # Compute the loss and its gradient in one compiled program.  Calling `jax.value_and_grad`
+        # on the jitted `step` from Python would make JAX redo the differentiation in Python at
+        # every training step, leaving the device idle most of the time.
+        self._value_and_grad = jax.value_and_grad(self.step, argnums=0, has_aux=True)
+        if jit:
+            # Not `eqx.filter_jit`: it waits for the device to finish before returning, so the
+            # CPU could not prepare the next batch while the device computes this step.
+            self._value_and_grad = _jit_without_waiting(self._value_and_grad)
+
         self.calculate_metrics = eqx.filter_jit(donate="all")(self.calculate_metrics)
         self._forward = eqx.filter_jit(donate="all")(self._forward)
 
@@ -142,7 +177,7 @@ class ReaxModule(reax.Module[InputT, OutputT_co]):
         inputs, targets = self._prep_batch(batch)
         batch_size = _get_batch_size(inputs)
 
-        (loss, outs), grads = jax.value_and_grad(self.step, argnums=0, has_aux=True)(
+        (loss, outs), grads = self._value_and_grad(
             self.parameters(),
             inputs,
             None,
