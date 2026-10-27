@@ -244,7 +244,9 @@ def test_loader_with_new_sampler_preserves_params():
     loader = gcnn.data.GraphLoader(
         graphs, batch_size=4, pad=True, batch_mode=gcnn.data.BatchMode.IMPLICIT
     )
-    new_sampler = samplers.BatchSampler(samplers.SequentialSampler(8), batch_size=4, drop_last=True)
+    new_sampler = samplers.ChunkedSampler(
+        samplers.SequentialSampler(8), batch_size=4, drop_last=True
+    )
     new_loader = loader.with_new_sampler(new_sampler)
     assert new_loader.batch_size == 4
     assert new_loader.shuffle is loader.shuffle
@@ -260,13 +262,13 @@ def test_loader_with_new_sampler_changes_iteration():
     loader = gcnn.data.GraphLoader(graphs, batch_size=4)
 
     # Replace with drop_last=True -> 8/4 == 2 batches (drop_last is True, 8 % 4 == 0, so 2)
-    sampler_drop = samplers.BatchSampler(
+    sampler_drop = samplers.ChunkedSampler(
         samplers.SequentialSampler(8), batch_size=4, drop_last=True
     )
     assert len(loader.with_new_sampler(sampler_drop)) == 2
 
     # Replace with batch_size=2 -> 4 batches
-    sampler_smaller = samplers.BatchSampler(
+    sampler_smaller = samplers.ChunkedSampler(
         samplers.SequentialSampler(8), batch_size=2, drop_last=False
     )
     assert len(loader.with_new_sampler(sampler_smaller)) == 4
@@ -275,7 +277,7 @@ def test_loader_with_new_sampler_changes_iteration():
 def test_loader_with_new_sampler_returns_new_instance():
     graphs = _n_graphs(4)
     loader = gcnn.data.GraphLoader(graphs, batch_size=2)
-    new_sampler = samplers.BatchSampler(
+    new_sampler = samplers.ChunkedSampler(
         samplers.SequentialSampler(4), batch_size=2, drop_last=False
     )
     new_loader = loader.with_new_sampler(new_sampler)
@@ -293,7 +295,7 @@ def test_empty_batch_yields_fully_masked_graph():
     batch_size = 4
     graphs = _n_graphs(2)
 
-    inner = samplers.BatchSampler(
+    inner = samplers.ChunkedSampler(
         samplers.SequentialSampler(len(graphs)), batch_size=batch_size, drop_last=False
     )
     empty_sampler = samplers.DistributedSampler(inner=inner, num_replicas=2, process_index=1)
