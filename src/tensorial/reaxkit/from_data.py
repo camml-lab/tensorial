@@ -7,10 +7,9 @@ the model.
 
 from collections.abc import Mapping
 import functools
-from typing import Any
+from typing import Any, Final
 
 import beartype
-from flax import nnx
 import hydra
 import jaxtyping as jt
 import omegaconf
@@ -34,18 +33,16 @@ class FromData(reax.stages.Stage):
         cfg: omegaconf.DictConfig,
         engine: reax.Engine,
         *,
-        rngs: nnx.Rngs | None = None,
         dataloader: reax.DataLoader | None = None,
         datamodule: reax.DataModule | None = None,
-        dataloader_name: str | None = "train",
+        dataloader_name: str = "train",
         ignore_missing: bool = True,
     ):
         """Populate a hydra configurations dictionary using calculated stats
 
         Args:
             cfg: the configuration dictionary
-            engine: the trainer strategy
-            rngs: the random number generator
+            engine: the trainer engine
             dataloader: the dataloader to use
             datamodule: if no dataloader is specified, a data module can
                 be used instead
@@ -54,32 +51,29 @@ class FromData(reax.stages.Stage):
                 calculate a metric but is missing will be ignored, and
                 that metric will not be calculated
         """
+        loaders: dict[str, Any] = {dataloader_name: dataloader}
         super().__init__(
             "from_data",
-            module=None,
-            engine=engine,
-            rngs=rngs,
-            datamanager=reax.data.create_manager(
-                datamodule=datamodule, engine=engine, **{f"{dataloader_name}": dataloader}
-            ),
+            engine,
+            datamanager=reax.data.create_manager(datamodule=datamodule, engine=engine, **loaders),
         )
         # Params
-        self._dataset_name = dataloader_name
-        self._ignore_missing = ignore_missing
+        self._dataset_name: Final[str] = dataloader_name
+        self._ignore_missing: Final[bool] = ignore_missing
 
         # State
         self._cfg = cfg
-        self._dataloader = dataloader
         self._calculated = {}
         self._to_calculate: dict[str, Any] = self._update_stats(self._cfg)
 
     @property
-    def dataloader(self) -> reax.DataLoader | None:
+    def dataloader(self) -> reax.DataLoader:
         """Return the :class:`reax.DataLoader` this stage loads statistics from."""
+        assert self._datamanager is not None, "FromData must have a data manager"
         return self._datamanager.get_dataloader(self._dataset_name)
 
     @property
-    def dataloaders(self) -> reax.DataLoader | None:
+    def dataloaders(self) -> reax.DataLoader:
         """Dataloader function."""
         return self.dataloader
 
@@ -89,72 +83,37 @@ class FromData(reax.stages.Stage):
         return self._calculated
 
     @override
-    def log(
-        self,
-        name: str,
-        value,
-        batch_size: int | None = None,
-        prog_bar: bool = False,
-        logger: bool = False,
-        on_step=False,
-        on_epoch=True,
-    ) -> None:
-        """Log a metric to the parent stage.
+    def _run(self) -> None:
+        # Iterate: while there are still metrics to calculate, evaluate them on the
+        # dataset, bake the results into the config, and re-derive the remaining
+        # uncalculated metrics from the updated config (so that interpolations can now
+        # be resolved, e.g. one metric depending on the value of another).
+        while self._to_calculate:
+            loop = reax.stages.StatsEpoch(
+                self,
+                stats=self._to_calculate,
+                dataloader_name=self._dataset_name,
+                ignore_missing=self._ignore_missing,
+            )
+            self.run_loop(loop)
 
-        Delegates to :meth:`reax.stages.Stage.log` so that metrics emitted here
-        (e.g. during the ``EvaluateStats`` child stage) are reported through the
-        normal reax logging pipeline.
+            calculated: dict = self.logged_metrics
+            # Convert to types that can be used by omegaconf and update the configuration with
+            # the values
+            calculated = {
+                label: reax.utils.arrays.to_base(stat) for label, stat in calculated.items()
+            }
 
-        Args:
-            name: The name of the metric.
-            value: The metric value (array-like) to log.
-            batch_size: Current batch size, if available.
-            prog_bar: Whether to show the value on the progress bar.
-            logger: Whether to forward the value to the attached loggers.
-            on_step: Whether the value is a step-level metric.
-            on_epoch: Whether the value should be reduced over an epoch.
-        """
-        self._child.log(
-            name,
-            value,
-            batch_size=batch_size,
-            prog_bar=prog_bar,
-            logger=logger,
-            on_step=on_step,
-            on_epoch=on_epoch,
-        )
+            if self._ignore_missing:
+                # Set any that we couldn't calculate to `None`
+                for missing in self._to_calculate.keys() - calculated.keys():
+                    calculated[missing] = None
 
-    @override
-    def _step(self) -> None:
-        eval_stats = reax.stages.EvaluateStats(
-            self._to_calculate,
-            self._datamanager,
-            self._engine,
-            rngs=self._engine.rngs,
-            dataset_name=self._dataset_name,
-            ignore_missing=True,
-        )
-        calculated: dict = self._run_child(eval_stats).logged_metrics
-        # Convert to types that can be used by omegaconf and update the configuration with the
-        # values
-        calculated = {label: reax.utils.arrays.to_base(stat) for label, stat in calculated.items()}
+            self._cfg.update(calculated)
+            self._calculated.update(calculated)
 
-        if self._ignore_missing:
-            # Set any that we couldn't calculate to `None`
-            for missing in self._to_calculate.keys() - calculated.keys():
-                calculated[missing] = None
-
-        # Update for the next step
-        self._cfg.update(calculated)
-        self._calculated.update(calculated)
-
-        # Find the next set to get calculated
-        self._to_calculate = self._update_stats(self._cfg)
-
-        if not self._to_calculate:
-            # we're done
-            self._cfg.update(self._calculated)
-            self._stopper.set()
+            # Re-derive the next set to calculate from the updated config.
+            self._to_calculate = self._update_stats(self._cfg)
 
     def _update_stats(self, from_data: Mapping) -> dict:
         with_dependencies = []

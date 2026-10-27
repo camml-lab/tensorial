@@ -29,6 +29,7 @@ import jax.numpy as jnp
 import jaxtyping as jt
 import numpy as np
 from reax.utils import arrays
+from typing_extensions import TypeIs
 
 from tensorial.typing import IntoIrreps
 
@@ -50,6 +51,13 @@ __all__ = (
 Array = jax.typing.ArrayLike
 
 T = TypeVar("T")
+
+
+def is_tensorial_array_like(value: object) -> TypeIs[jt.ArrayLike | e3j.IrrepsArray]:
+    return isinstance(
+        value,
+        (jax.Array, np.ndarray, np.bool_, np.number, bool, int, float, complex, e3j.IrrepsArray),
+    )
 
 
 def atleast_1d(arr, np_=jnp) -> jax.Array | np.ndarray:

@@ -23,10 +23,9 @@ def test_module_outputs(output, tmp_path):
         def on_validation_batch_end(
             self,
             trainer: "reax.Trainer",
-            stage: "reax.stages.Train",
+            stage: "reax.Stage",
+            loop: "reax.stages.Loop",
             outputs: Any,
-            batch: Any,
-            batch_idx: int,
             /,
         ) -> None:
             if not trainer.sanity_checking:

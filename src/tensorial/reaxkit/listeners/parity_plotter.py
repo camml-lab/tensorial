@@ -54,13 +54,24 @@ class ParityPlotter(reax.TrainerListener):
             "predict": ([], []),
         }
 
-    def _should_collect(self, stage_name: str, epoch: int) -> bool:
+    def _should_collect(self, stage_name: str, epoch: int | None) -> bool:
+        if epoch is None:
+            return True
         if stage_name in ("test", "predict"):
             return True
         if epoch == 0 or (epoch + 1) % self._plot_every == 0:
             return True
         last = self._last_plotted_epoch.get(stage_name, 0)
         return (epoch - last) >= self._plot_every
+
+    def _epoch(self, trainer: reax.Trainer) -> int | None:
+        """Return the current epoch, or :data:`None` when not fitting.
+
+        ``trainer.current_epoch`` is only a meaningful epoch index while a
+        :class:`reax.stages.Fit` stage is running; for standalone
+        ``validate``/``test``/``predict`` runs there is no epoch to report.
+        """
+        return trainer.current_epoch if isinstance(trainer.stage, reax.stages.Fit) else None
 
     def _collect_batch_data(self, stage_name: str, outputs: Any | None, batch: Any) -> bool:
         """Helper to collect true (y) and predicted (y') values."""
@@ -156,86 +167,85 @@ class ParityPlotter(reax.TrainerListener):
     @override
     def on_train_batch_end(
         self,
-        _trainer: reax.Trainer,
-        stage: reax.stages.Train,
+        trainer: reax.Trainer,
+        _stage: reax.Stage,
+        loop: reax.stages.TrainEpoch,
         outputs: Any,
-        batch: Any,
-        _batch_idx: int,
         /,
     ) -> None:
         """Collect true and predicted values at the end of each training batch."""
-        if self._should_collect("train", stage.epoch):
-            self._collect_batch_data("train", outputs, batch)
+        if self._should_collect("train", self._epoch(trainer)):
+            self._collect_batch_data("train", outputs, loop.batch)
 
     @override
     def on_validation_batch_end(
         self,
-        _trainer: reax.Trainer,
-        stage: reax.stages.Validate,
+        trainer: reax.Trainer,
+        _stage: reax.Stage,
+        loop: reax.stages.ValidationEpoch,
         outputs: Any,
-        batch: Any,
-        _batch_idx: int,
         /,
     ) -> None:
         """Collect true and predicted values at the end of each validation batch."""
-        if self._should_collect("validation", stage.epoch):
-            self._collect_batch_data("validation", outputs, batch)
+        if self._should_collect("validation", self._epoch(trainer)):
+            self._collect_batch_data("validation", outputs, loop.batch)
 
     @override
     def on_test_batch_end(
         self,
-        _trainer: reax.Trainer,
-        stage: reax.stages.Test,
+        trainer: reax.Trainer,
+        _stage: reax.Stage,
+        loop: reax.stages.TestEpoch,
         outputs: Any,
-        batch: Any,
-        _batch_idx: int,
         /,
     ) -> None:
         """Collect true and predicted values at the end of each test batch."""
-        if self._should_collect("test", stage.epoch):
-            self._collect_batch_data("test", outputs, batch)
+        if self._should_collect("test", self._epoch(trainer)):
+            self._collect_batch_data("test", outputs, loop.batch)
 
     @override
     def on_predict_batch_end(
         self,
-        _trainer: reax.Trainer,
-        stage: reax.stages.Predict,
+        trainer: reax.Trainer,
+        _stage: reax.Stage,
+        loop: reax.stages.PredictionEpoch,
         outputs: Any,
-        batch: Any,
-        _batch_idx: int,
         /,
     ) -> None:
         """Collect true and predicted values at the end of each predict batch."""
-        if self._should_collect("predict", stage.epoch):
-            self._collect_batch_data("predict", outputs, batch)
+        if self._should_collect("predict", self._epoch(trainer)):
+            self._collect_batch_data("predict", outputs, loop.batch)
 
         # --- Implement Stage End Hooks to Trigger Plotting ---
 
     @override
-    def on_train_end(self, trainer: reax.Trainer, stage: reax.stages.Train, /):
+    def on_train_end(
+        self, trainer: reax.Trainer, _stage: reax.Stage, _loop: reax.stages.Loop, /
+    ) -> None:
         """Training is ending, plot the collected training data."""
-        self._plot_parity("train", self._get_save_dir(trainer), stage.epoch - 1)
+        self._plot_parity("train", self._get_save_dir(trainer), self._epoch(trainer))
 
     @override
-    def on_validation_end(self, trainer: reax.Trainer, stage: reax.stages.Validate, /) -> None:
+    def on_validation_end(self, trainer: reax.Trainer, _stage: reax.Stage, /) -> None:
         """Validation has ended, plot the collected validation data."""
-        self._plot_parity("validation", self._get_save_dir(trainer), stage.epoch)
+        self._plot_parity("validation", self._get_save_dir(trainer), self._epoch(trainer))
 
     @override
     def on_fit_end(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
         """Fit has ended, plot the collected training data."""
-        self._plot_parity("train", self._get_save_dir(trainer), stage.epoch - 1)
-        self._plot_parity("validation", self._get_save_dir(trainer), stage.epoch - 1)
+        epoch = self._epoch(trainer)
+        self._plot_parity("train", self._get_save_dir(trainer), epoch)
+        self._plot_parity("validation", self._get_save_dir(trainer), epoch)
 
     @override
-    def on_test_end(self, trainer: reax.Trainer, stage: reax.stages.Test, /) -> None:
+    def on_test_end(self, trainer: reax.Trainer, _stage: reax.Stage, /) -> None:
         """Test has ended, plot the collected test data."""
-        self._plot_parity("test", self._get_save_dir(trainer), stage.epoch)
+        self._plot_parity("test", self._get_save_dir(trainer), self._epoch(trainer))
 
     @override
-    def on_predict_end(self, trainer: reax.Trainer, stage: reax.stages.Predict, /) -> None:
+    def on_predict_end(self, trainer: reax.Trainer, _stage: reax.Stage, /) -> None:
         """Predict is ending, plot the collected prediction data."""
-        self._plot_parity("predict", self._get_save_dir(trainer), stage.epoch)
+        self._plot_parity("predict", self._get_save_dir(trainer), self._epoch(trainer))
 
     def get_target_predicted(self, batch, outputs) -> tuple[np.ndarray, np.ndarray]:
         """Return the flattened ``(targets, predictions)`` arrays for a single batch.
@@ -356,6 +366,17 @@ class GraphParityPlotter(ParityPlotter):
 
         targets = _tree.get(targets_graph, self._target_path)
         predictions = _tree.get(predictions_graph, self._prediction_path)
+
+        if not base.is_tensorial_array_like(targets):
+            raise TypeError(
+                f"Expected an array-like or IrrepsArray at "
+                f"{_tree.path_to_str(self._target_path)!r}, got {type(targets).__name__}"
+            )
+        if not base.is_tensorial_array_like(predictions):
+            raise TypeError(
+                f"Expected an array-like or IrrepsArray at "
+                f"{_tree.path_to_str(self._prediction_path)!r}, got {type(predictions).__name__}"
+            )
 
         mask_path = self._target_path[:-1] + ("mask",)
         try:

@@ -1,5 +1,5 @@
-from collections.abc import Callable, Sequence
-from typing import Any, Final, TypedDict, TypeVar, cast
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, Final, Generic, TypedDict, TypeVar, cast
 
 import beartype
 import equinox as eqx
@@ -29,7 +29,7 @@ Optimizer = optax.GradientTransformation | Callable[[], optax.GradientTransforma
 _DEFAULT_LOSS_REDUCTION: Final = "mean"
 
 
-class StepOutput(TypedDict):
+class StepOutput(Generic[OutputT_co], TypedDict):
     loss: NotRequired[jt.Array]
     targets: NotRequired[OutputT_co]
     predictions: NotRequired[OutputT_co]
@@ -40,9 +40,9 @@ class ReaxModule(reax.Module[InputT, OutputT_co]):
 
     # pylint: disable=method-hidden
 
-    _model: linen.Module | None = None
+    _model: linen.Module
     _loss_fn: LossFn
-    _metrics: reax.metrics.MetricCollection | None = None
+    _metrics: reax.metrics.MetricCollection | None
     _optimizer: Optimizer
 
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -75,19 +75,18 @@ class ReaxModule(reax.Module[InputT, OutputT_co]):
         self._loss_fn: Final[LossFn] = loss_fn
         self._loss_reduction: Final[reax.types.ReduceFn | None] = loss_reduction
         self._model: Final[linen.Module] = model
-
-        # State
-        self._optimizer = optimizer
-        self._scheduler = scheduler
-        self._debug: bool = False
         if jit:
             if donate_graph:
                 self.step = eqx.filter_jit(donate="all-except-first")(self.step)
             else:
                 self.step = eqx.filter_jit(self.step)
-
         self.calculate_metrics = eqx.filter_jit(donate="all")(self.calculate_metrics)
         self._forward = eqx.filter_jit(donate="all")(self._forward)
+
+        # State
+        self._optimizer = optimizer
+        self._scheduler = scheduler
+        self._debug: bool = False
 
     @staticmethod
     def _init_output(output) -> tuple[str]:
@@ -335,7 +334,7 @@ class ReaxModule(reax.Module[InputT, OutputT_co]):
 
     @staticmethod
     def calculate_metrics(
-        predictions: OutputT_co, targets: OutputT_co, metrics: MetricsDict
+        predictions: OutputT_co, targets: OutputT_co, metrics: Mapping[str, reax.Metric]
     ) -> dict[str, reax.Metric]:
         return {key: metric.create(predictions, targets) for key, metric in metrics.items()}
 
@@ -364,7 +363,7 @@ class ReaxModule(reax.Module[InputT, OutputT_co]):
         return inputs, outputs
 
 
-def _get_batch_size(inputs: InputT):
+def _get_batch_size(inputs: InputT) -> int | None:
     if not isinstance(inputs, jraph.GraphsTuple):
         return None
 
@@ -374,4 +373,4 @@ def _get_batch_size(inputs: InputT):
     except KeyError:
         mask = _graph_padding.get_graph_padding_mask(inputs)
 
-    return mask.sum()
+    return mask.sum().item()

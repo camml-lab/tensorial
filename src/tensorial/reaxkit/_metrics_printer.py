@@ -3,7 +3,7 @@ import logging
 import math
 import numbers
 import sys
-from typing import Final
+from typing import Any, Final
 
 import jax
 from lightning_utilities.core import rank_zero
@@ -43,6 +43,8 @@ class MetricsPrinter(reax.listeners.ProgressBar):
         self._metrics = None
         self._widths = {}
         self._line = None
+        # Whether the current layout includes the epoch column (fitting vs. eval)
+        self._show_epoch_col: bool | None = None
 
         # Stores the format string and dict for the header line
         self._header_format = None
@@ -69,10 +71,19 @@ class MetricsPrinter(reax.listeners.ProgressBar):
         self._enabled = False
         self._header_printed = False
 
-    def init_train_tqdm(self, stage: "reax.stages.EpochStage") -> tqdm.tqdm:
-        """Override this to customize the tqdm bar for training."""
+    def _epoch(self, trainer: "reax.Trainer") -> int | None:
+        """Return the current 0-based epoch, or :data:`None` when not fitting.
+
+        ``trainer.current_epoch`` is a meaningful epoch index only while a
+        :class:`reax.stages.Fit` stage is running; for standalone eval stages
+        (``validate``/``test``/``predict``) there is no epoch to report.
+        """
+        return trainer.current_epoch if isinstance(trainer.stage, reax.stages.Fit) else None
+
+    def _make_tqdm(self, loop: "reax.stages.Loop") -> tqdm.tqdm:
+        """Create the tqdm bar for a loop over batches."""
         return tqdm.tqdm(
-            desc=stage.name,
+            desc=loop.name,
             disable=self.is_disabled,
             leave=False,
             dynamic_ncols=True,
@@ -81,56 +92,94 @@ class MetricsPrinter(reax.listeners.ProgressBar):
         )
 
     @override
-    def on_stage_start(self, _trainer: "reax.Trainer", stage: "reax.stages.Stage", /) -> None:
-        if isinstance(stage, reax.stages.EpochStage):
-            if self._progress_bar is not None:
-                self._progress_bar.close()
-            self._progress_bar = self.init_train_tqdm(stage)
-            total = stage.max_iters if stage.max_iters is not None else stage.max_batches
-            # tqdm only renders a determinate bar/percentage for finite totals, and
-            # `inf` overflows while formatting the ETA. Fall back to indeterminate mode.
-            if total is not None and math.isfinite(total):
-                total = int(total)
-            else:
-                total = None
-            self._progress_bar.reset(total=total)
-            self._progress_bar.initial = 0
-
-    @override
-    def on_stage_end(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
+    def on_loop_start(
+        self, _trainer: "reax.Trainer", _stage: "reax.Stage", loop: "reax.stages.Loop"
+    ) -> None:
+        if not isinstance(loop, reax.stages.LoopOverBatches):
+            return
         if self._progress_bar is not None:
             self._progress_bar.close()
-
-        if isinstance(stage, reax.stages.FitEpoch) and self._enabled:
-            # Check if metrics structure needs to be initialized (i.e., first time running)
-            if not self._metrics:
-                self._initialize_metrics_structure(trainer.progress_bar_metrics)
-
-            if trainer.current_epoch % self._log_every == 0:
-                # Print header using the robust logging method
-                if not self._header_printed:
-                    # Log the header as a format string with its values
-                    self.do_log(self._header_format, self._header_values)
-                    self._header_printed = True
-
-                msg, values = self._get_metrics(trainer)
-                self.do_log(msg, values)
+        self._progress_bar = self._make_tqdm(loop)
+        total = loop.max_batches
+        # tqdm only renders a determinate bar/percentage for finite totals, and
+        # `inf` overflows while formatting the ETA. Fall back to indeterminate mode.
+        if total is not None and math.isfinite(total):
+            total = int(total)
+        else:
+            total = None
+        self._progress_bar.reset(total=total)
+        self._progress_bar.initial = 0
 
     @override
-    def on_stage_iter_start(
-        self, _trainer: "reax.Trainer", stage: "reax.Stage", _step: int, /
+    def on_loop_iter_end(
+        self,
+        _trainer: "reax.Trainer",
+        _stage: "reax.Stage",
+        loop: "reax.stages.Loop",
+        _outputs: Any,
+        /,
     ) -> None:
-        if isinstance(stage, reax.stages.EpochStage) and self._progress_bar is not None:
+        if isinstance(loop, reax.stages.LoopOverBatches) and self._progress_bar is not None:
             pbar = self._progress_bar
-            pbar.n = stage.iteration + 1
+            pbar.n = loop.batch_idx + 1
             pbar.refresh()
+
+    @override
+    def on_loop_end(
+        self,
+        trainer: "reax.Trainer",
+        _stage: "reax.Stage",
+        loop: "reax.stages.Loop",
+        _outputs: Any,
+        /,
+    ) -> None:
+        if not isinstance(loop, reax.stages.LoopOverBatches):
+            return
+
+        if self._progress_bar is not None:
+            self._progress_bar.close()
+            # Drop the reference so a subsequent iteration of a different (nested) loop
+            # doesn't write to this now-closed bar.
+            self._progress_bar = None
+
+        if not self._enabled:
+            return
+
+        # Only module stages (fit/validate/test/predict) report metric rows. Plain
+        # stages (e.g. FromData/EvaluateStats) only get a progress bar.
+        if not isinstance(trainer.stage, reax.stages.ModuleStage):
+            return
+
+        epoch = self._epoch(trainer)
+        show_epoch = epoch is not None
+
+        # While fitting, report once per epoch at the end of the training loop, not at
+        # the end of the nested validation/sanity-check loops (which would print the
+        # same epoch twice and would initialise the columns from validation metrics).
+        if show_epoch and not isinstance(loop, reax.stages.TrainEpoch):
+            return
+
+        if self._metrics is None or self._show_epoch_col != show_epoch:
+            self._initialize_metrics_structure(trainer.progress_bar_metrics, show_epoch=show_epoch)
+            self._show_epoch_col = show_epoch
+            self._header_printed = False
+
+        if epoch is None or epoch % self._log_every == 0:
+            # Print header using the robust logging method
+            if not self._header_printed:
+                # Log the header as a format string with its values
+                self.do_log(self._header_format, self._header_values)
+                self._header_printed = True
+
+            msg, values = self._get_metrics(trainer)
+            self.do_log(msg, values)
 
     def _get_float_format_width(self) -> int:
         """Calculates the minimum required width for the floating point value."""
         # This formula calculates the width for a string like: '-1234.56789'
         return 1 + 1 + self.NUMBER_DECIMALS + MAX_PRE_DECIMAL_DIGITS
 
-    def _initialize_metrics_structure(self, initial_metrics: dict) -> None:
+    def _initialize_metrics_structure(self, initial_metrics: dict, show_epoch: bool) -> None:
         """Dynamically sets up the list of metrics, header, line format, and column widths."""
 
         float_width = self._get_float_format_width()
@@ -142,18 +191,19 @@ class MetricsPrinter(reax.listeners.ProgressBar):
         metric_names = []
         widths = {}
 
-        # --- Fixed Columns: Epoch and Updates ---
+        # --- Fixed Columns: Epoch (when fitting) and Updates ---
 
-        # Epoch Column: Ensure alignment with data format (e.g., %(epoch)5i)
-        name_epoch = "epoch"
-        width_epoch = max(len(name_epoch), 5)
-        widths[name_epoch] = width_epoch
-        metric_names.append(name_epoch)
-        # Header format: placeholder to log the centered string
-        header_formats.append(f"%({name_epoch}){width_epoch}s")
-        header_values[name_epoch] = name_epoch.center(width_epoch)
-        # Data format: integer
-        line_formats.append(f"%({name_epoch}){width_epoch}i")
+        if show_epoch:
+            # Epoch Column: Ensure alignment with data format (e.g., %(epoch)5i)
+            name_epoch = "epoch"
+            width_epoch = max(len(name_epoch), 5)
+            widths[name_epoch] = width_epoch
+            metric_names.append(name_epoch)
+            # Header format: placeholder to log the centered string
+            header_formats.append(f"%({name_epoch}){width_epoch}s")
+            header_values[name_epoch] = name_epoch.center(width_epoch)
+            # Data format: integer
+            line_formats.append(f"%({name_epoch}){width_epoch}i")
 
         # Update Column
         name_update = "update"  # Use 'update' for the key name consistently
@@ -204,7 +254,8 @@ class MetricsPrinter(reax.listeners.ProgressBar):
             return "[Metrics not initialized]", {}
 
         metrics = copy.deepcopy(trainer.progress_bar_metrics)
-        metrics.setdefault("epoch", trainer.current_epoch)
+        if self._show_epoch_col:
+            metrics.setdefault("epoch", trainer.current_epoch)
         metrics.setdefault("update", trainer.global_updates)
 
         line = []

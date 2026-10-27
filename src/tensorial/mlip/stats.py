@@ -4,7 +4,7 @@ import equinox as eqx
 import jraph
 from pytray import tree
 import reax
-from typing_extensions import override
+from typing_extensions import Self, override
 
 _BoolReduce = Callable[[Sequence], bool]
 _Oper = str | _BoolReduce
@@ -29,15 +29,15 @@ class Unary(reax.Metric[bool]):
         self._state: bool = state
 
     @override
-    def create(self, values: Sequence, /, *_, **__) -> "Unary":
+    def create(self, values: Sequence, /, *_, **__) -> Self:
         return type(self)(self.oper, self.oper(values))
 
     @override
-    def update(self, values: Sequence, /, *_, **__) -> "Unary":
+    def update(self, values: Sequence, /, *_, **__) -> Self:
         return self.create([self._state, *values])
 
     @override
-    def merge(self, other: "Unary") -> "Unary":
+    def merge(self, other: Self) -> Self:
         return type(self)(
             self.oper,
             self.oper([self._state, other._state]),  # pylint: disable=protected-access
@@ -45,12 +45,15 @@ class Unary(reax.Metric[bool]):
 
     @override
     def compute(self) -> bool:
+        if self._state is None:
+            raise RuntimeError("Nothing to compute, metric is empty!")
+
         return self._state
 
 
 class Has(reax.Metric[bool]):
     _field: tuple = eqx.field(static=True)
-    _state: Unary | None
+    _state: Unary
 
     def __init__(self, field: str | tuple, oper: _Oper = "and", state: Unary | None = None):
         self._field = field if isinstance(field, tuple) else tuple(field.split("."))
@@ -79,7 +82,7 @@ class Has(reax.Metric[bool]):
         return Has(self._field, self._state.oper, self._state.merge(state))
 
     @override
-    def merge(self, other: "Has") -> "Has":
+    def merge(self, other: Self) -> Self:
         return type(self)(
             self._field,
             self._state.oper,

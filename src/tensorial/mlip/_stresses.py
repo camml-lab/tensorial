@@ -1,4 +1,4 @@
-from typing import Final, cast
+from typing import Any, Final, cast
 
 from flax import linen
 import jax
@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
 
-from .. import gcnn, nn_utils, utils
+from .. import base, gcnn, nn_utils, utils
 from .. import typing as tt
 from ..gcnn import atomic
 from . import keys
@@ -67,8 +67,13 @@ class CalcStresses(linen.Module):
             jraph.GraphsTuple: The input graph with updated node fields containing
             virials and optionally stresses.
         """
-        globals_dict = cast("dict[str, Any]", graph.globals)
+        globals_dict = cast(dict[str, Any], graph.globals)
         cell: CellArray = globals_dict[keys.CELL]
+        if not base.is_tensorial_array_like(cell):
+            raise TypeError(
+                f"Expected an array-like or IrrepsArray at {keys.CELL}, got {type(cell).__name__}"
+            )
+
         cell_displacement: DisplacementsArray = self._symmetric_displacements(cell)
         virial, graph = self._virial_fn(graph, cell_displacement)
 
@@ -83,7 +88,7 @@ class CalcStresses(linen.Module):
 
         if self.out_stresses is not None:
             volume = jax.vmap(gcnn.calc.cell_volume)(cell)
-            globals_dict = cast("dict[str, Any]", graph.globals)
+            globals_dict = cast(dict[str, Any], graph.globals)
             if keys.MASK in globals_dict:
                 mask = nn_utils.prepare_mask(globals_dict[keys.MASK], volume)
                 volume = jnp.where(mask, volume, 1.0)
@@ -96,7 +101,7 @@ class CalcStresses(linen.Module):
     def virial_fn(
         self, graph: jraph.GraphsTuple, displacement: DisplacementsArray
     ) -> jraph.GraphsTuple:
-        nodes = cast("dict[str, Any]", graph.nodes)
+        nodes = cast(dict[str, Any], graph.nodes)
         pos = nodes[keys.POSITIONS]
 
         # Apply the symmetrized displacements to each atomic position
