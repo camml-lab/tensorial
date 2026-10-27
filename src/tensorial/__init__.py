@@ -17,7 +17,7 @@ from .reaxkit import ReaxModule
 from .tensors import *
 from .utils import make_irreps
 
-__version__ = "0.6.5"
+__version__ = "0.7.0.dev1"
 
 __all__ = (
     base.__all__
