@@ -1,5 +1,5 @@
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Final, Generic, TypedDict, TypeVar, cast
+from typing import Any, Final, Generic, TypeVar, cast
 
 import beartype
 import equinox as eqx
@@ -10,7 +10,7 @@ import jraph
 import optax
 import reax
 import reax.utils
-from typing_extensions import NotRequired, override
+from typing_extensions import NotRequired, TypedDict, override
 
 from ..gcnn.data import _graph_padding
 
