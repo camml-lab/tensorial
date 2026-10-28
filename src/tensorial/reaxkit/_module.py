@@ -112,13 +112,10 @@ class ReaxModule(reax.Module[InputT, OutputT_co]):
             else:
                 self.step = eqx.filter_jit(self.step)
 
-        # Compute the loss and its gradient in one compiled program.  Calling `jax.value_and_grad`
-        # on the jitted `step` from Python would make JAX redo the differentiation in Python at
-        # every training step, leaving the device idle most of the time.
+        # Compute the loss and its gradient in one compiled program.
         self._value_and_grad = jax.value_and_grad(self.step, argnums=0, has_aux=True)
         if jit:
-            # Not `eqx.filter_jit`: it waits for the device to finish before returning, so the
-            # CPU could not prepare the next batch while the device computes this step.
+            # Removed `eqx.filter_jit`: it waits for the device to finish before returning, so the
             self._value_and_grad = _jit_without_waiting(self._value_and_grad)
 
         self.calculate_metrics = eqx.filter_jit(donate="all")(self.calculate_metrics)
