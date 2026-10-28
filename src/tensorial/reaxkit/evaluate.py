@@ -40,11 +40,18 @@ def evaluate(cfg: omegaconf.DictConfig) -> None:
     _LOGGER.info("Instantiating loggers...")
     logger: list[reax.Logger] = utils.instantiate_loggers(cfg.get(keys.LOGGER))
 
+    # Listeners are optional for evaluation (e.g. ``tensorial predict --profile`` adds one)
+    listeners: list[reax.TrainerListener] = (
+        utils.instantiate_listeners(cfg.get("listeners")) if cfg.get("listeners") else []
+    )
+
     _LOGGER.info(
         "Instantiating trainer <%s>",
         cfg[keys.TRAINER]._target_,  # pylint: disable=protected-access
     )
-    trainer: reax.Trainer = hydra.utils.instantiate(cfg[keys.TRAINER], logger=logger)
+    trainer: reax.Trainer = hydra.utils.instantiate(
+        cfg[keys.TRAINER], logger=logger, listeners=listeners
+    )
     model: "reaxkit.ReaxModule" = config.load_module(cfg[keys.CONFIG_PATH], cfg[keys.CKPT_PATH])
 
     object_dict = {
@@ -52,6 +59,7 @@ def evaluate(cfg: omegaconf.DictConfig) -> None:
         "datamodule": datamodule,
         "model": model,
         "logger": logger,
+        "listeners": listeners,
         "trainer": trainer,
     }
 
