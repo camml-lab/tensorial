@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import jraph
 
 from .. import base
+from ..tensors import SphericalHarmonic
 from . import _base, _tree, graph_ops, keys, utils
 from .experimental import utils as exp_utils
 
@@ -19,6 +20,7 @@ __all__ = (
     "NodewiseEmbedding",
     "NodewiseEncoding",
     "NodewiseDecoding",
+    "AllPairsLongRangeEncoding",
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -220,3 +222,111 @@ class NodewiseDecoding(linen.Module):
 
 # For legacy reasons
 NodewiseEncoding = NodewiseEmbedding
+
+
+class AllPairsLongRangeEncoding(linen.Module):
+    """Dense all-pairs node encoding.
+
+    For each centre atom ``j``, computes
+
+        M_j^(l,m) = sum_{i != j} r_ij^l Y_lm(r_hat_ij),
+
+    over all valid source atoms ``i`` in the same graph, with
+
+        r_ij = x_j - x_i.
+
+    The encoding is not restricted by the short-range cutoff graph.
+    """
+
+    l_max: int
+    field: str = keys.ATTRIBUTES
+    normalise: bool = True
+    time_field: str = "time_embedding"
+
+    @_base.shape_check
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
+        positions = graph.nodes[keys.POSITIONS]
+        num_nodes = positions.shape[0]
+
+        # Follow the convention used by _spatial.with_edge_vectors:
+        # `edge_vecs = pos[graph.receivers] - pos[graph.senders]`;
+        # reflecting the message passing convention in `MessagePassingConvolution`:
+        # `messages = node_feats[senders]` and `zeros.at[receivers].add(messages)`.
+        # Here j is the receiver/centre and i is the sender/source.
+        pair_vectors = positions[:, None, :] - positions[None, :, :]
+        pair_distances = jnp.linalg.norm(pair_vectors, axis=-1)
+
+        # Identify the graph each node belongs to.
+        graph_ids = jnp.repeat(
+            jnp.arange(len(graph.n_node)),
+            graph.n_node,
+            total_repeat_length=num_nodes,
+        )
+
+        valid_nodes = graph.nodes[keys.MASK]
+
+        # Keep distinct, valid nodes belonging to the same graph.
+        node_ids = jnp.arange(num_nodes)
+        same_graph = graph_ids[:, None] == graph_ids[None, :]
+        different_nodes = node_ids[:, None] != node_ids[None, :]
+        both_valid = valid_nodes[:, None] & valid_nodes[None, :]
+        pair_mask = same_graph & different_nodes & both_valid
+
+        # Spherical harmonics Y_lm(r_hat_ij).
+        irreps = e3j.Irreps.spherical_harmonics(self.l_max)
+        harmonics = SphericalHarmonic(
+            irreps,
+            normalise=True,
+            normalisation="integral",
+        ).create_tensor(pair_vectors)
+
+        # Degree l associated with each spherical-harmonic component.
+        l_values = jnp.arange(self.l_max + 1)
+        l_degrees = jnp.repeat(
+            l_values,
+            2 * l_values + 1,
+            total_repeat_length=irreps.dim,
+        )
+
+        # Y_lm(r_hat_ij) * ||r_ij||^l
+        pair_features = harmonics.array * pair_distances[..., None] ** l_degrees
+
+        # Zero self-pairs, cross-graph pairs, and padded-node pairs
+        pair_features = jnp.where(
+            pair_mask[..., None],
+            pair_features,
+            0.0,
+        )
+
+        # Sum over source atoms i
+        long_range_array = jnp.sum(pair_features, axis=1)
+
+        if self.normalise:
+            num_partners = jnp.sum(pair_mask, axis=1)
+            num_partners = jnp.maximum(num_partners, 1)
+            long_range_array = long_range_array / num_partners[:, None]
+
+        long_range = e3j.IrrepsArray(
+            irreps,
+            long_range_array,
+        )
+
+        # Raw Fourier time embedding, one vector per node.
+        # Shape: (n_node, time_embedding_dim)
+        time_embedding = graph.nodes[self.time_field]
+
+        # Every Fourier component is an invariant even scalar.
+        time_irreps = e3j.IrrepsArray(
+            f"{time_embedding.shape[-1]}x0e",
+            time_embedding,
+        )
+
+        # Explicit time × AllPairs tensor product.
+        long_range = e3j.tensor_product(
+            time_irreps,
+            long_range,
+        )
+
+        nodes = graph.nodes
+        nodes[self.field] = e3j.concatenate([nodes[self.field], long_range])
+        return graph._replace(nodes=nodes)
