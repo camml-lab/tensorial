@@ -10,6 +10,7 @@ import pytest
 
 import tensorial
 from tensorial import gcnn
+from tensorial.gcnn import keys
 import tensorial.tensors
 
 
@@ -262,3 +263,147 @@ def test_nodewise_reduce(jit, rng_key):
     assert isinstance(out_graph.globals[out_field], jax.Array)
     assert out_graph.globals[out_field].shape == (1,)
     assert out_graph.globals[out_field] == jnp.sum(node_attrs)
+
+
+def _graph_with_attrs(pos, n_node, attrs_irreps="1x0e", mask=None, rng=None) -> jraph.GraphsTuple:
+    pos = jnp.asarray(pos)
+    n_nodes = pos.shape[0]
+    rng = rng if rng is not None else random.PRNGKey(0)
+    irreps = e3j.Irreps(attrs_irreps)
+    attrs = e3j.IrrepsArray(irreps, random.uniform(rng, (n_nodes, irreps.dim)))
+
+    nodes = {
+        keys.POSITIONS: pos,
+        keys.ATTRIBUTES: attrs,
+        keys.MASK: jnp.ones(n_nodes, dtype=bool) if mask is None else jnp.asarray(mask),
+        # A unit scalar leaves the spatial features unchanged by the time tensor product.
+        "time_embedding": jnp.ones((n_nodes, 1)),
+    }
+
+    return jraph.GraphsTuple(
+        nodes=nodes,
+        senders=None,
+        receivers=None,
+        edges=None,
+        globals=None,
+        n_node=jnp.asarray(n_node),
+        n_edge=jnp.array([0] * len(n_node)),
+    )
+
+
+def _long_range_features(layer, graph):
+    input_dim = graph.nodes[layer.field].irreps.dim
+    output = layer.apply({}, jax.tree_util.tree_map(lambda x: x, graph))
+    return output.nodes[layer.field][..., input_dim:]
+
+
+def test_all_pairs_long_range_encoding_irreps():
+    graph = _graph_with_attrs(np.zeros((3, 3)), [3], attrs_irreps="2x0e")
+    long_range = _long_range_features(gcnn.AllPairsLongRangeEncoding(l_max=2), graph)
+
+    assert long_range.irreps == e3j.Irreps("0e + 1o + 2e")
+    assert long_range.shape == (3, 9)
+
+
+def test_all_pairs_long_range_encoding_pair_direction_and_no_self():
+    separation = 2.5
+    graph = _graph_with_attrs([[0.0, 0.0, 0.0], [separation, 0.0, 0.0]], [2])
+    long_range = _long_range_features(gcnn.AllPairsLongRangeEncoding(l_max=1), graph)
+
+    expected_positive = e3j.spherical_harmonics(
+        "1o", jnp.array([1.0, 0.0, 0.0]), True, normalization="integral"
+    ).array
+    expected_negative = e3j.spherical_harmonics(
+        "1o", jnp.array([-1.0, 0.0, 0.0]), True, normalization="integral"
+    ).array
+    # Centre j=0 receives from i=1, so x_j - x_i points along negative x.
+    assert jnp.allclose(long_range.array[0, 1:], separation * expected_negative)
+    assert jnp.allclose(long_range.array[1, 1:], separation * expected_positive)
+
+    single = _graph_with_attrs([[3.0, -2.0, 1.0]], [1])
+    single_features = _long_range_features(gcnn.AllPairsLongRangeEncoding(l_max=2), single)
+    assert jnp.allclose(single_features.array, 0.0)
+    assert not jnp.any(jnp.isnan(single_features.array))
+
+
+def test_all_pairs_long_range_encoding_is_raw_sum():
+    one_source = _graph_with_attrs([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], [2])
+    two_sources = _graph_with_attrs([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]], [3])
+    layer = gcnn.AllPairsLongRangeEncoding(l_max=2, normalise=False)
+    one = _long_range_features(layer, one_source)
+    two = _long_range_features(layer, two_sources)
+
+    assert jnp.allclose(two.array[0], 2.0 * one.array[0])
+
+
+def test_all_pairs_long_range_encoding_radial_scaling():
+    scale = 3.0
+    graph = _graph_with_attrs([[0.0, 0.0, 0.0], [1.0, 2.0, -1.0]], [2])
+    scaled_graph = _graph_with_attrs([[0.0, 0.0, 0.0], [scale, 2 * scale, -scale]], [2])
+    layer = gcnn.AllPairsLongRangeEncoding(l_max=2)
+    features = _long_range_features(layer, graph)
+    scaled = _long_range_features(layer, scaled_graph)
+
+    offsets = (0, 1, 4, 9)
+    for l in range(3):  # noqa: E741
+        block = slice(offsets[l], offsets[l + 1])
+        assert jnp.allclose(scaled.array[:, block], scale**l * features.array[:, block])
+
+
+def test_all_pairs_long_range_encoding_translation_invariance():
+    pos = np.array([[0.2, 1.0, -0.5], [2.0, -1.0, 0.3], [-0.4, 0.5, 1.2]])
+    translated = pos + np.array([10.0, -7.0, 3.5])
+    layer = gcnn.AllPairsLongRangeEncoding(l_max=2)
+    original = _long_range_features(layer, _graph_with_attrs(pos, [3]))
+    shifted = _long_range_features(layer, _graph_with_attrs(translated, [3]))
+
+    assert jnp.allclose(original.array, shifted.array, atol=1e-6)
+
+
+def test_all_pairs_long_range_encoding_rotation_equivariance(rng_key):
+    pos = e3j.IrrepsArray("1o", jnp.array([[0.2, 1.0, -0.5], [2.0, -1.0, 0.3], [-0.4, 0.5, 1.2]]))
+    layer = gcnn.AllPairsLongRangeEncoding(l_max=2)
+
+    def encode(positions):
+        graph = _graph_with_attrs(positions.array, [3])
+        return _long_range_features(layer, graph)
+
+    e3j.utils.assert_equivariant(encode, rng_key, pos)
+
+
+def test_all_pairs_long_range_encoding_batched_graph_isolation():
+    first_pos = np.array([[0.0, 0.0, 0.0], [1.0, 0.5, 0.0]])
+    second_pos = np.array([[10.0, -4.0, 2.0], [11.0, -3.5, 2.0]])
+    layer = gcnn.AllPairsLongRangeEncoding(l_max=2)
+    batched = _long_range_features(
+        layer, _graph_with_attrs(np.concatenate([first_pos, second_pos]), [2, 2])
+    )
+    first = _long_range_features(layer, _graph_with_attrs(first_pos, [2]))
+    second = _long_range_features(layer, _graph_with_attrs(second_pos, [2]))
+
+    assert jnp.allclose(batched.array[:2], first.array)
+    assert jnp.allclose(batched.array[2:], second.array)
+
+
+def test_all_pairs_long_range_encoding_padding_mask():
+    valid_pos = np.array([[0.0, 0.0, 0.0], [1.0, 0.5, 0.0]])
+    padded_pos = np.concatenate([valid_pos, [[0.0, 0.0, 0.0]]])
+    layer = gcnn.AllPairsLongRangeEncoding(l_max=2)
+    expected = _long_range_features(layer, _graph_with_attrs(valid_pos, [2]))
+    padded = _long_range_features(
+        layer, _graph_with_attrs(padded_pos, [3], mask=[True, True, False])
+    )
+
+    assert jnp.allclose(padded.array[:2], expected.array)
+    assert jnp.allclose(padded.array[2], 0.0)
+    assert not jnp.any(jnp.isnan(padded.array))
+
+
+@pytest.mark.parametrize("jit", (False, True))
+def test_all_pairs_long_range_encoding_jit(jit):
+    graph = _graph_with_attrs([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], [2])
+    layer = gcnn.AllPairsLongRangeEncoding(l_max=1)
+    apply = jax.jit(layer.apply) if jit else layer.apply
+
+    output = apply({}, jax.tree_util.tree_map(lambda x: x, graph))
+    assert output.nodes[keys.ATTRIBUTES].irreps == e3j.Irreps("1x0e + 0e + 1o")
