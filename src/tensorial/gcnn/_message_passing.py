@@ -26,7 +26,10 @@ class MessagePassingConvolution(linen.Module):
         avg_num_neighbours: average number of neighbours of each node, used to normalise the
             aggregated messages. Can be a single value or a mapping of node type to value
         epsilon: if set, the aggregated messages are multiplied by this constant instead of
-            being divided by the square root of the average number of neighbours
+            being normalised by the average number of neighbours
+        avg_num_neighbours_exponent: the aggregated messages are divided by
+            ``avg_num_neighbours ** avg_num_neighbours_exponent``. The default (0.5) is the
+            square root normalisation used by NequIP, while MACE uses 1.0
         radial_num_layers: the number of layers in the radial MLP
         radial_num_neurons: the number of neurons per layer in the radial MLP
         radial_activation: activation function used by the radial MLP
@@ -40,6 +43,7 @@ class MessagePassingConvolution(linen.Module):
     # Normalisation
     avg_num_neighbours: float | dict[int, float] | linen.FrozenDict[int, float] = 1.0
     epsilon: float | None = None
+    avg_num_neighbours_exponent: float = 0.5
 
     # Radial
     radial_num_layers: int = 1
@@ -94,6 +98,11 @@ class MessagePassingConvolution(linen.Module):
 
         messages = node_feats[senders]
 
+        # NOTE: "0e" is always kept (both from the raw sender features and the tensor product
+        # paths, e.g. 1o x 1o -> 0e), even when irreps_out has no scalars. Downstream blocks
+        # (e.g. NequIP's gate) build their gate scalars from these channels; without them the
+        # gates would be identically zero and the gated non-scalar features would vanish.
+
         # Interaction between nodes and edges
         edge_features = e3j.tensor_product(messages, edge_features, filter_ir_out=irreps_out + "0e")
 
@@ -128,6 +137,8 @@ class MessagePassingConvolution(linen.Module):
         if isinstance(self.avg_num_neighbours, linen.FrozenDict):
             type_idxs = nn_utils.vwhere(node_types, self._types)
             avg_neighbours = self._avg_neighbours[type_idxs]
-            return jax.vmap(lambda a, b: a / b)(node_feats, jnp.sqrt(avg_neighbours))
+            return jax.vmap(lambda a, b: a / b)(
+                node_feats, avg_neighbours**self.avg_num_neighbours_exponent
+            )
 
-        return node_feats / jnp.sqrt(self.avg_num_neighbours)
+        return node_feats / self.avg_num_neighbours**self.avg_num_neighbours_exponent

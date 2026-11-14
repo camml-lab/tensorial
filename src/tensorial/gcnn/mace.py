@@ -51,11 +51,13 @@ class InteractionBlock(linen.Module):
     Args:
         irreps_out: the irreps of the output node features
         avg_num_neighbours: average number of neighbours of each node, used to
-            normalise the message aggregation. Can be a single value or a mapping
-            of node type to value
+            normalise the message aggregation (the aggregated messages are divided by
+            this value, as in MACE). Can be a single value or a mapping of node type
+            to value
         epsilon: if set, the aggregated messages are multiplied by this constant
-            instead of being divided by the square root of the average number of
-            neighbours
+            instead of being divided by the average number of neighbours
+        radial_num_layers: the number of hidden layers in the radial MLP
+        radial_num_neurons: the number of neurons per hidden layer in the radial MLP
         radial_activation: activation function used by the radial MLP that maps
             inter-atomic distances to tensor product weights
 
@@ -69,6 +71,9 @@ class InteractionBlock(linen.Module):
     avg_num_neighbours: float | Mapping[int, float] = 1.0
     epsilon: float | None = None
 
+    # Radial
+    radial_num_layers: int = 3
+    radial_num_neurons: int = 64
     radial_activation: str | nn_utils.ActivationFunction = "swish"
 
     def setup(self):
@@ -80,6 +85,10 @@ class InteractionBlock(linen.Module):
             self._target_irreps,
             avg_num_neighbours=self.avg_num_neighbours,
             epsilon=self.epsilon,
+            # MACE normalises by the full average number of neighbours (NequIP uses the sqrt)
+            avg_num_neighbours_exponent=1.0,
+            radial_num_layers=self.radial_num_layers,
+            radial_num_neurons=self.radial_num_neurons,
             radial_activation=self.radial_activation,
         )
         self._linear_down = e3j.flax.Linear(
@@ -164,8 +173,14 @@ class MaceLayer(linen.Module):
     """A MACE layer composed of:
     * Interaction block
     * Normalisation
+    * (optional) type-dependent linear on the interaction output
     * Product basis (node-only, or joint node+global when ``global_interaction`` is set)
     * (optional) self connection
+
+    ``type_linear_interaction`` should be enabled on the first layer: it matches the
+    species-indexed linear that MACE applies to the first interaction's messages
+    (``skip_tp`` in mace-torch's ``RealAgnosticInteractionBlock``, ``skip_tp_first`` in
+    mace-jax).
     """
 
     irreps_out: IntoIrreps
@@ -193,6 +208,11 @@ class MaceLayer(linen.Module):
 
     soft_normalisation: float | None = None
     skip_connection: bool = True
+    type_linear_interaction: bool = False
+
+    #   Radial MLP
+    radial_num_layers: int = 3
+    radial_num_neurons: int = 64
 
     def setup(self):
         """Resolve target irreps and build the interaction + readout block."""
@@ -212,8 +232,20 @@ class MaceLayer(linen.Module):
             num_features * interaction_irreps,
             avg_num_neighbours=self.avg_num_neighbours,
             epsilon=self.epsilon,
+            radial_num_layers=self.radial_num_layers,
+            radial_num_neurons=self.radial_num_neurons,
             radial_activation=self.radial_activation,
         )
+
+        if self.type_linear_interaction:
+            self._type_linear = e3j.flax.Linear(
+                num_features * interaction_irreps,
+                num_indexed_weights=self.num_types,
+                name="type_linear_interaction",
+                force_irreps_out=True,
+            )
+        else:
+            self._type_linear = None
 
         if self.global_interaction:
             global_correlation_order = (
@@ -287,6 +319,9 @@ class MaceLayer(linen.Module):
             edge_mask=edge_mask,
             node_types=node_types,
         )
+
+        if self._type_linear is not None:
+            node_features = self._type_linear(node_types, node_features)
 
         if self._joint_product_basis is not None:
             if global_features is None:
@@ -366,6 +401,8 @@ class Mace(linen.Module):
         interaction_irreps: the irreps used for the interaction. Either ``"o3_restricted"``,
             ``"o3_full"``, or an explicit irreps specification
         radial_activation: activation function used by the radial MLP
+        radial_num_layers: the number of hidden layers in the radial MLP
+        radial_num_neurons: the number of neurons per hidden layer in the radial MLP
         skip_connection_first_layer: if ``True``, apply a skip connection in the first layer
 
     Example:
@@ -406,6 +443,8 @@ class Mace(linen.Module):
 
     # Radial
     radial_activation: Callable = jax.nn.silu  # activation function
+    radial_num_layers: int = 3
+    radial_num_neurons: int = 64
 
     skip_connection_first_layer: bool = False
 
@@ -444,6 +483,8 @@ class Mace(linen.Module):
                 interaction_irreps=interaction_irreps,
                 # Radial
                 radial_activation=self.radial_activation,
+                radial_num_layers=self.radial_num_layers,
+                radial_num_neurons=self.radial_num_neurons,
                 # Normalisation
                 avg_num_neighbours=self.avg_num_neighbours,
                 epsilon=self.epsilon,
@@ -458,6 +499,7 @@ class Mace(linen.Module):
                 # Residual
                 soft_normalisation=self.soft_normalisation,
                 skip_connection=is_not_first or self.skip_connection_first_layer,
+                type_linear_interaction=i == 0,
             )
 
             # Readout
