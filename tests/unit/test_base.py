@@ -393,3 +393,44 @@ def test_tensorial_attrs_non_irrepsobj_class_raises():
 
     with pytest.raises(TypeError):
         tensorial.tensorial_attrs(NotTensorial)
+
+
+def test_cartesian_tensor_batched():
+    """Leading axes of the value are batch axes: same result as converting tensor by tensor."""
+    key = jax.random.PRNGKey(1)
+    cart = tensorial.CartesianTensor("ij=ji", i="1o")
+    values = jax.random.uniform(key, (5, 2, 3, 3))
+    values = values + jnp.swapaxes(values, -1, -2)
+
+    batched = cart.create_tensor(values)
+    assert batched.irreps == cart.irreps
+    assert batched.shape == (5, 2, cart.irreps.dim)
+    one_by_one = jnp.stack([cart.create_tensor(v).array for v in values.reshape(-1, 3, 3)])
+    assert jnp.allclose(batched.array.reshape(-1, cart.irreps.dim), one_by_one, atol=1e-6)
+    # Round trip with several batch axes
+    assert cart.from_tensor(batched).shape == values.shape
+    assert jnp.allclose(cart.from_tensor(batched), values, atol=1e-5)
+    # and a single, unbatched tensor
+    assert jnp.allclose(cart.from_tensor(cart.create_tensor(values[0, 0])), values[0, 0], atol=1e-5)
+
+
+def test_cartesian_tensor_multiplicity_index():
+    """An index with n scalar irreps gives n copies of the reduced irreps, e.g. one symmetric
+    tensor per frequency: "kij=kji" with k = 4x0e, i = 1o -> 4x0e + 4x2e, batched over nodes."""
+    cart = tensorial.CartesianTensor("kij=kji", k="4x0e", i="1o")
+    assert cart.irreps == e3j.Irreps("4x0e + 4x2e")
+
+    values = jax.random.normal(jax.random.PRNGKey(2), (3, 4, 3, 3))
+    values = values + jnp.swapaxes(values, -1, -2)
+    tensor = cart.create_tensor(values)
+    assert tensor.shape == (3, cart.irreps.dim)
+
+    # Equivariant: rotating each Cartesian tensor rotates the irreps
+    rot = e3j.rand_matrix(jax.random.PRNGKey(3), ())
+    rotated = cart.create_tensor(jnp.einsum("ab,nkbc,dc->nkad", rot, values, rot))
+    assert jnp.allclose(rotated.array, tensor.transform_by_matrix(rot).array, atol=1e-4)
+
+    # The 0e part is the trace of each tensor (up to the basis normalisation)
+    traces = jnp.trace(values, axis1=-2, axis2=-1)
+    scalars = tensor.filter("0e").array
+    assert jnp.allclose(scalars / traces, (scalars / traces)[0, 0], atol=1e-4)

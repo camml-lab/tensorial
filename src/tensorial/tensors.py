@@ -215,10 +215,12 @@ class CartesianTensor(base.Attr[jt.ArrayLike]):
 
         The value is multiplied by the stored change-of-basis matrix with an
         einsum over the cartesian indices, then delegated to the base class.
+        Leading axes are treated as batch axes, e.g. one tensor per node with
+        shape ``(n_nodes, 3, 3)``.
         """
         # Construct the einsum string dynamically based on the rank
         indices = self._indices
-        einsum_str = f"{indices},{indices}z->z"
+        einsum_str = f"...{indices},{indices}z->...z"
         return super().create_tensor(  # pylint: disable=not-callable
             jnp.einsum(einsum_str, value, self.change_of_basis)
         )
@@ -226,13 +228,13 @@ class CartesianTensor(base.Attr[jt.ArrayLike]):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def from_tensor(
         self,
-        tensor: IrrepsArrayShape["irreps"] | IrrepsArrayShape["batch irreps"],
-    ) -> Float[jax.Array, "..."] | Float[jax.Array, "batch ..."]:
+        tensor: IrrepsArrayShape["... irreps"],
+    ) -> Float[jax.Array, "..."]:
         """Take an irrep tensor and perform the change of basis transformation back to a Cartesian
         tensor
 
         Args:
-            tensor: the irrep tensor
+            tensor: the irrep tensor; leading axes are batch axes, as in :meth:`create_tensor`
 
         Returns:
             the Cartesian tensor

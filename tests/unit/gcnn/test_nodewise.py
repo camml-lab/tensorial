@@ -262,3 +262,31 @@ def test_nodewise_reduce(jit, rng_key):
     assert isinstance(out_graph.globals[out_field], jax.Array)
     assert out_graph.globals[out_field].shape == (1,)
     assert out_graph.globals[out_field] == jnp.sum(node_attrs)
+
+
+def test_nodewise_encoding_cartesian_tensor(rng_key):
+    """A CartesianTensor node attribute, one Cartesian tensor per node, is embedded node by node."""
+    in_field: Final[str] = "in"
+    out_field: Final[str] = "out"
+    n_nodes = 5
+
+    cart = tensorial.CartesianTensor("kij=kji", k="2x0e", i="1o")
+    values = random.normal(rng_key, (n_nodes, 2, 3, 3))
+    values = values + jnp.swapaxes(values, -1, -2)
+
+    graph = jraph.GraphsTuple(
+        nodes={in_field: values},
+        senders=None,
+        receivers=None,
+        edges=None,
+        globals=None,
+        n_node=jnp.array([n_nodes]),
+        n_edge=jnp.array([0]),
+    )
+
+    encoding = gcnn.NodewiseEmbedding({in_field: cart}, out_field=out_field)
+    out = encoding(graph).nodes[out_field]
+    assert out.irreps == e3j.Irreps("2x0e + 2x2e")
+    assert out.shape == (n_nodes, out.irreps.dim)
+    for node in range(n_nodes):
+        assert jnp.allclose(out.array[node], cart.create_tensor(values[node]).array, atol=1e-6)
