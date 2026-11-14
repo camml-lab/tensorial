@@ -48,6 +48,15 @@ class InteractionBlock(linen.Module):
             used for normalization
         skip_connection: If True, skip connection will be applied at end
             of interaction
+        attributes_in_linears: with ``node_attributes``, also condition the linears before and
+            after the convolution on them (as e3nn's ``gate_points_2101`` convolution does), not
+            only the self-connection
+
+    Node attributes: by default the self-connection has one weight set per species
+    (``node_species``). Passing continuous ``node_attributes`` (scalars, e.g. a species one-hot
+    concatenated with per-node descriptors) makes it the tensor product of the node features
+    with them followed by a linear, as in the original NequIP; for a one-hot this is the same
+    function family as the per-species weights.
     """
 
     irreps_out: IntoIrreps = 4 * e3j.Irreps("0e + 1o + 2e")
@@ -61,6 +70,7 @@ class InteractionBlock(linen.Module):
     activations: str | Mapping[str, ActivationLike] = DEFAULT_ACTIVATIONS
 
     num_species: int = 1
+    attributes_in_linears: bool = False
 
     def setup(self):
         """Build the underlying `MessagePassingConvolution` for this block."""
@@ -93,6 +103,7 @@ class InteractionBlock(linen.Module):
         receivers: IndexArray["n_edge"],
         *,
         node_species: Int[Array, "n_node"] | None = None,
+        node_attributes: IrrepsArrayShape["n_node attr_irreps"] | None = None,
         node_mask: Bool[Array, "n_node"] | None = None,
         edge_mask: Bool[Array, "n_edge"] | None = None,
     ) -> e3j.IrrepsArray:
@@ -113,8 +124,11 @@ class InteractionBlock(linen.Module):
                 node_mask, node_features, tensorial_utils.zeros_like(node_features)
             )
 
+        conditioned = node_attributes is not None and self.attributes_in_linears
         # No bias, so masked (zeroed) nodes stay zero and need no re-masking
-        node_feats = e3j.flax.Linear(node_features.irreps, name="linear_up")(node_features)
+        node_feats = e3j.flax.Linear(node_features.irreps, name="linear_up")(
+            e3j.tensor_product(node_features, node_attributes) if conditioned else node_features
+        )
 
         node_feats = self._message_passing(
             node_feats,
@@ -131,16 +145,24 @@ class InteractionBlock(linen.Module):
         gate_irreps = gate_irreps + (num_non_scalar * e3j.Irrep("0e"))
 
         # Second linear, now we create any extra gate scalars
-        node_feats = e3j.flax.Linear(gate_irreps, name="linear_down")(node_feats)
+        node_feats = e3j.flax.Linear(gate_irreps, name="linear_down")(
+            e3j.tensor_product(node_feats, node_attributes) if conditioned else node_feats
+        )
 
         # self-connection: species weighted tensor product that maps to current irreps space
         if self.skip_connection:
-            skip = e3j.flax.Linear(
-                node_feats.irreps,
-                num_indexed_weights=self.num_species,
-                name="skip_connection",
-                force_irreps_out=True,
-            )(node_species, node_features)
+            if node_attributes is None:
+                skip = e3j.flax.Linear(
+                    node_feats.irreps,
+                    num_indexed_weights=self.num_species,
+                    name="skip_connection",
+                    force_irreps_out=True,
+                )(node_species, node_features)
+            else:
+                # Tensor product with the (continuous) node attributes, then a linear
+                skip = e3j.flax.Linear(
+                    node_feats.irreps, name="skip_connection", force_irreps_out=True
+                )(e3j.tensor_product(node_features, node_attributes))
             # Scale by 1/sqrt(2) so that the sum of two (roughly independent, at initialisation)
             # branches keeps the same variance as when the self-connection is disabled
             node_feats = (node_feats + skip) / math.sqrt(2.0)
@@ -170,6 +192,9 @@ class NequipLayer(linen.Module):
     node_features_field = keys.FEATURES
     skip_connection: bool = True
     num_species: int = 1
+    # Continuous node attributes for the self-connection (see InteractionBlock), e.g. "attributes"
+    node_attributes_field: str | None = None
+    attributes_in_linears: bool = False
 
     interaction_block: Callable | None = None
 
@@ -188,6 +213,7 @@ class NequipLayer(linen.Module):
                 skip_connection=self.skip_connection,
                 activations=self.activations,
                 num_species=self.num_species,
+                attributes_in_linears=self.attributes_in_linears,
             )
         else:
             self._interaction_block = self.interaction_block
@@ -216,6 +242,9 @@ class NequipLayer(linen.Module):
             graph.senders,
             graph.receivers,
             node_species=node_species,
+            node_attributes=(
+                None if self.node_attributes_field is None else nodes[self.node_attributes_field]
+            ),
             node_mask=nodes.get(keys.MASK),
             edge_mask=edges.get(keys.MASK),
         )
@@ -270,6 +299,11 @@ class Nequip(linen.Module):
             so after every layer, which leaves its energy to the per-type shift of the readout
         resnet: if ``True``, every layer adds its input node features to its output, provided
             the irreps are the same (layers whose irreps change, typically the first, skip it)
+        node_attributes_field: if given, the node field with continuous (scalar) attributes that
+            the self-connections are conditioned on through a tensor product, as in the original
+            NequIP, instead of per-species weights; e.g. a species one-hot together with
+            per-node descriptors
+        attributes_in_linears: also condition the linears around each convolution on them
 
     Example:
         >>> model = Nequip(
@@ -293,6 +327,8 @@ class Nequip(linen.Module):
     skip_connection: bool = True
     skip_connection_first_layer: bool = True
     resnet: bool = False
+    node_attributes_field: str | None = None
+    attributes_in_linears: bool = False
 
     def setup(self):
         """Build the stack of interaction layers."""
@@ -312,6 +348,8 @@ class Nequip(linen.Module):
                 and (i > 0 or self.skip_connection_first_layer),
                 num_species=self.num_species,
                 resnet=self.resnet,
+                node_attributes_field=self.node_attributes_field,
+                attributes_in_linears=self.attributes_in_linears,
             )
             for i in range(self.num_layers)
         ]

@@ -251,3 +251,83 @@ def test_nequip_skip_connection_first_layer(
         assert not np.allclose(out, 0.0)
     else:
         np.testing.assert_allclose(out, 0.0, atol=1e-7)
+
+
+def _block_inputs(graph):
+    return (
+        graph.nodes[keys.FEATURES],
+        graph.edges[keys.ATTRIBUTES],
+        graph.edges[keys.RADIAL_EMBEDDINGS],
+        graph.senders,
+        graph.receivers,
+    )
+
+
+def test_nequip_attributes_one_hot_matches_species_weights(cube_graph_gcnn, rng_key):
+    """With one-hot node attributes, the tensor-product self-connection is the per-species one:
+    mapping the indexed weights W[s, u, v] to W'[u·N + s, v] = √N W[s, u, v] (the √N undoes the
+    larger fan-in normalisation) gives identical outputs."""
+    irreps_out = e3j.Irreps("2x0e + 2x1o")
+    n_species = 3
+    species = cube_graph_gcnn.nodes[keys.SPECIES][:, 0]
+    one_hot = e3j.IrrepsArray(f"{n_species}x0e", jax.nn.one_hot(species, n_species))
+    args = _block_inputs(cube_graph_gcnn)
+
+    indexed = nequip.InteractionBlock(irreps_out, num_species=n_species)
+    params = indexed.init(rng_key, *args, node_species=species)
+    expected = indexed.apply(params, *args, node_species=species)
+
+    attributed = nequip.InteractionBlock(irreps_out)
+    params_attr = attributed.init(rng_key, *args, node_attributes=one_hot)
+    mapped = jax.tree_util.tree_map(lambda x: x, params_attr)
+    mapped["params"] = dict(params["params"])  # same names for everything but the skip
+    skip = {}
+    for name, w in params["params"]["skip_connection"].items():
+        n, mul_in, mul_out = w.shape
+        target = next(
+            k for k in params_attr["params"]["skip_connection"] if k.startswith(name.split(" ")[0])
+        )
+        w_new = np.sqrt(n) * np.transpose(np.asarray(w), (1, 0, 2)).reshape(mul_in * n, mul_out)
+        assert params_attr["params"]["skip_connection"][target].shape == w_new.shape
+        skip[target] = w_new
+    mapped["params"]["skip_connection"] = skip
+    result = attributed.apply(mapped, *args, node_attributes=one_hot)
+    np.testing.assert_allclose(result.array, expected.array, rtol=1e-5, atol=1e-6)
+
+
+@pytest.mark.parametrize("attributes_in_linears", [False, True])
+def test_nequip_continuous_attributes_equivariant(cube_graph_gcnn, rng_key, attributes_in_linears):
+    """Continuous (scalar) node attributes keep the block equivariant and change its output."""
+    irreps_out = e3j.Irreps("2x0e + 2x1o + 2e")
+    n_node = cube_graph_gcnn.nodes[keys.FEATURES].shape[0]
+    attributes = e3j.IrrepsArray("5x0e", jax.random.normal(rng_key, (n_node, 5)))
+    block = nequip.InteractionBlock(irreps_out, attributes_in_linears=attributes_in_linears)
+    args = _block_inputs(cube_graph_gcnn)
+    params = block.init(rng_key, *args, node_attributes=attributes)
+    out = block.apply(params, *args, node_attributes=attributes)
+
+    rot = e3j.rand_matrix(jax.random.PRNGKey(7), ())
+    rotated_args = (args[0].transform_by_matrix(rot), args[1].transform_by_matrix(rot), *args[2:])
+    out_rot = block.apply(params, *rotated_args, node_attributes=attributes)
+    np.testing.assert_allclose(out_rot.array, out.transform_by_matrix(rot).array, atol=1e-4)
+
+    other = block.apply(params, *args, node_attributes=attributes * 2.0)
+    assert not np.allclose(other.array, out.array)
+
+
+def test_nequip_node_attributes_field(cube_graph_gcnn, rng_key):
+    """``Nequip(node_attributes_field=...)`` conditions every layer on that node field."""
+    n_node = cube_graph_gcnn.nodes[keys.FEATURES].shape[0]
+    nodes = dict(cube_graph_gcnn.nodes)
+    nodes["descriptors"] = e3j.IrrepsArray("4x0e", jax.random.normal(rng_key, (n_node, 4)))
+    graph = cube_graph_gcnn._replace(nodes=nodes)
+    model = nequip.Nequip(
+        hidden_irreps="4x0e + 4x1o", num_layers=2, node_attributes_field="descriptors",
+        attributes_in_linears=True,
+    )  # fmt: skip
+    params = model.init(rng_key, graph)
+    out = model.apply(params, graph).nodes[keys.FEATURES]
+    assert out.irreps == e3j.Irreps("4x0e + 4x1o")
+    nodes["descriptors"] = nodes["descriptors"] * 0.5
+    changed = model.apply(params, graph._replace(nodes=nodes)).nodes[keys.FEATURES]
+    assert not np.allclose(changed.array, out.array)
