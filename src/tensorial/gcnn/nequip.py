@@ -30,6 +30,20 @@ DEFAULT_ACTIVATIONS = linen.FrozenDict({"e": "silu", "o": "tanh"})
 ActivationLike = str | nn_utils.ActivationFunction
 
 
+def _condition(
+    features: e3j.IrrepsArray, attributes: e3j.IrrepsArray, irreps_out: e3j.Irreps
+) -> e3j.IrrepsArray:
+    """Tensor product of node features with node attributes, keeping only the irreps in
+    `irreps_out`.
+
+    The result always feeds an `e3j.flax.Linear` to `irreps_out`, which has no path from any
+    other irrep, so filtering here gives the same output (each path is normalised on its own)
+    while skipping work.  This matters for non-scalar attributes (e.g. an external field),
+    where the full product contains many irreps the linear would discard.
+    """
+    return e3j.tensor_product(features, attributes, filter_ir_out=irreps_out)
+
+
 class InteractionBlock(linen.Module):
     """NequIP style interaction block.
 
@@ -127,7 +141,9 @@ class InteractionBlock(linen.Module):
         conditioned = node_attributes is not None and self.attributes_in_linears
         # No bias, so masked (zeroed) nodes stay zero and need no re-masking
         node_feats = e3j.flax.Linear(node_features.irreps, name="linear_up")(
-            e3j.tensor_product(node_features, node_attributes) if conditioned else node_features
+            _condition(node_features, node_attributes, node_features.irreps)
+            if conditioned
+            else node_features
         )
 
         node_feats = self._message_passing(
@@ -146,7 +162,7 @@ class InteractionBlock(linen.Module):
 
         # Second linear, now we create any extra gate scalars
         node_feats = e3j.flax.Linear(gate_irreps, name="linear_down")(
-            e3j.tensor_product(node_feats, node_attributes) if conditioned else node_feats
+            _condition(node_feats, node_attributes, gate_irreps) if conditioned else node_feats
         )
 
         # self-connection: species weighted tensor product that maps to current irreps space
@@ -162,7 +178,7 @@ class InteractionBlock(linen.Module):
                 # Tensor product with the (continuous) node attributes, then a linear
                 skip = e3j.flax.Linear(
                     node_feats.irreps, name="skip_connection", force_irreps_out=True
-                )(e3j.tensor_product(node_features, node_attributes))
+                )(_condition(node_features, node_attributes, node_feats.irreps))
             # Scale by 1/sqrt(2) so that the sum of two (roughly independent, at initialisation)
             # branches keeps the same variance as when the self-connection is disabled
             node_feats = (node_feats + skip) / math.sqrt(2.0)

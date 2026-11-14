@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 import e3nn_jax as e3j
 import jax
 import jraph
@@ -331,3 +333,71 @@ def test_nequip_node_attributes_field(cube_graph_gcnn, rng_key):
     nodes["descriptors"] = nodes["descriptors"] * 0.5
     changed = model.apply(params, graph._replace(nodes=nodes)).nodes[keys.FEATURES]
     assert not np.allclose(changed.array, out.array)
+
+
+def _remap_by_irreps(source, template):
+    """Copy the weights of `source` into the structure of `template`, matching e3nn-jax linear
+    weights by their irreps ("w[i,j] <irreps>") rather than by the input/output indices."""
+    if not isinstance(template, Mapping):
+        return source
+
+    def key(name):
+        return name.split(" ", 1)[1] if name.startswith("w[") else name
+
+    by_key = {key(name): value for name, value in source.items()}
+    assert len(by_key) == len(source), "ambiguous weight names"
+    remapped = {}
+    for name, value in template.items():
+        match = by_key[key(name)]
+        if not isinstance(value, Mapping):
+            assert match.shape == value.shape
+        remapped[name] = _remap_by_irreps(match, value)
+    return remapped
+
+
+@pytest.mark.parametrize("attributes_in_linears", [False, True])
+def test_nequip_attribute_filtering_is_exact(
+    cube_graph_gcnn, rng_key, monkeypatch, attributes_in_linears
+):
+    """Filtering the attribute tensor products to the irreps of the following linear changes
+    nothing (same parameters, same output), including for non-scalar attributes such as a field,
+    and the block stays equivariant when the attributes are rotated along with everything else."""
+    irreps_out = e3j.Irreps("2x0e + 2x1o + 2e")
+    n_node = cube_graph_gcnn.nodes[keys.FEATURES].shape[0]
+    attributes = e3j.normal("1o + 2x0e", rng_key, (n_node,))
+    args = _block_inputs(cube_graph_gcnn)
+
+    block = nequip.InteractionBlock(irreps_out, attributes_in_linears=attributes_in_linears)
+    params = block.init(rng_key, *args, node_attributes=attributes)
+    filtered = block.apply(params, *args, node_attributes=attributes)
+
+    # The filter really does drop irreps here (2e x 1o -> 1o + 2o + 3o, only 1o is kept)
+    features = e3j.normal(irreps_out, rng_key, (n_node,))
+    assert (
+        e3j.tensor_product(features, attributes).irreps
+        != nequip._condition(features, attributes, irreps_out).irreps
+    )
+
+    monkeypatch.setattr(nequip, "_condition", lambda x, a, _irreps_out: e3j.tensor_product(x, a))
+    # e3nn-jax names linear weights by the index of the input irrep ("w[3,2] 24x2e,1x2e"), which
+    # shifts when irreps are filtered out.  Match the weights by the rest of the name (irreps and
+    # multiplicities) instead: the set of weights is the same, only their keys differ
+    template = block.init(rng_key, *args, node_attributes=attributes)
+    unfiltered_params = _remap_by_irreps(params, template)
+    unfiltered = block.apply(unfiltered_params, *args, node_attributes=attributes)
+    assert unfiltered.irreps == filtered.irreps
+    np.testing.assert_allclose(unfiltered.array, filtered.array, rtol=1e-5, atol=1e-6)
+    monkeypatch.undo()
+
+    # Equivariance needs the (non-scalar) attributes rotated too
+    rot = e3j.rand_matrix(jax.random.PRNGKey(7), ())
+    rotated = block.apply(
+        params,
+        args[0].transform_by_matrix(rot),
+        args[1].transform_by_matrix(rot),
+        *args[2:],
+        node_attributes=attributes.transform_by_matrix(rot),
+    )
+    np.testing.assert_allclose(
+        rotated.array, filtered.transform_by_matrix(rot).array, rtol=1e-4, atol=1e-4
+    )
