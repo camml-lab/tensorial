@@ -7,6 +7,7 @@ a faithful port of the NEquIP model commonly used for force-field regression.
 
 from collections.abc import Callable, Mapping
 import functools
+import math
 from typing import cast
 
 import beartype
@@ -112,14 +113,17 @@ class InteractionBlock(linen.Module):
                 node_mask, node_features, tensorial_utils.zeros_like(node_features)
             )
 
+        # No bias, so masked (zeroed) nodes stay zero and need no re-masking
         node_feats = e3j.flax.Linear(node_features.irreps, name="linear_up")(node_features)
-        if node_mask is not None:
-            node_features = e3j.where(
-                node_mask, node_features, tensorial_utils.zeros_like(node_features)
-            )
 
         node_feats = self._message_passing(
-            node_feats, edge_features, radial_embedding, senders, receivers, edge_mask=edge_mask
+            node_feats,
+            edge_features,
+            radial_embedding,
+            senders,
+            receivers,
+            node_types=node_species,
+            edge_mask=edge_mask,
         )
 
         gate_irreps = output_irreps.filter(keep=node_feats.irreps)
@@ -137,7 +141,9 @@ class InteractionBlock(linen.Module):
                 name="skip_connection",
                 force_irreps_out=True,
             )(node_species, node_features)
-            node_feats = 0.5 * (node_feats + skip)
+            # Scale by 1/sqrt(2) so that the sum of two (roughly independent, at initialisation)
+            # branches keeps the same variance as when the self-connection is disabled
+            node_feats = (node_feats + skip) / math.sqrt(2.0)
 
         # Apply non-linearity
         node_feats = self._gate(node_feats)
@@ -214,9 +220,12 @@ class NequipLayer(linen.Module):
             edge_mask=edges.get(keys.MASK),
         )
 
-        # If enabled, perform ResNet operation by adding back the old node features
+        # If enabled, perform ResNet operation by adding back the old node features.  As in
+        # NequIP, this is only possible (and so only done) when the irreps are unchanged
         if self.resnet:
-            node_features = node_features + nodes[self.node_features_field]
+            prev_features = nodes[self.node_features_field]
+            if prev_features.irreps == node_features.irreps:
+                node_features = node_features + prev_features
 
         # Update the graph
         nodes[keys.FEATURES] = node_features
@@ -255,7 +264,12 @@ class Nequip(linen.Module):
         radial_activation: activation function used by the radial MLP
         activations: the gate activations for even (``"e"``) and odd (``"o"``) scalars
         skip_connection: if ``True``, every interaction adds a self-connection
-        resnet: if ``True``, every layer adds its input node features to its output
+        skip_connection_first_layer: if ``False``, the first layer has no self-connection
+            (even when ``skip_connection`` is ``True``).  This is what NequIP does by default:
+            an isolated atom (no neighbours) then has zero features after the first layer, and
+            so after every layer, which leaves its energy to the per-type shift of the readout
+        resnet: if ``True``, every layer adds its input node features to its output, provided
+            the irreps are the same (layers whose irreps change, typically the first, skip it)
 
     Example:
         >>> model = Nequip(
@@ -277,6 +291,7 @@ class Nequip(linen.Module):
 
     activations: str | Mapping[str, ActivationLike] = DEFAULT_ACTIVATIONS
     skip_connection: bool = True
+    skip_connection_first_layer: bool = True
     resnet: bool = False
 
     def setup(self):
@@ -293,11 +308,12 @@ class Nequip(linen.Module):
                 radial_activation=self.radial_activation,
                 avg_num_neighbours=self.avg_num_neighbours,
                 activations=self.activations,
-                skip_connection=self.skip_connection,
+                skip_connection=self.skip_connection
+                and (i > 0 or self.skip_connection_first_layer),
                 num_species=self.num_species,
                 resnet=self.resnet,
             )
-            for _ in range(self.num_layers)
+            for i in range(self.num_layers)
         ]
 
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
