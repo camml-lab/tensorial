@@ -75,19 +75,26 @@ class ReaxModule(reax.Module[InputT, OutputT_co]):
         self._loss_reduction: Final[reax.types.ReduceFn | None] = loss_reduction
         self._model: Final[linen.Module] = model
         # Only the per-batch inputs are donated, the parameters and metric templates are reused
+        step = self.step
+        value_and_grad = jax.value_and_grad(step, argnums=0, has_aux=True)
         if jit:
-            self.step = jax.jit(
-                self.step,
+            jit_kwargs = dict(
                 static_argnames=("model", "loss_fn", "output"),
                 donate_argnames=("inputs",) if donate_graph else (),
             )
+            self.step = jax.jit(step, **jit_kwargs)
+            # Jit the gradient as a whole rather than differentiating the jitted step: grad of a
+            # jitted function called from outside jit runs as separate forward and backward
+            # programs, with every residual held in device memory in between, which is slower
+            # and needs far more memory than a single fused program.
+            value_and_grad = jax.jit(value_and_grad, **jit_kwargs)
+        self._value_and_grad = value_and_grad
         self.calculate_metrics = jax.jit(
             self.calculate_metrics, donate_argnames=("predictions", "targets")
         )
         self._forward = jax.jit(
             self._forward, static_argnames=("model",), donate_argnames=("inputs",)
         )
-        self._value_and_grad = jax.value_and_grad(self.step, argnums=0, has_aux=True)
 
         # State
         self._optimizer = optimizer
