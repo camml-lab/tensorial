@@ -3,8 +3,9 @@ Command-line interface
 
 Installing ``tensorial`` puts a ``tensorial`` command on your ``PATH``
 (entry point :func:`tensorial.reaxkit.cli.main_cli`). It is a thin wrapper: it
-dispatches to the Hydra-driven training and evaluation entry points, or copies
-one of the bundled example configurations so you can run it straight away.
+dispatches to the Hydra-driven training and evaluation entry points, or lists,
+describes and copies the bundled example configurations so you can run one
+straight away.
 
 .. contents::
    :local:
@@ -17,7 +18,7 @@ The available commands are:
 
 - ``train`` — fit a model from a Hydra config.
 - ``predict`` — evaluate a trained checkpoint.
-- ``examples`` — list or copy the bundled example configurations.
+- ``examples`` — list, describe or copy the bundled example configurations.
 
 ``tensorial train``
 -------------------
@@ -69,63 +70,125 @@ An evaluation config normally needs a checkpoint path, e.g. via the
 
 The package bundles ready-to-run example configurations (currently the
 ``mlip`` example, a machine-learning interatomic potential). This command lists
-them and copies one into your working directory so you can run it unmodified.
+them, describes them, and copies one into your working directory so you can
+run it unmodified.
 
-List the available examples:
+.. code-block:: shell
+
+   tensorial examples [list [-l|--long] [--json]]   # list the examples
+   tensorial examples <name>                        # describe one example
+   tensorial examples init <name> [<dest>]          # copy one example
+
+Listing
+~~~~~~~
+
+List the available examples, each with a one-line summary of its data:
 
 .. code-block:: shell
 
    tensorial examples list
-   tensorial examples            # 'list' is the default
-   tensorial examples list --json  # machine-readable, e.g. for CI
+   tensorial examples                 # 'list' is the default
+   tensorial examples list -l         # also show each example's full description
+   tensorial examples list --json     # machine-readable list of names, e.g. for CI
+   tensorial examples list -l --json  # names, summaries and descriptions as JSON
 
-Copy an example into the current directory (or a destination you give):
-
-.. code-block:: shell
-
-   tensorial examples init mlip
-   tensorial examples init mlip.si path/to/dest
-
-The ``init`` keyword is optional, so ``tensorial examples mlip.si`` is
-equivalent to ``tensorial examples init mlip.si``.
-
-Variants
---------
-
-An example can expose **variants** through its ``data`` Hydra group: the
-example differs from its siblings only in which dataset it trains on. The
-``mlip`` example ships ``si``, ``qm9``, and ``mad`` variants, so it appears in
-the listing as:
+which prints:
 
 .. code-block:: text
 
    Available examples:
-     - mlip.mad
-     - mlip.qm9
-     - mlip.si
+     - mlip.3bpa   3BPA drug-like molecule, 500 configs at 300 K (50 for validation); energy, forces
+     - mlip.mad    MAD, ~100k diverse structures across most of the periodic table; energy, forces, stress
+     - mlip.qm9    QM9 small organic molecules, 10k-molecule subset by default; energy (U0)
+     - mlip.rmd17  rMD17 small molecules (aspirin by default), 1000 configs (50 for validation); energy, forces
+     - mlip.si     Bulk silicon trajectory, 110 periodic 64-atom structures; energy, forces, stress
 
-Copying a variant (``mlip.si``) rewrites the ``data`` default in the copied
-``train.yaml`` to that choice and copies only that variant's dataset files next
-to it — not the sibling datasets. A bare name (``mlip``) copies the example
-with its default ``data`` choice instead.
+   Use 'tensorial examples list --long' for full descriptions.
 
-Each variant file may declare the extra files it needs with a
-``# requires:`` comment; those are copied along with it:
+Describing
+~~~~~~~~~~
 
-.. code-block:: yaml
+Give an example's name to show its full description: where its data comes
+from, how it is split, and any options worth knowing about. This only prints;
+nothing is copied.
 
-   # requires: sitraj.xyz
-   _target_: tensorial.gcnn.data.ase_graph_module_random_split
-   path: ${paths.data_dir}/sitraj.xyz
+.. code-block:: shell
 
-So ``tensorial examples init mlip.si`` produces an ``mlip-si/`` directory
-containing ``train.yaml``, ``eval.yaml``, and the other groups, plus
-``data/si.yaml`` and its ``data/sitraj.xyz``. From there:
+   tensorial examples mlip.qm9
+
+.. code-block:: text
+
+   mlip.qm9 — QM9 small organic molecules, 10k-molecule subset by default; energy (U0)
+
+     QM9 (Ramakrishnan et al., 2014): ~134k small organic molecules (up to 9 heavy atoms of
+     ...
+
+   To copy it: tensorial examples init mlip.qm9 [dest]
+
+Giving the name of an example with variants (e.g. ``tensorial examples mlip``)
+lists its variants and says which one ``init`` copies by default.
+
+Copying
+~~~~~~~
+
+Copy an example into the current directory, or a destination you give:
+
+.. code-block:: shell
+
+   tensorial examples init mlip.si
+   tensorial examples init mlip.si path/to/dest
+
+This creates an ``mlip-si/`` directory containing ``train.yaml``,
+``eval.yaml`` and the other config groups, plus ``data/si.yaml`` and the
+``data/sitraj.xyz`` it reads. From there:
 
 .. code-block:: shell
 
    cd mlip-si
    tensorial train -i train.yaml
+
+.. note::
+
+   ``init`` is required to copy an example: ``tensorial examples mlip.si``
+   only shows its description.
+
+Variants
+~~~~~~~~
+
+An example can expose **variants** through its ``data`` Hydra group: the
+example differs from its siblings only in which dataset it trains on. The
+``mlip`` example ships ``3bpa``, ``mad``, ``qm9``, ``rmd17`` and ``si``
+variants, which is why it is listed as ``mlip.3bpa``, ``mlip.mad`` and so on.
+
+Copying a variant (``mlip.si``) rewrites the ``data`` default in the copied
+``train.yaml`` and ``eval.yaml`` to that choice, and copies only that variant's
+dataset files, not those of its siblings. A bare name (``mlip``) copies the
+example with its default ``data`` choice instead.
+
+Writing an example's metadata
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each variant file (or ``train.yaml``, for an example without variants)
+describes itself and the files it needs in the comments at its top:
+
+.. code-block:: yaml
+
+   # summary: Bulk silicon trajectory, 110 periodic 64-atom structures; energy, forces, stress
+   # requires: sitraj.xyz
+   # A short trajectory of bulk silicon (64-atom cubic cell), bundled with the
+   # example so it runs offline.  Randomly split 80/10/10 into train/validation/test.
+   _target_: tensorial.gcnn.data.ase_graph_module_random_split
+   path: ${paths.data_dir}/sitraj.xyz
+
+- ``# summary:`` is the one-line summary shown next to the name by ``list``.
+  It is free-form, but should give an idea of how much data there is and which
+  labels (energy, forces, stress, ...) the model trains on.
+- ``# requires:`` lists files, relative to the variant file, that ``init``
+  copies along with it (here, the bundled dataset).
+- The **description**, shown by ``tensorial examples <name>`` and
+  ``list --long``, is the rest of the comment block at the top of the file, up
+  to its first non-comment line, with the ``# summary:`` and ``# requires:``
+  lines left out.
 
 .. seealso::
 

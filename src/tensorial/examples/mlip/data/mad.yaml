@@ -1,4 +1,8 @@
-# requires: sitraj.xyz
+# summary: MAD, ~100k diverse structures across most of the periodic table; energy, forces, stress
+# Massive Atomic Diversity (Mazitov et al., 2025): https://archive.materialscloud.org/records/c4ene-0mv14
+# A compact but highly diverse dataset of bulk, surface and molecular structures, computed
+# consistently with PBEsol.  Uses the published train/validation/test splits, downloaded
+# on first use.  This is a large dataset: expect long training times on a GPU.
 _target_: tensorial.gcnn.data.ase_graph_module_from_datasets
 
 train: https://archive.materialscloud.org/records/c4ene-0mv14/files/mad-train.xyz?download=1

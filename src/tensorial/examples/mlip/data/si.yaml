@@ -1,4 +1,7 @@
+# summary: Bulk silicon trajectory, 110 periodic 64-atom structures; energy, forces, stress
 # requires: sitraj.xyz
+# A short trajectory of bulk silicon (64-atom cubic cell), bundled with the
+# example so it runs offline.  Randomly split 80/10/10 into train/validation/test.
 _target_: tensorial.gcnn.data.ase_graph_module_random_split
 
 path: ${paths.data_dir}/sitraj.xyz

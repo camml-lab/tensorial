@@ -1,3 +1,4 @@
+# summary: rMD17 small molecules (aspirin by default), 1000 configs (50 for validation); energy, forces
 # Revised MD17 (Christensen & von Lilienfeld, 2020): https://doi.org/10.6084/m9.figshare.12672038
 # Ten small molecules, PBE/def2-SVP energies and forces (converted to eV).
 # Uses the standard 1000-conformation train/test splits: 950 train, 50 validation, 1000 test.

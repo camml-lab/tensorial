@@ -1,3 +1,10 @@
+# summary: QM9 small organic molecules, 10k-molecule subset by default; energy (U0)
+# QM9 (Ramakrishnan et al., 2014): ~134k small organic molecules (up to 9 heavy atoms of
+# C, N, O, F) with DFT (B3LYP/6-31G(2df,p)) properties.  Trains on the internal energy at
+# 0 K (U0); there are no forces.  Downloaded on first use into ${paths.data_dir}.
+# Only the first 10,000 molecules are used by default, randomly split 85/5/10.  Use all of
+# them with:
+#   data_limit=null
 _target_: tensorial.gcnn.data.GraphDataModule.from_random_split
 dataset:
   _target_: tensorial.datasets.Qm9

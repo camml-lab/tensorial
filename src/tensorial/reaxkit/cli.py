@@ -9,8 +9,9 @@ Installing the package exposes a ``tensorial`` command (see
 ``tensorial predict -i <config-or-dir>``
     Evaluate a trained checkpoint (see :func:`tensorial.reaxkit.evaluate`).
 
-``tensorial examples [list [--json]|init] [<name> [<dest>]]``
-    List or copy the bundled example configurations.
+``tensorial examples [list [-l|--long] [--json] | <name> | init <name> [<dest>]]``
+    List the bundled example configurations (with a short summary of each, or full
+    descriptions with ``--long``), show the full description of one, or copy one.
 
 ``train`` and ``predict`` forward their remaining arguments to Hydra, so any
 config value can be overridden on the command line.  See the
@@ -94,9 +95,50 @@ def _required_files(yaml_file: pathlib.Path):
     return files
 
 
-def _example_names() -> list[str]:
-    """Return the name of every example, including each variant (e.g. ``mlip.si``)."""
-    names = []
+#: Matches a ``# <key>: ...`` directive comment for one of the known keys.
+DIRECTIVE_RE: Final[re.Pattern[str]] = re.compile(r"^#\s*(summary|requires)\s*:\s*(.*?)\s*$")
+
+
+def _example_info(yaml_file: pathlib.Path) -> tuple[str | None, str]:
+    """Return the ``(summary, description)`` of an example from its header comments.
+
+    The summary is the text of a ``# summary: <text>`` comment.  The description is the
+    block of comment lines at the top of the file (up to the first line that is not a
+    comment), with directive comments such as ``# summary:`` and ``# requires:`` removed.
+    """
+    summary = None
+    lines = []
+    for line in yaml_file.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("#"):
+            break
+        match = DIRECTIVE_RE.match(stripped)
+        if match:
+            if match.group(1) == "summary" and match.group(2):
+                summary = match.group(2)
+            continue
+        text = stripped[1:]
+        lines.append(text[1:] if text.startswith(" ") else text)
+
+    # Drop leading/trailing blank lines
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return summary, "\n".join(lines)
+
+
+def _examples() -> list[tuple[str, pathlib.Path]]:
+    """Return ``(name, yaml_file)`` for every example, including each variant.
+
+    ``yaml_file`` is the variant's file in the ``data`` group (e.g. ``mlip/data/si.yaml`` for
+    ``mlip.si``), or the example's ``train.yaml`` if it has no variants.  It is the file whose
+    header comments describe the example.
+
+    The paths are only valid while the package resources are on disk, which is always the case
+    for a regular (non-zipped) install.
+    """
+    examples = []
     with resources.as_file(_examples_root()) as root_path:
         for name in _dotted_example_names(root_path):
             base = name.split(".")[0]
@@ -105,20 +147,47 @@ def _example_names() -> list[str]:
             if group:
                 for yaml_file in sorted((example_path / group).iterdir()):
                     if yaml_file.is_file() and yaml_file.suffix in (".yaml", ".yml"):
-                        names.append(f"{base}.{yaml_file.stem}")
+                        examples.append((f"{base}.{yaml_file.stem}", yaml_file))
             else:
-                names.append(name)
-    return names
+                examples.append((name, root_path / name.replace(".", "/") / "train.yaml"))
+    return examples
 
 
-def _list_examples(as_json: bool = False):
-    names = _example_names()
+def _example_names() -> list[str]:
+    """Return the name of every example, including each variant (e.g. ``mlip.si``)."""
+    return [name for name, _ in _examples()]
+
+
+def _list_examples(as_json: bool = False, long: bool = False):
+    """Print the available examples.
+
+    By default, each example is shown with its one-line summary.  With ``long``, its full
+    description is printed beneath it.  With ``as_json``, a JSON list of names is printed (or,
+    with ``long`` too, a list of ``{"name", "summary", "description"}`` objects).
+    """
+    examples = [(name, *_example_info(yaml_file)) for name, yaml_file in _examples()]
     if as_json:
-        print(json.dumps(names))
+        if long:
+            entries = [
+                {"name": name, "summary": summary, "description": description}
+                for name, summary, description in examples
+            ]
+            print(json.dumps(entries))
+        else:
+            print(json.dumps([name for name, *_ in examples]))
         return
+
     print("Available examples:")
-    for name in names:
-        print(f"  - {name}")
+    width = max((len(name) for name, *_ in examples), default=0)
+    for i, (name, summary, description) in enumerate(examples):
+        if long and i > 0:
+            print()
+        print(f"  - {name:<{width}}  {summary}" if summary else f"  - {name}")
+        if long and description:
+            for line in description.splitlines():
+                print(f"      {line}".rstrip())
+    if not long and any(description for *_, description in examples):
+        print("\nUse 'tensorial examples list --long' for full descriptions.")
 
 
 def _split_name(name: str):
@@ -214,17 +283,71 @@ def _override_group_in(config_file: pathlib.Path, group: str, choice: str):
         config_file.write_text(replaced, encoding="utf-8")
 
 
+def _default_choice(config_file: pathlib.Path, group: str) -> str | None:
+    """Return the Hydra default chosen for ``group`` in ``config_file``, if any."""
+    if not config_file.is_file():
+        return None
+    match = re.search(
+        rf"^\s*-\s*{{?\s*{re.escape(group)}:\s*([^\s}}]+)",
+        config_file.read_text(encoding="utf-8"),
+        flags=re.M,
+    )
+    return match.group(1) if match else None
+
+
+def _show_example(name: str):
+    """Print the full description of an example.
+
+    For a base name whose example has variants (e.g. ``mlip``), list the variants with their
+    summaries and say which one ``init`` copies by default.
+    """
+    examples = _examples()
+    for example_name, yaml_file in examples:
+        if example_name == name:
+            summary, description = _example_info(yaml_file)
+            print(f"{name} — {summary}" if summary else name)
+            if description:
+                print()
+                for line in description.splitlines():
+                    print(f"  {line}".rstrip())
+            print(f"\nTo copy it: tensorial examples init {name} [dest]")
+            return
+
+    variants = [(n, f) for n, f in examples if n.startswith(f"{name}.")]
+    if variants:
+        with resources.as_file(_examples_root()) as root_path:
+            default = _default_choice(root_path / name / "train.yaml", "data")
+        print(f"'{name}' has the following variants:")
+        width = max(len(n) for n, _ in variants)
+        for variant_name, yaml_file in variants:
+            summary, _ = _example_info(yaml_file)
+            print(f"  - {variant_name:<{width}}  {summary}" if summary else f"  - {variant_name}")
+        print(f"\nShow one with: tensorial examples {variants[0][0]}")
+        if default:
+            print(f"'tensorial examples init {name}' copies the default, {name}.{default}")
+        return
+
+    available = ", ".join(n for n, _ in examples)
+    print(f"Example '{name}' not found. Available examples: {available}")
+    sys.exit(1)
+
+
 def _run_examples(tokens: list):
     """Dispatch the `examples` sub-arguments.
 
-    Accepts ``list [--json]``, ``init <name> [dest]`` or the shorthand
-    ``<name> [dest]``.  With no arguments, equivalent to ``list``.
+    Accepts ``list [-l|--long] [--json]``, ``init <name> [dest]`` or ``<name>`` to show
+    the full description of one example.  With no arguments, equivalent to ``list``.
     """
     if not tokens:
         _list_examples()
         return
-    if tokens[0] == "list":
-        _list_examples(as_json="--json" in tokens[1:])
+    if tokens[0] in ("list", "-l", "--long"):
+        # Allow ``tensorial examples -l`` as a shorthand for ``examples list -l``
+        opts = tokens if tokens[0] != "list" else tokens[1:]
+        _list_examples(
+            as_json="--json" in opts,
+            long="-l" in opts or "--long" in opts,
+        )
     elif tokens[0] == "init":
         if len(tokens) < 2:
             print("error: 'examples init' requires an example name (e.g. mlip.si)")
@@ -232,10 +355,17 @@ def _run_examples(tokens: list):
         name = tokens[1]
         dest = pathlib.Path(tokens[2]) if len(tokens) > 2 else pathlib.Path(".")
         _init_example(name, dest)
+    elif len(tokens) > 1:
+        # ``examples <name> <dest>`` used to be a shorthand for ``init``; a destination only
+        # makes sense when copying, so point the user at ``init`` rather than guess.
+        print(
+            "error: to copy an example use "
+            f"'tensorial examples init {' '.join(tokens)}' "
+            f"(or 'tensorial examples {tokens[0]}' to show its description)"
+        )
+        sys.exit(2)
     else:
-        name = tokens[0]
-        dest = pathlib.Path(tokens[1]) if len(tokens) > 1 else pathlib.Path(".")
-        _init_example(name, dest)
+        _show_example(tokens[0])
 
 
 def main_cli():
@@ -271,22 +401,25 @@ def main_cli():
     )
 
     # The 'examples' command.  Sub-arguments are handled manually from the
-    # trailing (unparsed) arguments so that both
-    # ``tensorial examples mlip.si`` and ``tensorial examples init mlip.si``
-    # work.
-    examples_parser = commands.add_parser(EXAMPLES, help="List or copy example configurations")
+    # trailing (unparsed) arguments so that ``tensorial examples mlip.si`` (show)
+    # and ``tensorial examples init mlip.si`` (copy) can share the command.
+    examples_parser = commands.add_parser(
+        EXAMPLES, help="List, describe or copy example configurations"
+    )
     examples_parser.add_argument(
         "examples_args",
         nargs=argparse.REMAINDER,
         default=[],
-        help="e.g. 'list', 'init <name> [dest]', or simply '<name> [dest]'",
+        help="'list [--long] [--json]', '<name>' to describe one, or 'init <name> [dest]'",
     )
 
     # Parse the args
     args, _rest = parser.parse_known_args()
 
     if args.command == EXAMPLES:
-        _run_examples(list(args.examples_args))
+        # Leading option-like tokens (e.g. ``tensorial examples -l``) are not captured by
+        # ``REMAINDER`` and end up in ``_rest`` instead.
+        _run_examples(list(args.examples_args) + _rest)
         return
 
     if args.command == TRAIN:

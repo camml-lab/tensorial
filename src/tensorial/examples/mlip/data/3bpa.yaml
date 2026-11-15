@@ -1,3 +1,4 @@
+# summary: 3BPA drug-like molecule, 500 configs at 300 K (50 for validation); energy, forces
 # 3BPA (Kovács et al., 2021): https://github.com/davkovacs/BOTNet-datasets
 # A flexible drug-like molecule, used to test extrapolation to higher temperatures.
 # Train on 500 configurations sampled at 300 K (50 held out for validation) and test
