@@ -39,10 +39,6 @@ def train(cfg: omegaconf.DictConfig | dict):
     except ValueError:
         output_dir = None
 
-    # set seed for random number generators in JAX, numpy and python.random
-    if cfg.get("seed"):
-        reax.seed_everything(cfg.seed, workers=True)
-
     rank_zero.rank_zero_debug("Instantiating listeners...")
     listeners: list[reax.TrainerListener] = utils.instantiate_listeners(cfg.get("listeners"))
 
@@ -59,6 +55,9 @@ def train(cfg: omegaconf.DictConfig | dict):
         listeners=listeners,
         logger=logger,
         default_root_dir=output_dir,
+        # The single seed from which reax derives all randomness (JAX, numpy and python.random).
+        # `None` draws a random seed, available afterwards as `trainer.seed`.
+        seed=cfg.get("seed"),
     )
 
     rank_zero.rank_zero_debug(

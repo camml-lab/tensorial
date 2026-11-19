@@ -129,7 +129,7 @@ class ReaxModule(reax.Module[InputT, OutputT_co]):
             if isinstance(batch, tuple):
                 inputs = batch[0]
 
-            params = self._model.init(self.rngs(), inputs)
+            params = self._model.init(self.rngs.params(), inputs)
             self.set_parameters(params)
 
     @override

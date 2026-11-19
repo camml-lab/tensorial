@@ -331,7 +331,7 @@ def ase_graph_module_kfold(
     fold: int,
     n_folds: int = 5,
     *,
-    seed: int | None = 42,
+    seed: int | None = None,
     test_fraction: float = 0.1,
     limit: int | None = None,
     batch_size: int = 32,
@@ -351,7 +351,8 @@ def ase_graph_module_kfold(
             :func:`~tensorial.gcnn.atomic.graph_from_ase`, e.g. ``{"r_max": 5.0}``
         fold: the fold index to hold out for validation
         n_folds: the total number of folds
-        seed: the random seed
+        seed: the seed for partitioning into folds; if ``None`` (the default) it is drawn
+            from the engine's ``data`` stream, so it follows the trainer seed
         test_fraction: the fraction of data to carve out as the test set
         limit: the maximum number of structures to read from each file
     """

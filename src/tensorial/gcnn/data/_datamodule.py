@@ -253,7 +253,7 @@ class KFoldSplit(SplitStrategy[GraphDataset]):
     """
 
     def __init__(
-        self, fold: int, n_folds: int = 5, *, test_fraction: float = 0.1, seed: int | None = 42
+        self, fold: int, n_folds: int = 5, *, test_fraction: float = 0.1, seed: int | None = None
     ) -> None:
         if not 0 <= fold < n_folds:
             raise ValueError(f"fold must be in [0, {n_folds}), got {fold}")
@@ -272,7 +272,9 @@ class KFoldSplit(SplitStrategy[GraphDataset]):
             dataset,
             lengths=(1.0 - self._test_fraction, self._test_fraction),
         )
-        kfold = reax.data.KFold(n_splits=self._n_folds, shuffle=True, seed=self._seed)
+        kfold = reax.data.KFold(
+            n_splits=self._n_folds, shuffle=True, seed=self._seed, engine=engine
+        )
         train, val = kfold.get_fold(rest, self._fold)
         return Split(train=train, val=val, test=test)
 
@@ -601,7 +603,7 @@ class GraphDataModule(Generic[D], reax.DataModule[jraph.GraphsTuple, jraph.Graph
         fold: int,
         n_folds: int = 5,
         *,
-        seed: int | None = 42,
+        seed: int | None = None,
         test_fraction: float = 0.1,
         batch_size: int = 32,
         batch_mode: "gcnn.data.BatchMode | str" = _common.BatchMode.IMPLICIT,
