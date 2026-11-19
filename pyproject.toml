@@ -34,7 +34,7 @@ dependencies = [
     'jraph',
     'pytray',
     'e3nn-jax>=0.21.0',
-    "reax>=0.7.0.dev4,<0.8",
+    "reax>=0.7.0.dev6,<0.8",
     "requests",
     "rich",
     "typing-extensions"
@@ -300,7 +300,7 @@ envlist = py313
 [testenv]
 usedevelop = true
 
-[testenv:py{310,311,312,313,314}]
+[testenv:py{311,312,313,314}]
 description = Run the unit tests
 extras =
     dev
