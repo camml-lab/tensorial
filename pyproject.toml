@@ -15,14 +15,13 @@ classifiers = [
     'Development Status :: 4 - Beta',
     'License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)',
     'Programming Language :: Python',
-    'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
     'Programming Language :: Python :: 3.12',
     'Programming Language :: Python :: 3.13',
     'Programming Language :: Python :: 3.14',
 ]
 keywords = ['machine learning', 'e3nn-jax', 'physics']
-requires-python = '>=3.10'
+requires-python = '>=3.11'
 dependencies = [
     'beartype>=0.23.1',
     'ase',
@@ -105,7 +104,7 @@ fail-on-change = true
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 extend-exclude = [
     '.git',
     '__pycache__',

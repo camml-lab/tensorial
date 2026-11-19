@@ -83,7 +83,10 @@ class CalcStresses(linen.Module):
             )
 
         cell_displacement: DisplacementsArray = self._symmetric_displacements(cell)
-        virial, graph = self._virial_fn(graph, cell_displacement)
+        # `return_graph=True` was passed to `gcnn.diff`, so the evaluator returns a tuple
+        virial, graph = cast(
+            tuple[jax.Array, jraph.GraphsTuple], self._virial_fn(graph, cell_displacement)
+        )
 
         updates = gcnn.experimental.update_graph(graph)
         if self.out_virials is not None:

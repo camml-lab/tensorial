@@ -1,10 +1,11 @@
 from collections.abc import Callable, Sequence
+from typing import Self
 
 import jraph
 from pytray import tree
 import reax
 import reax.pytree
-from typing_extensions import Self, override
+from typing_extensions import override
 
 _BoolReduce = Callable[[Sequence], bool]
 _Oper = str | _BoolReduce
