@@ -30,6 +30,7 @@ from typing import Final, cast
 
 import hydra
 
+from tensorial import config as tconfig
 from tensorial import reaxkit as rkit
 
 COMMAND: Final[str] = "command"
@@ -430,6 +431,7 @@ def main_cli():
             version_base="1.3",
             config_path=str(script_path.parent.absolute()),
             config_name=script_path.stem,
+            **tconfig.hydra_main_kwargs(),
         )(rkit.train.main)
     elif args.command == PREDICT:
         # Set the command line arguments to what remains so hydra can deal with it
@@ -446,6 +448,7 @@ def main_cli():
             version_base="1.3",
             config_path=str(script_path.parent.absolute()),
             config_name=script_path.stem,
+            **tconfig.hydra_main_kwargs(),
         )(rkit.evaluate.main)
     else:
         raise ValueError(f"Unrecognised command '{args.command}'")

@@ -10,12 +10,13 @@ import functools
 from typing import Any, Final
 
 import beartype
-import hydra
 import jaxtyping as jt
 import omegaconf
 import reax
 import reax.utils
 from typing_extensions import override
+
+from tensorial import config as tconfig
 
 DONE_KEY = "done"
 
@@ -132,7 +133,7 @@ class FromData(reax.stages.Stage):
                 continue
 
             if omegaconf.OmegaConf.is_dict(value):
-                stat = hydra.utils.instantiate(value, _convert_="object")
+                stat = tconfig.instantiate(value)
             else:
                 stat = reax.metrics.get(value)
 

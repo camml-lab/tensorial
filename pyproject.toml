@@ -24,13 +24,13 @@ classifiers = [
 keywords = ['machine learning', 'e3nn-jax', 'physics']
 requires-python = '>=3.10'
 dependencies = [
-    'beartype',
+    'beartype>=0.23.1',
     'ase',
     "flax>=0.10.7",
     "hydra-core",
     "hydra-colorlog",
-    'jax<0.11.2', # Control the JAX version, as previous updates have broken things
-    'jaxlib<0.11.2',
+    'jax<0.13', # Control the JAX version, as previous updates have broken things
+    'jaxlib<0.13',
     'jaxtyping',
     'jraph',
     'pytray',
@@ -278,6 +278,9 @@ testpaths = [
 ]
 filterwarnings = [
     'ignore::DeprecationWarning:frozendict:',
+    # Hydra >= 1.4: all instantiation must go through tensorial.config, which passes a whitelist
+    'error:hydra\.utils\.instantiate\(\) resolved _target_=:UserWarning',
+    'error:Hydra configured Python logging without an execution whitelist:UserWarning',
 ]
 #addopts = "--jaxtyping-packages=tensorial,beartype.beartype"
 

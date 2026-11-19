@@ -13,6 +13,8 @@ import omegaconf
 from reax.lightning import rank_zero
 import reax.utils
 
+from tensorial import config as tconfig
+
 from . import config, from_data, keys, utils
 
 DEFAULT_TRAIN_FILE = "train.yaml"
@@ -51,8 +53,9 @@ def train(cfg: omegaconf.DictConfig | dict):
         "Instantiating trainer <%s>",
         cfg[keys.TRAINER]._target_,  # pylint: disable=protected-access
     )
-    trainer: reax.Trainer = hydra.utils.instantiate(
+    trainer: reax.Trainer = tconfig.instantiate(
         cfg[keys.TRAINER],
+        _convert_="none",
         listeners=listeners,
         logger=logger,
         default_root_dir=output_dir,
@@ -62,7 +65,7 @@ def train(cfg: omegaconf.DictConfig | dict):
         "Instantiating datamodule <%s>",
         cfg.data._target_,  # pylint: disable=protected-access
     )
-    datamodule: reax.DataModule = hydra.utils.instantiate(cfg.data, _convert_="object")
+    datamodule: reax.DataModule = tconfig.instantiate(cfg.data)
 
     if cfg.get(keys.FROM_DATA):
         from_data_stage = from_data.FromData(  # pylint: disable=no-member
@@ -80,7 +83,7 @@ def train(cfg: omegaconf.DictConfig | dict):
         "Instantiating model <%s>",
         cfg[keys.MODEL]._target_,  # pylint: disable=protected-access
     )
-    model: reax.Module = hydra.utils.instantiate(cfg[keys.MODEL], _convert_="object")
+    model: reax.Module = tconfig.instantiate(cfg[keys.MODEL])
 
     object_dict = {
         "cfg": cfg,
@@ -169,5 +172,6 @@ if __name__ == "__main__":
         version_base="1.3",
         config_path="../../configs",
         config_name=DEFAULT_TRAIN_FILE,
+        **tconfig.hydra_main_kwargs(),
     )(main)
     runner()

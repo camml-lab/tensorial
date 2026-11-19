@@ -2,9 +2,10 @@
 
 import logging
 
-import hydra
 import omegaconf
 import reax
+
+from tensorial import config as tconfig
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ def instantiate_listeners(
                 "Instantiating listener <%s>",
                 cb_conf._target_,  # pylint: disable=protected-access
             )
-            listeners.append(hydra.utils.instantiate(cb_conf))
+            listeners.append(tconfig.instantiate(cb_conf, _convert_="none"))
 
     return listeners
 
@@ -69,6 +70,6 @@ def instantiate_loggers(logger_cfg: omegaconf.DictConfig) -> list[reax.Logger]:
                 "Instantiating logger <%s>",
                 lg_conf._target_,  # pylint: disable=protected-access
             )
-            logger.append(hydra.utils.instantiate(lg_conf))
+            logger.append(tconfig.instantiate(lg_conf, _convert_="none"))
 
     return logger

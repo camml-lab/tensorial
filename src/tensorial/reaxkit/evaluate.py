@@ -11,6 +11,8 @@ import hydra
 import omegaconf
 import reax
 
+from tensorial import config as tconfig
+
 from . import config, keys, utils
 
 if TYPE_CHECKING:
@@ -38,7 +40,7 @@ def evaluate(cfg: omegaconf.DictConfig) -> tuple[dict[str, Any], dict[str, Any]]
         "Instantiating datamodule <%s>",
         cfg[keys.DATA]._target_,  # pylint: disable=protected-access
     )
-    datamodule: reax.DataModule = hydra.utils.instantiate(cfg.data)
+    datamodule: reax.DataModule = tconfig.instantiate(cfg.data, _convert_="none")
 
     _LOGGER.info("Instantiating loggers...")
     logger: list[reax.Logger] = utils.instantiate_loggers(cfg.get(keys.LOGGER))
@@ -47,7 +49,7 @@ def evaluate(cfg: omegaconf.DictConfig) -> tuple[dict[str, Any], dict[str, Any]]
         "Instantiating trainer <%s>",
         cfg[keys.TRAINER]._target_,  # pylint: disable=protected-access
     )
-    trainer: reax.Trainer = hydra.utils.instantiate(cfg[keys.TRAINER], logger=logger)
+    trainer: reax.Trainer = tconfig.instantiate(cfg[keys.TRAINER], _convert_="none", logger=logger)
     model: reaxkit.ReaxModule = config.load_module(cfg[keys.CONFIG_PATH], cfg[keys.CKPT_PATH])
 
     object_dict = {
@@ -121,6 +123,7 @@ if __name__ == "__main__":
         version_base="1.3",
         config_path="../../configs",
         config_name=DEFAULT_EVAL_FILE,
+        **tconfig.hydra_main_kwargs(),
     )(main)
 
     runner()

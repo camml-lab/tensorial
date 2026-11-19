@@ -3,10 +3,11 @@
 import logging
 from typing import TYPE_CHECKING, Final
 
-import hydra
 import omegaconf
 import reax
 from reax.training import _checkpointing
+
+from tensorial import config as tconfig
 
 from . import keys
 
@@ -50,7 +51,7 @@ def load_module(
         "Instantiating model <%s>",
         cfg[keys.MODEL]._target_,  # pylint: disable=protected-access
     )
-    module: reaxkit.ReaxModule = hydra.utils.instantiate(cfg[keys.MODEL], _convert_="object")
+    module: reaxkit.ReaxModule = tconfig.instantiate(cfg[keys.MODEL])
 
     if ckpt_path:
         if checkpointing is None:
