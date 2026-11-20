@@ -48,9 +48,11 @@ def test_parity_plotter_fit_writes_per_epoch_plots(tmp_path):
     dataset = np.random.rand(2, 10)
     trainer.fit(module, train_dataloaders=dataset, val_dataloaders=dataset, max_epochs=2)
 
-    plots = pathlib.Path(trainer.log_dir) / "plots"
-    assert (plots / "train_epoch_1.pdf").exists()
-    assert (plots / "validation_epoch_1.pdf").exists()
+    figures = pathlib.Path(trainer.logger.log_dir) / "figures" / "parity"
+    # Only epoch 0 is collected (fit_plot_every=10), it is plotted as it ends at update 2.
+    # The validation sanity check, at update 0, isn't plotted.
+    assert sorted(path.name for path in (figures / "train").iterdir()) == ["step_00000002.png"]
+    assert sorted(path.name for path in (figures / "validation").iterdir()) == ["step_00000002.png"]
 
 
 def test_parity_plotter_standalone_validate(tmp_path):
@@ -60,8 +62,9 @@ def test_parity_plotter_standalone_validate(tmp_path):
 
     trainer.validate(module, dataloaders=np.random.rand(10))
 
-    assert (pathlib.Path(trainer.log_dir) / "plots" / "validation.pdf").exists()
-    assert not (pathlib.Path(trainer.log_dir) / "plots" / "validation_epoch_0.pdf").exists()
+    figures = pathlib.Path(trainer.logger.log_dir) / "figures" / "parity"
+    assert (figures / "validation.png").exists()
+    assert not (figures / "validation").exists()
 
 
 def test_parity_plotter_standalone_test(tmp_path):
@@ -71,8 +74,9 @@ def test_parity_plotter_standalone_test(tmp_path):
 
     trainer.test(module, dataloaders=np.random.rand(10))
 
-    assert (pathlib.Path(trainer.log_dir) / "plots" / "test.pdf").exists()
-    assert not (pathlib.Path(trainer.log_dir) / "plots" / "test_epoch_0.pdf").exists()
+    figures = pathlib.Path(trainer.logger.log_dir) / "figures" / "parity"
+    assert (figures / "test.png").exists()
+    assert not (figures / "test").exists()
 
 
 def test_parity_plotter_standalone_predict(tmp_path):
@@ -81,8 +85,26 @@ def test_parity_plotter_standalone_predict(tmp_path):
 
     trainer.predict(_module(), dataloaders=np.random.rand(10))
 
-    assert (pathlib.Path(trainer.log_dir) / "plots" / "predict.pdf").exists()
-    assert not (pathlib.Path(trainer.log_dir) / "plots" / "predict_epoch_0.pdf").exists()
+    figures = pathlib.Path(trainer.logger.log_dir) / "figures" / "parity"
+    assert (figures / "predict.png").exists()
+    assert not (figures / "predict").exists()
+
+
+def test_parity_plotter_combined_and_no_loggers(tmp_path):
+    module = _module()
+    trainer = reax.Trainer(
+        default_root_dir=tmp_path, listeners=reaxkit.ParityPlotter(plot_final_combined=True)
+    )
+    dataset = np.random.rand(2, 10)
+    trainer.fit(module, train_dataloaders=dataset, val_dataloaders=dataset, max_epochs=1)
+    trainer.test(module, dataloaders=dataset)
+    assert (pathlib.Path(trainer.logger.log_dir) / "figures" / "parity" / "combined.png").exists()
+
+    # Without loggers there is nowhere to send the figures, but plotting must not fail
+    trainer = reax.Trainer(
+        default_root_dir=tmp_path, logger=False, listeners=reaxkit.ParityPlotter()
+    )
+    trainer.test(module, dataloaders=dataset)
 
 
 def test_parity_should_collect():

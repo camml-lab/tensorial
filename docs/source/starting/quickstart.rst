@@ -88,9 +88,9 @@ block with a loss, metrics, and optimizer) in a single config, see the
 ------------------
 
 The :mod:`tensorial.reaxkit.listeners` package ships a
-:class:`tensorial.reaxkit.listeners.GraphParityPlotter` that writes a
-``.pdf`` of true-vs-predicted into the trainer's log directory at the end
-of each training stage:
+:class:`tensorial.reaxkit.listeners.GraphParityPlotter` that logs a
+true-vs-predicted figure to the trainer's loggers at the end of each
+training stage:
 
 .. code-block:: yaml
 

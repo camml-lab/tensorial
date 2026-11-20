@@ -32,8 +32,9 @@ def test_parity_plotter(tmp_path):
     dataset = np.random.rand(2, 10)
     trainer.fit(module, train_dataloaders=dataset, val_dataloaders=dataset, max_epochs=1)
 
-    assert (pathlib.Path(trainer.log_dir) / "plots" / "train_epoch_0.pdf").exists()
-    assert (pathlib.Path(trainer.log_dir) / "plots" / "validation_epoch_0.pdf").exists()
+    figures = pathlib.Path(trainer.logger.log_dir) / "figures" / "parity"
+    assert len(list((figures / "train").glob("step_*.png"))) == 1
+    assert len(list((figures / "validation").glob("step_*.png"))) == 1
 
 
 def test_graph_parity_plotter(cube_graph: jraph.GraphsTuple, tmp_path):
@@ -63,8 +64,22 @@ def test_graph_parity_plotter(cube_graph: jraph.GraphsTuple, tmp_path):
     )
     trainer.fit(module, train_dataloaders=dataset, val_dataloaders=dataset, max_epochs=10)
 
-    assert (pathlib.Path(trainer.log_dir) / "plots" / "train_epoch_9.pdf").exists()
-    assert (pathlib.Path(trainer.log_dir) / "plots" / "validation_epoch_9.pdf").exists()
+    # Epochs 0, 4 and 9 are collected (fit_plot_every=5) and plotted as they end, with one batch
+    # per epoch that is at updates 1, 5 and 10
+    figures = pathlib.Path(trainer.logger.log_dir) / "figures" / "parity" / "energy"
+    expected = ["step_00000001.png", "step_00000005.png", "step_00000010.png"]
+    assert sorted(path.name for path in (figures / "train").iterdir()) == expected
+    assert sorted(path.name for path in (figures / "validation").iterdir()) == expected
+
+
+def test_graph_parity_plotter_figure_name():
+    # Plotters for different targets get different figure names by default
+    assert reaxkit.GraphParityPlotter("globals.energy")._figure_name == "parity/energy"
+    assert reaxkit.GraphParityPlotter("nodes.forces")._figure_name == "parity/forces"
+    assert (
+        reaxkit.listeners.IrrepsGraphParityPlotter("nodes.tensors")._figure_name == "parity/tensors"
+    )
+    assert reaxkit.GraphParityPlotter("globals.energy", figure_name="e")._figure_name == "e"
 
 
 def test_irreps_graph_parity_plotter(tmp_path):

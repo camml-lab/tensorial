@@ -2,11 +2,12 @@
 
 The :class:`ParityPlotter` and :class:`GraphParityPlotter` listeners
 collect true and predicted values across a training stage and render them as
-scattered parity plots (``y'`` vs ``y``) using Matplotlib, writing the result
-to a ``plots/`` directory inside the trainer's log directory.
+scattered parity plots (``y'`` vs ``y``) using Matplotlib.  The figures are
+handed to each of the trainer's loggers via :meth:`reax.Logger.log_figure`, so
+each logging backend decides how to store them (e.g. as image files in the log
+directory, as TensorBoard images or as MLflow artifacts).
 """
 
-import pathlib
 from typing import Any, Final
 
 import e3nn_jax as e3j
@@ -43,14 +44,26 @@ class ParityPlotter(reax.TrainerListener):
 
     def __init__(
         self,
-        save_dir: str | pathlib.Path = "plots/",
+        figure_name: str = "parity",
         fit_plot_every: int = 10,
         x_label: str = "True Values (y)",
         y_label: str = "Predicted Values (y')",
         plot_final_combined: bool = False,
     ):
+        """Create the plotter.
+
+        Args:
+            figure_name: The name under which figures are logged, the stage name (and any further
+                qualifiers) are appended as ``/`` separated groups, e.g. ``parity/train``.
+            fit_plot_every: For ``train``/``validation`` plots, the maximum number of epochs
+                between two collections. Higher values mean less work.
+            x_label: Label for the x-axis.
+            y_label: Label for the y-axis.
+            plot_final_combined: After testing, also log a plot combining the train, validation
+                and test data.
+        """
         # Params
-        self._save_dir: Final[pathlib.Path] = pathlib.Path(save_dir)
+        self._figure_name: Final[str] = figure_name
         self._plot_every: Final[int] = fit_plot_every
         self._x_label: Final[str] = x_label
         self._y_label: Final[str] = y_label
@@ -58,6 +71,7 @@ class ParityPlotter(reax.TrainerListener):
 
         # State
         self._last_plotted_epoch: dict[str, int] = {}
+        self._warned_no_loggers = False
 
         # Stores data for each stage: {'stage_name': (list of true y's, list of predicted y's)},
         # arrays here, {irrep: array} dicts in IrrepsGraphParityPlotter
@@ -86,6 +100,12 @@ class ParityPlotter(reax.TrainerListener):
         ``validate``/``test``/``predict`` runs there is no epoch to report.
         """
         return trainer.current_epoch if isinstance(trainer.stage, reax.stages.Fit) else None
+
+    @staticmethod
+    def _sanity_checking(trainer: reax.Trainer) -> bool:
+        """Whether the fit is running its validation sanity check, which isn't plotted."""
+        stage = trainer.stage
+        return isinstance(stage, reax.stages.Fit) and stage.sanity_checking
 
     def _collect_batch_data(self, stage_name: str, outputs: Any | None, batch: Any) -> bool:
         """Helper to collect true (y) and predicted (y') values."""
@@ -139,8 +159,30 @@ class ParityPlotter(reax.TrainerListener):
         ax.legend()
         ax.grid(True, linestyle=":", alpha=0.6)
 
-    def _plot_parity(self, stage_name: str, save_dir: pathlib.Path, epoch: int | None = None):
-        """Helper to create and display the parity plot for the current data."""
+    def _log_figure(self, trainer: reax.Trainer, name: str, figure: plt.Figure) -> None:
+        """Log ``figure`` to all the trainer's loggers, and close it.
+
+        ``name`` is appended to :attr:`figure_name`.  During a fit the figure is logged at the
+        current update step, for standalone stages without a step.
+        """
+        try:
+            if not trainer.loggers:
+                if not self._warned_no_loggers:
+                    _LOGGER.warning(
+                        "%s: the trainer has no loggers, parity plots will not be saved.",
+                        type(self).__name__,
+                    )
+                    self._warned_no_loggers = True
+                return
+
+            step = trainer.global_updates if self._epoch(trainer) is not None else None
+            for logger in trainer.loggers:
+                logger.log_figure(f"{self._figure_name}/{name}", figure, step)
+        finally:
+            plt.close(figure)
+
+    def _plot_parity(self, trainer: reax.Trainer, stage_name: str, epoch: int | None = None):
+        """Helper to create and log the parity plot for the current data."""
         true_y_list, pred_y_list = self.data_store[stage_name]
 
         if not true_y_list:
@@ -168,10 +210,8 @@ class ParityPlotter(reax.TrainerListener):
             title=f"Parity Plot: True vs. Predicted ({stage_name.capitalize()} Stage)",
         )
 
-        save_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{stage_name}_epoch_{epoch}.pdf" if epoch is not None else f"{stage_name}.pdf"
-        plt.savefig(str(save_dir / filename), bbox_inches="tight")
-        plt.close(fig)
+        fig.tight_layout()
+        self._log_figure(trainer, stage_name, fig)
 
         _LOGGER.debug("Parity Plot for %s generated.", stage_name)
 
@@ -189,19 +229,17 @@ class ParityPlotter(reax.TrainerListener):
         if not stage_data:
             return
 
-        save_dir = self._get_save_dir(trainer) / "combined_final"
-        self._plot_combined_data(stage_data, save_dir, "final_combined.pdf", "Global Parity")
+        self._plot_combined_data(trainer, stage_data, "combined", "Global Parity")
 
     def _plot_combined_data(
         self,
+        trainer: reax.Trainer,
         stage_data: dict[str, tuple[np.ndarray, np.ndarray]],
-        save_dir: pathlib.Path,
-        filename: str,
+        name: str,
         title: str,
         label_prefix: str = "",
     ):
         """Core tool to plot multiple stages with consistent colors."""
-        save_dir.mkdir(parents=True, exist_ok=True)
         fig, ax = plt.subplots(figsize=(7, 6))
 
         all_true, all_pred = [], []
@@ -229,8 +267,8 @@ class ParityPlotter(reax.TrainerListener):
             title=title,
         )
 
-        plt.savefig(save_dir / filename, bbox_inches="tight")
-        plt.close(fig)
+        fig.tight_layout()
+        self._log_figure(trainer, name, fig)
 
     # --- Implement Batch End Hooks to Collect Data ---
 
@@ -257,6 +295,8 @@ class ParityPlotter(reax.TrainerListener):
         /,
     ) -> None:
         """Collect true and predicted values at the end of each validation batch."""
+        if self._sanity_checking(trainer):
+            return
         if self._should_collect("validation", self._epoch(trainer)):
             self._collect_batch_data("validation", outputs, loop.batch)
 
@@ -289,27 +329,35 @@ class ParityPlotter(reax.TrainerListener):
     # --- Implement Stage End Hooks to Trigger Plotting ---
 
     @override
-    def on_fit_end(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
-        """Fit has ended, plot the collected train and validation data.
-
-        Plotting happens here rather than in on_train_end/on_validation_end so that a run
-        produces one final parity plot per stage instead of one per epoch.
-        """
-        save_dir = self._get_save_dir(trainer)
+    def on_train_epoch_end(
+        self, trainer: reax.Trainer, _stage: reax.Stage, _loop: reax.stages.TrainEpoch, /
+    ) -> None:
+        """A training epoch has ended, plot its data if it was collected."""
         epoch = self._epoch(trainer)
-        self._plot_parity("train", save_dir, epoch)
-        self._plot_parity("validation", save_dir, epoch)
+        if epoch is not None and self._should_collect("train", epoch):
+            self._plot_parity(trainer, "train", epoch)
+
+    @override
+    def on_validation_epoch_end(
+        self, trainer: reax.Trainer, _stage: reax.Stage, _loop: reax.stages.ValidationEpoch, /
+    ) -> None:
+        """A validation epoch within a fit has ended, plot its data if it was collected."""
+        epoch = self._epoch(trainer)
+        if self._sanity_checking(trainer):
+            return
+        if epoch is not None and self._should_collect("validation", epoch):
+            self._plot_parity(trainer, "validation", epoch)
 
     @override
     def on_validation_end(self, trainer: reax.Trainer, _stage: reax.Stage, /) -> None:
-        """A standalone validation has ended, plot its data (during a fit, on_fit_end does)."""
+        """A standalone validation has ended, plot its data."""
         if self._epoch(trainer) is None:
-            self._plot_parity("validation", self._get_save_dir(trainer))
+            self._plot_parity(trainer, "validation")
 
     @override
     def on_test_end(self, trainer: reax.Trainer, _stage: reax.Stage, /) -> None:
         """Test has ended, plot the collected test data and the combined plot if requested."""
-        self._plot_parity("test", self._get_save_dir(trainer), self._epoch(trainer))
+        self._plot_parity(trainer, "test", self._epoch(trainer))
 
         if self.plot_final_combined:
             self._plot_combined_all_stages(trainer)
@@ -317,33 +365,38 @@ class ParityPlotter(reax.TrainerListener):
     @override
     def on_predict_end(self, trainer: reax.Trainer, _stage: reax.Stage, /) -> None:
         """Predict is ending, plot the collected prediction data."""
-        self._plot_parity("predict", self._get_save_dir(trainer), self._epoch(trainer))
+        self._plot_parity(trainer, "predict", self._epoch(trainer))
 
     # --- Clear the stored data when a collected epoch starts, so only that epoch is held ---
-    # Clearing only on collected epochs keeps the last collected one for on_fit_end, also when
-    # early stopping ends the fit on an epoch that is not collected.
+    # Clearing only on collected epochs keeps the last collected one for the combined plot.
 
     @override
     def on_train_epoch_start(
         self, trainer: reax.Trainer, _stage: reax.Stage, _loop: reax.stages.TrainEpoch, /
     ) -> None:
         if self._should_collect("train", self._epoch(trainer)):
-            self.data_store["train"] = ([], [])
+            self._clear("train", trainer)
 
     @override
     def on_validation_epoch_start(
         self, trainer: reax.Trainer, _stage: reax.Stage, _loop: reax.stages.ValidationEpoch, /
     ) -> None:
+        if self._sanity_checking(trainer):
+            return
         if self._should_collect("validation", self._epoch(trainer)):
-            self.data_store["validation"] = ([], [])
+            self._clear("validation", trainer)
 
     @override
-    def on_test_start(self, _trainer: reax.Trainer, _stage: reax.stages.Test, /) -> None:
-        self.data_store["test"] = ([], [])
+    def on_test_start(self, trainer: reax.Trainer, _stage: reax.stages.Test, /) -> None:
+        self._clear("test", trainer)
 
     @override
-    def on_predict_start(self, _trainer: reax.Trainer, _stage: reax.stages.Predict, /) -> None:
-        self.data_store["predict"] = ([], [])
+    def on_predict_start(self, trainer: reax.Trainer, _stage: reax.stages.Predict, /) -> None:
+        self._clear("predict", trainer)
+
+    def _clear(self, stage_name: str, _trainer: reax.Trainer) -> None:
+        """Clear the stored data of a stage."""
+        self.data_store[stage_name] = ([], [])
 
     def get_target_predicted(self, batch, outputs) -> tuple[np.ndarray, np.ndarray]:
         """Return the flattened ``(targets, predictions)`` arrays for a single batch.
@@ -385,12 +438,6 @@ class ParityPlotter(reax.TrainerListener):
 
         return batch[1]
 
-    def _get_save_dir(self, trainer: reax.Trainer) -> pathlib.Path:
-        if self._save_dir.is_absolute():
-            return self._save_dir
-
-        return pathlib.Path(trainer.log_dir) / self._save_dir
-
 
 class GraphParityPlotter(ParityPlotter):
     """Parity plotter specialised for :class:`tensorial.gcnn.typing.GraphsTuple` models.
@@ -406,7 +453,7 @@ class GraphParityPlotter(ParityPlotter):
         self,
         targets: gcnn.typing.TreePathLike,
         predictions: gcnn.typing.TreePathLike | None = None,
-        save_dir: str | pathlib.Path = "plots/",
+        figure_name: str | None = None,
         fit_plot_every: int = 100,
         x_label: str | None = None,
         y_label: str | None = None,
@@ -421,8 +468,10 @@ class GraphParityPlotter(ParityPlotter):
                 graph contains the value to plot. If ``None``, this is derived
                 from ``targets`` by replacing the last node with
                 ``tensorial.gcnn.keys.predicted(<last>)``.
-            save_dir: Where to write the ``.pdf`` parity plots. Defaults to
-                ``"plots/"``.
+            figure_name: The name under which figures are logged, see
+                :class:`ParityPlotter`. Defaults to ``"parity/<last target node>"``,
+                e.g. ``"parity/energy"``, so that plotters for different targets don't
+                overwrite each other's figures.
             fit_plot_every: For ``train``/``validation`` plots, the maximum
                 number of epochs between two plots. Higher values mean fewer
                 plots.
@@ -434,11 +483,12 @@ class GraphParityPlotter(ParityPlotter):
         target_path = gcnn.utils.path_from_str(targets)
         prediction_path = self._init_prediction_path(predictions, target_path)
 
+        figure_name = figure_name or f"parity/{target_path[-1]}"
         x_label = x_label or f"True Values ({target_path[-1]})"
         y_label = y_label or f"Predicted Values ({prediction_path[-1]})"
 
         super().__init__(
-            save_dir=save_dir,
+            figure_name=figure_name,
             fit_plot_every=fit_plot_every,
             x_label=x_label,
             y_label=y_label,
@@ -504,22 +554,6 @@ class IrrepsGraphParityPlotter(GraphParityPlotter):
     into constituent properties and generates a parity plot for each.
     """
 
-    def __init__(
-        self,
-        targets: gcnn.typing.TreePathLike,
-        predictions: gcnn.typing.TreePathLike | None = None,
-        save_dir: str | pathlib.Path = "parity_plots",
-        fit_plot_every: int = 100,
-        **kwargs,
-    ):
-        super().__init__(
-            targets=targets,
-            predictions=predictions,
-            save_dir=save_dir,
-            fit_plot_every=fit_plot_every,
-            **kwargs,
-        )
-
     def _decompose_data(self, data: Any) -> dict[str, np.ndarray]:
         """Decompose data into a dictionary of properties to plot."""
         if isinstance(data, e3j.IrrepsArray):
@@ -554,10 +588,13 @@ class IrrepsGraphParityPlotter(GraphParityPlotter):
         return True
 
     @override
-    def _plot_parity(self, stage_name: str, save_dir: pathlib.Path, epoch: int | None = None):
+    def _plot_parity(self, trainer: reax.Trainer, stage_name: str, epoch: int | None = None):
         dicts_gt, dicts_pred = self.data_store[stage_name]
         if not dicts_gt:
             return
+
+        if epoch is not None:
+            self._last_plotted_epoch[stage_name] = epoch
 
         ir_names = list(dicts_gt[0].keys())
 
@@ -576,12 +613,8 @@ class IrrepsGraphParityPlotter(GraphParityPlotter):
                 title=f"Parity Plot: {ir_name} ({stage_name.capitalize()})",
             )
 
-            (save_dir / ir_name).mkdir(parents=True, exist_ok=True)
-            filename = (
-                f"{stage_name}_epoch_{epoch}.pdf" if epoch is not None else f"{stage_name}.pdf"
-            )
-            plt.savefig(str(save_dir / ir_name / filename), bbox_inches="tight")
-            plt.close(fig)
+            fig.tight_layout()
+            self._log_figure(trainer, f"{stage_name}/{ir_name}", fig)
 
     @override
     def _plot_combined_all_stages(self, trainer: reax.Trainer):
@@ -605,10 +638,9 @@ class IrrepsGraphParityPlotter(GraphParityPlotter):
                     stage_data[stage] = (y_true, y_pred)
 
             if stage_data:
-                save_dir = self._get_save_dir(trainer) / "combined_final" / ir_name
                 self._plot_combined_data(
+                    trainer,
                     stage_data,
-                    save_dir,
-                    filename="final_combined.pdf",
+                    name=f"combined/{ir_name}",
                     title=f"Global Parity: {ir_name}",
                 )

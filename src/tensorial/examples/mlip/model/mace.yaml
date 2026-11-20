@@ -42,6 +42,7 @@ model:
 
     - _target_: tensorial.gcnn.RadialBasisEdgeEncoding
       r_max: ${r_max}
+      envelope: True
 
     - _target_: tensorial.gcnn.NodewiseLinear
       field: attributes
