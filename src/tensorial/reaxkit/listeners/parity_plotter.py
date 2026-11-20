@@ -6,8 +6,13 @@ scattered parity plots (``y'`` vs ``y``) using Matplotlib.  The figures are
 handed to each of the trainer's loggers via :meth:`reax.Logger.log_figure`, so
 each logging backend decides how to store them (e.g. as image files in the log
 directory, as TensorBoard images or as MLflow artifacts).
+
+Each plotter collects one or more *series*, each giving its own parity plot.  A series is
+identified by a ``(quantity, component)`` key, either of which may be ``None``, and is logged as
+``<figure_name>/<quantity>/<stage>/<component>`` (leaving out the parts that are ``None``).
 """
 
+from collections.abc import Mapping, Sequence
 from typing import Any, Final
 
 import e3nn_jax as e3j
@@ -28,6 +33,14 @@ __all__ = (
 )
 
 _LOGGER = pylogger.RankedLogger(__name__, rank_zero_only=True)
+
+STAGES: Final[tuple[str, ...]] = ("train", "validation", "test", "predict")
+
+SeriesKey = tuple[str | None, str | None]
+"""Identifies a series of parity data: ``(quantity, component)``, either may be ``None``."""
+
+SeriesData = tuple[list[np.ndarray], list[np.ndarray]]
+"""The collected ``(true values, predicted values)`` of a series, one array per batch."""
 
 
 class ParityPlotter(reax.TrainerListener):
@@ -56,7 +69,7 @@ class ParityPlotter(reax.TrainerListener):
             figure_name: The name under which figures are logged, the stage name (and any further
                 qualifiers) are appended as ``/`` separated groups, e.g. ``parity/train``.
             fit_plot_every: For ``train``/``validation`` plots, the maximum number of epochs
-                between two collections. Higher values mean less work.
+                between two plots. Higher values mean fewer plots.
             x_label: Label for the x-axis.
             y_label: Label for the y-axis.
             plot_final_combined: After testing, also log a plot combining the train, validation
@@ -73,14 +86,8 @@ class ParityPlotter(reax.TrainerListener):
         self._last_plotted_epoch: dict[str, int] = {}
         self._warned_no_loggers = False
 
-        # Stores data for each stage: {'stage_name': (list of true y's, list of predicted y's)},
-        # arrays here, {irrep: array} dicts in IrrepsGraphParityPlotter
-        self.data_store: dict[str, tuple[list[Any], list[Any]]] = {
-            "train": ([], []),
-            "validation": ([], []),
-            "test": ([], []),
-            "predict": ([], []),
-        }
+        # The data collected in each stage: {stage: {series key: (true values, predicted values)}}
+        self.data_store: dict[str, dict[SeriesKey, SeriesData]] = {stage: {} for stage in STAGES}
 
     def _should_collect(self, stage_name: str, epoch: int | None) -> bool:
         if epoch is None:
@@ -107,22 +114,44 @@ class ParityPlotter(reax.TrainerListener):
         stage = trainer.stage
         return isinstance(stage, reax.stages.Fit) and stage.sanity_checking
 
+    # --- Series: what is plotted, and how it is labelled ---
+
+    def _collect_series(self, batch: Any, outputs: Any) -> dict[SeriesKey, tuple[Any, Any]]:
+        """Return the ``(true, predicted)`` values of each series in a batch.
+
+        Subclasses override this to plot more than one series.  Series that are missing from a
+        batch are simply not collected for it.
+        """
+        return {(None, None): self.get_target_predicted(batch, outputs)}
+
+    def _series_labels(self, key: SeriesKey) -> tuple[str, str, str]:
+        """Return the ``(x label, y label, description)`` of a series, used in its plots."""
+        return self._x_label, self._y_label, "True vs. Predicted"
+
+    def _series_figure_name(self, key: SeriesKey, stage_name: str) -> str:
+        """Return the name, below :attr:`figure_name`, that a series is logged under."""
+        quantity, component = key
+        return "/".join(part for part in (quantity, stage_name, component) if part is not None)
+
     def _collect_batch_data(self, stage_name: str, outputs: Any | None, batch: Any) -> bool:
-        """Helper to collect true (y) and predicted (y') values."""
-        # Assuming batch is a tuple (x, y) and outputs is y' (the prediction).
-        # We take the second element of the batch tuple for the true value (y).
+        """Collect the true and predicted values of each series in a batch."""
         if outputs is None:
             return False
 
-        y_true, y_pred = self.get_target_predicted(batch, outputs)
-        # Flatten y_true and y_pred if they are multi-dimensional (e.g., shape (batch_size, 1))
-        y_true = y_true.flatten()
-        y_pred = y_pred.flatten()
+        store = self.data_store[stage_name]
+        for key, (y_true, y_pred) in self._collect_series(batch, outputs).items():
+            y_true = np.asarray(base.as_array(y_true)).ravel()
+            y_pred = np.asarray(base.as_array(y_pred)).ravel()
+            if y_true.size == 0:
+                continue  # e.g. everything is masked
 
-        self.data_store[stage_name][0].append(y_true)
-        self.data_store[stage_name][1].append(y_pred)
+            true_list, pred_list = store.setdefault(key, ([], []))
+            true_list.append(y_true)
+            pred_list.append(y_pred)
 
         return True
+
+    # --- Plotting ---
 
     def _scatter_parity(
         self,
@@ -182,54 +211,56 @@ class ParityPlotter(reax.TrainerListener):
             plt.close(figure)
 
     def _plot_parity(self, trainer: reax.Trainer, stage_name: str, epoch: int | None = None):
-        """Helper to create and log the parity plot for the current data."""
-        true_y_list, pred_y_list = self.data_store[stage_name]
-
-        if not true_y_list:
+        """Create and log a parity plot of each series collected in a stage."""
+        series = self.data_store[stage_name]
+        if not series:
             _LOGGER.debug("Skipping parity plot for %s: No data collected.", stage_name)
             return
 
         if epoch is not None:
             self._last_plotted_epoch[stage_name] = epoch
 
-        y_true_all = np.concatenate(true_y_list)
-        y_pred_all = np.concatenate(pred_y_list)
+        for key, (true_list, pred_list) in series.items():
+            y_true = np.concatenate(true_list)
+            y_pred = np.concatenate(pred_list)
+            x_label, y_label, description = self._series_labels(key)
 
-        _LOGGER.debug("Generating Parity Plot for %s stage...", stage_name)
+            fig, ax = plt.subplots(figsize=(8, 8))
+            self._scatter_parity(ax, y_true, y_pred, label=f"{stage_name} points (N={len(y_true)})")
+            self._finalize_parity_ax(
+                ax,
+                y_true,
+                y_pred,
+                x_label=x_label,
+                y_label=y_label,
+                title=f"Parity Plot: {description} ({stage_name.capitalize()})",
+            )
 
-        fig, ax = plt.subplots(figsize=(8, 8))
-        self._scatter_parity(
-            ax, y_true_all, y_pred_all, label=f"{stage_name} points (N={len(y_true_all)})"
-        )
-        self._finalize_parity_ax(
-            ax,
-            y_true_all,
-            y_pred_all,
-            x_label=self._x_label,
-            y_label=self._y_label,
-            title=f"Parity Plot: True vs. Predicted ({stage_name.capitalize()} Stage)",
-        )
+            fig.tight_layout()
+            self._log_figure(trainer, self._series_figure_name(key, stage_name), fig)
 
-        fig.tight_layout()
-        self._log_figure(trainer, stage_name, fig)
+    def _plot_combined_all_stages(self, trainer: reax.Trainer):
+        """Plot the train, validation and test data of each series in a single parity plot."""
+        stages = [stage for stage, _color, _label in self.COLOR_CFG]
+        # All the series, in the order they were first collected
+        keys = dict.fromkeys(key for stage in stages for key in self.data_store[stage])
 
-        _LOGGER.debug("Parity Plot for %s generated.", stage_name)
+        for key in keys:
+            stage_data = {}
+            for stage in stages:
+                if key in self.data_store[stage]:
+                    true_list, pred_list = self.data_store[stage][key]
+                    stage_data[stage] = (np.concatenate(true_list), np.concatenate(pred_list))
 
-    def _plot_combined_all_stages(self, trainer: "reax.Trainer"):
-        """Method to plot Train, Val e Test stages results in a single parity plot."""
-        # Prepare data from self.data_store
-        stage_data = {}
-        for stage, _color, _label in self.COLOR_CFG:
-            true_list, pred_list = self.data_store[stage]
-            if true_list:
-                y_true = np.concatenate([np.atleast_1d(x).flatten() for x in true_list])
-                y_pred = np.concatenate([np.atleast_1d(x).flatten() for x in pred_list])
-                stage_data[stage] = (y_true, y_pred)
-
-        if not stage_data:
-            return
-
-        self._plot_combined_data(trainer, stage_data, "combined", "Global Parity")
+            x_label, y_label, description = self._series_labels(key)
+            self._plot_combined_data(
+                trainer,
+                stage_data,
+                self._series_figure_name(key, "combined"),
+                title=f"Global Parity: {description}",
+                x_label=x_label,
+                y_label=y_label,
+            )
 
     def _plot_combined_data(
         self,
@@ -237,6 +268,8 @@ class ParityPlotter(reax.TrainerListener):
         stage_data: dict[str, tuple[np.ndarray, np.ndarray]],
         name: str,
         title: str,
+        x_label: str,
+        y_label: str,
         label_prefix: str = "",
     ):
         """Core tool to plot multiple stages with consistent colors."""
@@ -262,8 +295,8 @@ class ParityPlotter(reax.TrainerListener):
             ax,
             np.concatenate(all_true),
             np.concatenate(all_pred),
-            x_label=self._x_label,
-            y_label=self._y_label,
+            x_label=x_label,
+            y_label=y_label,
             title=title,
         )
 
@@ -375,7 +408,7 @@ class ParityPlotter(reax.TrainerListener):
         self, trainer: reax.Trainer, _stage: reax.Stage, _loop: reax.stages.TrainEpoch, /
     ) -> None:
         if self._should_collect("train", self._epoch(trainer)):
-            self._clear("train", trainer)
+            self._clear("train")
 
     @override
     def on_validation_epoch_start(
@@ -384,19 +417,19 @@ class ParityPlotter(reax.TrainerListener):
         if self._sanity_checking(trainer):
             return
         if self._should_collect("validation", self._epoch(trainer)):
-            self._clear("validation", trainer)
+            self._clear("validation")
 
     @override
-    def on_test_start(self, trainer: reax.Trainer, _stage: reax.stages.Test, /) -> None:
-        self._clear("test", trainer)
+    def on_test_start(self, _trainer: reax.Trainer, _stage: reax.stages.Test, /) -> None:
+        self._clear("test")
 
     @override
-    def on_predict_start(self, trainer: reax.Trainer, _stage: reax.stages.Predict, /) -> None:
-        self._clear("predict", trainer)
+    def on_predict_start(self, _trainer: reax.Trainer, _stage: reax.stages.Predict, /) -> None:
+        self._clear("predict")
 
-    def _clear(self, stage_name: str, _trainer: reax.Trainer) -> None:
+    def _clear(self, stage_name: str) -> None:
         """Clear the stored data of a stage."""
-        self.data_store[stage_name] = ([], [])
+        self.data_store[stage_name] = {}
 
     def get_target_predicted(self, batch, outputs) -> tuple[np.ndarray, np.ndarray]:
         """Return the flattened ``(targets, predictions)`` arrays for a single batch.
@@ -442,36 +475,49 @@ class ParityPlotter(reax.TrainerListener):
 class GraphParityPlotter(ParityPlotter):
     """Parity plotter specialised for :class:`tensorial.gcnn.typing.GraphsTuple` models.
 
-    Extends :class:`ParityPlotter` so that it knows how to pull the target
-    value and the predicted value out of a ``GraphsTuple`` via a
-    ``TreePath``-style selector (similar to :func:`tensorial.gcnn._tree.get`),
-    and optionally apply a ``mask`` if the last node of the target path has a
-    sibling named ``mask``.
+    Extends :class:`ParityPlotter` so that it knows how to pull target and predicted values out
+    of a ``GraphsTuple`` via ``TreePath``-style selectors (similar to
+    :func:`tensorial.gcnn._tree.get`).  One or more quantities can be plotted, each getting its
+    own parity plots, logged as ``<figure_name>/<quantity>/<stage>``, where ``<quantity>`` is the
+    last node of the target path (e.g. ``parity/energy/train``).
+
+    The same masks as :class:`tensorial.gcnn.Loss` are applied: the padding mask of the
+    quantity's level (e.g. ``nodes.mask`` for ``nodes.forces``) and the per-field mask next to
+    the target (e.g. ``globals.stress_mask`` for ``globals.stress``, see
+    :func:`tensorial.gcnn.keys.mask_for`), when present.
+
+    Example::
+
+        GraphParityPlotter(["globals.energy", "nodes.forces", "globals.stress"], optional=True)
     """
 
     def __init__(
         self,
-        targets: gcnn.typing.TreePathLike,
+        targets: (
+            gcnn.typing.TreePathLike
+            | Sequence[gcnn.typing.TreePathLike]
+            | Mapping[str, gcnn.typing.TreePathLike | None]
+        ),
         predictions: gcnn.typing.TreePathLike | None = None,
-        figure_name: str | None = None,
+        figure_name: str = "parity",
         fit_plot_every: int = 100,
         x_label: str | None = None,
         y_label: str | None = None,
+        optional: bool = False,
         **kwargs,
     ):
         """Create the plotter.
 
         Args:
-            targets: A TreePath identifying which node of the target graph
-                contains the value to plot.
-            predictions: A TreePath identifying which node of the prediction
-                graph contains the value to plot. If ``None``, this is derived
-                from ``targets`` by replacing the last node with
-                ``tensorial.gcnn.keys.predicted(<last>)``.
-            figure_name: The name under which figures are logged, see
-                :class:`ParityPlotter`. Defaults to ``"parity/<last target node>"``,
-                e.g. ``"parity/energy"``, so that plotters for different targets don't
-                overwrite each other's figures.
+            targets: The quantities to plot, as paths into the target graph.  This is either a
+                single path (a string such as ``"globals.energy"``, or a tuple of path nodes),
+                a list of paths, or a mapping from target paths to prediction paths (``None``
+                for the default prediction path).
+            predictions: The path into the prediction graph, for a single target only.  If
+                ``None``, the prediction path is derived from the target path by replacing the
+                last node with ``tensorial.gcnn.keys.predicted(<last>)``.
+            figure_name: The name under which figures are logged, the quantity and stage are
+                appended, see :class:`ParityPlotter`.  Defaults to ``"parity"``.
             fit_plot_every: For ``train``/``validation`` plots, the maximum
                 number of epochs between two plots. Higher values mean fewer
                 plots.
@@ -479,65 +525,140 @@ class GraphParityPlotter(ParityPlotter):
                 ``"True Values (<last target node>)"``.
             y_label: Custom label for the y-axis. Defaults to
                 ``"Predicted Values (<last prediction node>)"``.
+            optional: If ``True``, quantities that are missing from the target or prediction
+                graph (e.g. stresses of molecules) are skipped instead of raising an error.
         """
-        target_path = gcnn.utils.path_from_str(targets)
-        prediction_path = self._init_prediction_path(predictions, target_path)
-
-        figure_name = figure_name or f"parity/{target_path[-1]}"
-        x_label = x_label or f"True Values ({target_path[-1]})"
-        y_label = y_label or f"Predicted Values ({prediction_path[-1]})"
-
         super().__init__(
             figure_name=figure_name,
             fit_plot_every=fit_plot_every,
-            x_label=x_label,
-            y_label=y_label,
+            x_label=x_label or "",
+            y_label=y_label or "",
             **kwargs,
         )
-        self._target_path = target_path
-        self._prediction_path = prediction_path
-
-    @staticmethod
-    def _init_prediction_path(
-        prediction_path, target_path: gcnn.typing.TreePath
-    ) -> gcnn.typing.TreePath:
-        if prediction_path is not None:
-            return prediction_path
-
-        path = list(target_path)
-        path[-1] = gcnn.keys.predicted(path[-1])
-        return tuple(path)
+        self._custom_x_label = x_label
+        self._custom_y_label = y_label
+        self._optional = optional
+        self._quantities: Final[dict[str, tuple[gcnn.typing.TreePath, gcnn.typing.TreePath]]] = (
+            _init_quantities(targets, predictions)
+        )
 
     @override
-    def _get_target_predicted(
-        self, batch: tuple[jraph.GraphsTuple, jraph.GraphsTuple | None], outputs: jraph.GraphsTuple
-    ) -> tuple[Any, Any]:
-        targets_graph, predictions_graph = super()._get_target_predicted(batch, outputs)
+    def _collect_series(self, batch: Any, outputs: Any) -> dict[SeriesKey, tuple[Any, Any]]:
+        targets_graph, predictions_graph = self._get_target_predicted(batch, outputs)
 
-        targets = _tree.get(targets_graph, self._target_path)
-        predictions = _tree.get(predictions_graph, self._prediction_path)
+        series: dict[SeriesKey, tuple[Any, Any]] = {}
+        for name, (target_path, prediction_path) in self._quantities.items():
+            values = self._get_quantity(
+                targets_graph, predictions_graph, target_path, prediction_path
+            )
+            if values is None:
+                continue
+
+            for component, component_values in self._decompose(*values).items():
+                series[(name, component)] = component_values
+
+        return series
+
+    def _get_quantity(
+        self,
+        targets_graph: jraph.GraphsTuple,
+        predictions_graph: jraph.GraphsTuple,
+        target_path: gcnn.typing.TreePath,
+        prediction_path: gcnn.typing.TreePath,
+    ) -> tuple[Any, Any] | None:
+        """Return the masked ``(targets, predictions)`` of a quantity, or ``None`` to skip it."""
+        if self._optional and not (
+            _tree.has_path(targets_graph, target_path)
+            and _tree.has_path(predictions_graph, prediction_path)
+        ):
+            return None
+
+        targets = _tree.get(targets_graph, target_path)
+        predictions = _tree.get(predictions_graph, prediction_path)
 
         if not base.is_tensorial_array_like(targets):
             raise TypeError(
                 f"Expected an array-like or IrrepsArray at "
-                f"{_tree.path_to_str(self._target_path)!r}, got {type(targets).__name__}"
+                f"{_tree.path_to_str(target_path)!r}, got {type(targets).__name__}"
             )
         if not base.is_tensorial_array_like(predictions):
             raise TypeError(
                 f"Expected an array-like or IrrepsArray at "
-                f"{_tree.path_to_str(self._prediction_path)!r}, got {type(predictions).__name__}"
+                f"{_tree.path_to_str(prediction_path)!r}, got {type(predictions).__name__}"
             )
 
-        mask_path = self._target_path[:-1] + ("mask",)
-        try:
-            mask = np.array(_tree.get(targets_graph, mask_path))
-        except KeyError:
-            pass
-        else:
+        # The padding mask of the quantity's level, and the per-field mask, as used by the losses
+        mask = _tree.get_mask(targets_graph, target_path)
+        field_mask = _tree.get_field_mask(targets_graph, target_path)
+        if field_mask is not None:
+            mask = field_mask if mask is None else np.asarray(mask) & np.asarray(field_mask)
+        if mask is not None:
+            mask = np.asarray(mask, dtype=bool)
             targets = _apply_mask(targets, mask)
             predictions = _apply_mask(predictions, mask)
 
         return targets, predictions
+
+    def _decompose(self, targets: Any, predictions: Any) -> dict[str | None, tuple[Any, Any]]:
+        """Split a quantity into the components that get their own plots (none by default)."""
+        return {None: (targets, predictions)}
+
+    @override
+    def _series_labels(self, key: SeriesKey) -> tuple[str, str, str]:
+        quantity, component = key
+        assert quantity is not None
+        target_path, prediction_path = self._quantities[quantity]
+        suffix = f" {component}" if component is not None else ""
+
+        x_label = self._custom_x_label or f"True Values ({target_path[-1]}{suffix})"
+        y_label = self._custom_y_label or f"Predicted Values ({prediction_path[-1]}{suffix})"
+        return x_label, y_label, f"{quantity}{suffix}"
+
+
+def _init_quantities(
+    targets: Any, predictions: gcnn.typing.TreePathLike | None
+) -> dict[str, tuple[gcnn.typing.TreePath, gcnn.typing.TreePath]]:
+    """Return ``{name: (target path, prediction path)}`` for the quantities to plot."""
+    pairs: list[tuple[gcnn.typing.TreePath, gcnn.typing.TreePathLike | None]]
+    if isinstance(targets, (str, tuple)):
+        # A single path (a tuple is the nodes of one path, not a collection of paths)
+        pairs = [(_tree.path_from_str(targets), predictions)]
+    elif predictions is not None:
+        raise ValueError(
+            "`predictions` can only be used with a single target, to plot several quantities with "
+            "custom prediction paths pass a {target: prediction} mapping as `targets`"
+        )
+    elif isinstance(targets, Mapping):
+        pairs = [(_tree.path_from_str(target), pred) for target, pred in targets.items()]
+    elif isinstance(targets, Sequence):
+        pairs = [(_tree.path_from_str(target), None) for target in targets]
+    else:
+        raise TypeError(
+            f"`targets` must be a path, a list of paths or a mapping, got {type(targets).__name__}"
+        )
+
+    if not pairs:
+        raise ValueError("At least one target must be given")
+
+    resolved = [
+        (target, _tree.path_from_str(pred) if pred is not None else _default_prediction(target))
+        for target, pred in pairs
+    ]
+
+    # Name each quantity after the last node of its target path, or the full path if not unique
+    leaves = [target[-1] for target, _ in resolved]
+    quantities = {}
+    for target, pred in resolved:
+        name = target[-1] if leaves.count(target[-1]) == 1 else _tree.path_to_str(target)
+        if name in quantities:
+            raise ValueError(f"Target {_tree.path_to_str(target)!r} is given more than once")
+        quantities[name] = (target, pred)
+
+    return quantities
+
+
+def _default_prediction(target_path: gcnn.typing.TreePath) -> gcnn.typing.TreePath:
+    return target_path[:-1] + (gcnn.keys.predicted(target_path[-1]),)
 
 
 def _apply_mask(value: Any, mask: np.ndarray) -> Any:
@@ -551,7 +672,8 @@ def _apply_mask(value: Any, mask: np.ndarray) -> Any:
 class IrrepsGraphParityPlotter(GraphParityPlotter):
     """
     Decomposes true/predicted data (e.g. IrrepsArrays or Cartesian tensors)
-    into constituent properties and generates a parity plot for each.
+    into constituent properties and generates a parity plot for each, logged as
+    ``<figure_name>/<quantity>/<stage>/<irrep>``.
     """
 
     def _decompose_data(self, data: Any) -> dict[str, np.ndarray]:
@@ -572,75 +694,10 @@ class IrrepsGraphParityPlotter(GraphParityPlotter):
         return {"value": np.array(base.as_array(data))}
 
     @override
-    def _collect_batch_data(self, stage_name: str, outputs: Any | None, batch: Any) -> bool:
-        """Collect decomposed data for the given stage."""
-        if outputs is None:
-            return False
-
-        gt, pred = super()._get_target_predicted(batch, outputs)
-
-        gt_dict = self._decompose_data(gt)
-        pred_dict = self._decompose_data(pred)
-
-        self.data_store[stage_name][0].append(gt_dict)
-        self.data_store[stage_name][1].append(pred_dict)
-
-        return True
-
-    @override
-    def _plot_parity(self, trainer: reax.Trainer, stage_name: str, epoch: int | None = None):
-        dicts_gt, dicts_pred = self.data_store[stage_name]
-        if not dicts_gt:
-            return
-
-        if epoch is not None:
-            self._last_plotted_epoch[stage_name] = epoch
-
-        ir_names = list(dicts_gt[0].keys())
-
-        for ir_name in ir_names:
-            y_true = np.concatenate([np.atleast_1d(d[ir_name]).flatten() for d in dicts_gt])
-            y_pred = np.concatenate([np.atleast_1d(d[ir_name]).flatten() for d in dicts_pred])
-
-            fig, ax = plt.subplots(figsize=(8, 8))
-            self._scatter_parity(ax, y_true, y_pred, label=f"{stage_name} {ir_name}")
-            self._finalize_parity_ax(
-                ax,
-                y_true,
-                y_pred,
-                x_label=f"True {ir_name}",
-                y_label=f"Predicted {ir_name}",
-                title=f"Parity Plot: {ir_name} ({stage_name.capitalize()})",
-            )
-
-            fig.tight_layout()
-            self._log_figure(trainer, f"{stage_name}/{ir_name}", fig)
-
-    @override
-    def _plot_combined_all_stages(self, trainer: reax.Trainer):
-        """Handle multiple irrep components for combined plot by feeding data to base class."""
-        available_ir_names = set()
-        for true_list, _ in self.data_store.values():
-            if true_list:
-                available_ir_names.update(true_list[0].keys())
-
-        for ir_name in available_ir_names:
-            stage_data = {}
-            for stage, _, _ in self.COLOR_CFG:
-                true_list, pred_list = self.data_store[stage]
-                if true_list:
-                    y_true = np.concatenate(
-                        [np.atleast_1d(d[ir_name]).flatten() for d in true_list]
-                    )
-                    y_pred = np.concatenate(
-                        [np.atleast_1d(d[ir_name]).flatten() for d in pred_list]
-                    )
-                    stage_data[stage] = (y_true, y_pred)
-
-            if stage_data:
-                self._plot_combined_data(
-                    trainer,
-                    stage_data,
-                    name=f"combined/{ir_name}",
-                    title=f"Global Parity: {ir_name}",
-                )
+    def _decompose(self, targets: Any, predictions: Any) -> dict[str | None, tuple[Any, Any]]:
+        decomposed_targets = self._decompose_data(targets)
+        decomposed_predictions = self._decompose_data(predictions)
+        return {
+            name: (values, decomposed_predictions[name])
+            for name, values in decomposed_targets.items()
+        }

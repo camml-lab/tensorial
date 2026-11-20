@@ -88,15 +88,16 @@ block with a loss, metrics, and optimizer) in a single config, see the
 ------------------
 
 The :mod:`tensorial.reaxkit.listeners` package ships a
-:class:`tensorial.reaxkit.listeners.GraphParityPlotter` that logs a
-true-vs-predicted figure to the trainer's loggers at the end of each
-training stage:
+:class:`tensorial.reaxkit.listeners.GraphParityPlotter` that logs
+true-vs-predicted figures to the trainer's loggers as training
+progresses, one per quantity (here ``parity/energy`` and ``parity/forces``):
 
 .. code-block:: yaml
 
    listeners:
      - _target_: tensorial.reaxkit.listeners.GraphParityPlotter
-       targets: globals.energy
+       targets: [ globals.energy, nodes.forces ]
+       optional: true  # skip quantities that the data doesn't have
        fit_plot_every: 5
 
 See the `API reference </api_reference/modules.html>`_ for the full list of

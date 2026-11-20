@@ -1,5 +1,6 @@
 parity_plotter:
   _target_: tensorial.reaxkit.GraphParityPlotter
-  targets: globals.energy
-  predictions: globals.predicted_energy
+  # The quantities of the loss, each gets its own parity plots (parity/energy, parity/forces, ...)
+  targets: [ globals.energy, nodes.forces, globals.stress ]
+  optional: true  # skip quantities the data doesn't have, e.g. the stress of molecules
   fit_plot_every: 20

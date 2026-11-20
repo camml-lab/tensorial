@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import jraph
 import numpy as np
 import optax
+import pytest
 import reax
 
 from tensorial import base, gcnn, reaxkit
@@ -72,14 +73,111 @@ def test_graph_parity_plotter(cube_graph: jraph.GraphsTuple, tmp_path):
     assert sorted(path.name for path in (figures / "validation").iterdir()) == expected
 
 
-def test_graph_parity_plotter_figure_name():
-    # Plotters for different targets get different figure names by default
-    assert reaxkit.GraphParityPlotter("globals.energy")._figure_name == "parity/energy"
-    assert reaxkit.GraphParityPlotter("nodes.forces")._figure_name == "parity/forces"
-    assert (
-        reaxkit.listeners.IrrepsGraphParityPlotter("nodes.tensors")._figure_name == "parity/tensors"
+def test_graph_parity_plotter_quantities():
+    # A single path, a tuple being the nodes of one path
+    for targets in ("globals.energy", ("globals", "energy")):
+        assert reaxkit.GraphParityPlotter(targets)._quantities == {
+            "energy": (("globals", "energy"), ("globals", "predicted_energy"))
+        }
+
+    # Several quantities, named after the last path node unless that is ambiguous
+    plotter = reaxkit.GraphParityPlotter(["globals.energy", "nodes.forces", "nodes.energy"])
+    assert plotter._quantities == {
+        "globals.energy": (("globals", "energy"), ("globals", "predicted_energy")),
+        "forces": (("nodes", "forces"), ("nodes", "predicted_forces")),
+        "nodes.energy": (("nodes", "energy"), ("nodes", "predicted_energy")),
+    }
+
+    # A mapping gives custom prediction paths
+    plotter = reaxkit.GraphParityPlotter({"globals.energy": "globals.e", "nodes.forces": None})
+    assert plotter._quantities == {
+        "energy": (("globals", "energy"), ("globals", "e")),
+        "forces": (("nodes", "forces"), ("nodes", "predicted_forces")),
+    }
+
+    with pytest.raises(ValueError):
+        reaxkit.GraphParityPlotter(["globals.energy"], predictions="globals.e")
+    with pytest.raises(ValueError):
+        reaxkit.GraphParityPlotter([])
+    with pytest.raises(ValueError):
+        reaxkit.GraphParityPlotter(["globals.energy", "globals.energy"])
+
+
+def _mlip_graphs():
+    """Two real graphs (two and one nodes) and a padding graph (one node).
+
+    The second graph's stress is a placeholder, marked by its per-field mask.
+    """
+    stress = np.arange(27.0).reshape(3, 3, 3)
+    forces = np.arange(12.0).reshape(4, 3)
+    targets = jraph.GraphsTuple(
+        nodes={"forces": forces, "mask": np.array([True, True, True, False])},
+        edges={},
+        senders=np.array([], dtype=int),
+        receivers=np.array([], dtype=int),
+        globals={
+            "energy": np.array([1.0, 2.0, 0.0]),
+            "stress": stress,
+            keys.mask_for("stress"): np.array([True, False, True]),
+            "mask": np.array([True, True, False]),
+        },
+        n_node=np.array([2, 1, 1]),
+        n_edge=np.array([0, 0, 0]),
     )
-    assert reaxkit.GraphParityPlotter("globals.energy", figure_name="e")._figure_name == "e"
+    predictions = targets._replace(
+        nodes={**targets.nodes, keys.predicted("forces"): -forces},
+        globals={
+            **targets.globals,
+            keys.predicted("energy"): -targets.globals["energy"],
+            keys.predicted("stress"): -stress,
+        },
+    )
+    return targets, predictions
+
+
+def test_graph_parity_plotter_masks_and_optional():
+    targets, predictions = _mlip_graphs()
+
+    plotter = reaxkit.GraphParityPlotter(
+        ["globals.energy", "nodes.forces", "globals.stress", "globals.dipole"], optional=True
+    )
+    plotter._collect_batch_data("test", predictions, (targets, targets))
+
+    store = plotter.data_store["test"]
+    # The dipole isn't in the data, so it is skipped
+    assert list(store) == [("energy", None), ("forces", None), ("stress", None)]
+
+    # The level's padding mask is applied
+    (energy,), (predicted_energy,) = store[("energy", None)]
+    np.testing.assert_allclose(energy, [1.0, 2.0])
+    np.testing.assert_allclose(predicted_energy, -energy)
+    (forces,), _ = store[("forces", None)]
+    np.testing.assert_allclose(forces, np.arange(9.0))
+    # ...and the per-field mask, which drops the second graph's placeholder stress
+    (stress,), _ = store[("stress", None)]
+    np.testing.assert_allclose(stress, np.arange(9.0))
+
+    # Without `optional`, a missing quantity is an error
+    plotter = reaxkit.GraphParityPlotter(["globals.energy", "globals.dipole"])
+    with pytest.raises(KeyError):
+        plotter._collect_batch_data("test", predictions, (targets, targets))
+
+
+def test_graph_parity_plotter_logs_each_quantity(tmp_path):
+    targets, predictions = _mlip_graphs()
+    plotter = reaxkit.GraphParityPlotter(
+        ["globals.energy", "nodes.forces"], plot_final_combined=True
+    )
+    plotter._collect_batch_data("test", predictions, (targets, targets))
+
+    trainer = reax.Trainer(default_root_dir=tmp_path)
+    plotter._plot_parity(trainer, "test")
+    plotter._plot_combined_all_stages(trainer)
+
+    figures = pathlib.Path(trainer.logger.log_dir) / "figures" / "parity"
+    for quantity in ("energy", "forces"):
+        assert (figures / quantity / "test.png").exists()
+        assert (figures / quantity / "combined.png").exists()
 
 
 def test_irreps_graph_parity_plotter(tmp_path):
@@ -142,8 +240,11 @@ def test_irreps_graph_parity_plotter_masked_nodes():
     plotter = reaxkit.listeners.IrrepsGraphParityPlotter(targets="nodes.tensors")
     plotter._collect_batch_data("test", predictions, (targets, targets))
 
-    (gt,), (pred,) = plotter.data_store["test"]
+    store = plotter.data_store["test"]
     # The mask is applied without losing the irreps, so every irrep gets its own entry
-    np.testing.assert_allclose(gt["0e"], [[0.0], [8.0]])
-    np.testing.assert_allclose(gt["1o"], [[1.0, 2.0, 3.0], [9.0, 10.0, 11.0]])
-    np.testing.assert_allclose(pred["1o"], -gt["1o"])
+    assert list(store) == [("tensors", "0e"), ("tensors", "1o")]
+    (gt_0e,), _ = store[("tensors", "0e")]
+    (gt_1o,), (pred_1o,) = store[("tensors", "1o")]
+    np.testing.assert_allclose(gt_0e, [0.0, 8.0])
+    np.testing.assert_allclose(gt_1o, [1.0, 2.0, 3.0, 9.0, 10.0, 11.0])
+    np.testing.assert_allclose(pred_1o, -gt_1o)
