@@ -183,9 +183,13 @@ def segment_mean(
         # Ensure segment_mask broadcasts if safe_counts has extra dims
         segment_mask = nn_utils.prepare_mask(segment_mask, safe_counts)
 
+    # Guard the denominator on the count itself (not only the segment mask): a real segment
+    # with no valid entries would otherwise compute 0/0 in the discarded branch, whose
+    # gradient (0 * inf) is NaN.
+    has_data = safe_counts > 0
     mean = jnp.where(
-        safe_counts > 0,
-        data_sum / jnp.where(segment_mask, safe_counts, 1.0),
+        has_data,
+        data_sum / jnp.where(segment_mask & has_data, safe_counts, 1.0),
         jnp.zeros_like(data_sum),
     )
     return jnp.where(segment_mask, mean, jnp.zeros_like(mean))

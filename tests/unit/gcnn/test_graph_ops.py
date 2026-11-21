@@ -72,6 +72,25 @@ def test_segment_mean_all_masked(jit):
     assert jnp.allclose(res, 0.0)
 
 
+def test_segment_mean_gradient_finite_for_fully_masked_segment():
+    """A real segment with no valid entries must not produce NaN gradients."""
+    data = jnp.arange(4.0)
+    sizes = jnp.array([2, 2])
+    mask = jnp.array([True, True, False, False])  # segment 1 is real but has no valid entries
+    segment_mask = jnp.array([True, True])
+
+    def f(x):
+        res = graph_ops.segment_reduce(x, sizes, "mean", mask=mask, segment_mask=segment_mask)
+        assert isinstance(res, jax.Array)
+        return jnp.sum(res)
+
+    value = f(data)
+    grad = jax.grad(f)(data)
+    assert jnp.isclose(value, 0.5)
+    assert jnp.all(jnp.isfinite(grad))
+    assert jnp.allclose(grad, jnp.array([0.5, 0.5, 0.0, 0.0]))
+
+
 @pytest.mark.parametrize("jit", [False, True])
 def test_segment_sum_with_mask(jit):
     op = jax.jit(graph_ops.segment_sum) if jit else graph_ops.segment_sum
