@@ -55,10 +55,9 @@ def graph_from_points(
         the corresponding jraph Graph
     """
     pos = np_.asarray(pos)
-    nodes = nodes if nodes else {}
+    nodes = dict(nodes) if nodes else {}
     num_nodes = len(pos)
 
-    nodes = nodes or {}
     for name, value in nodes.items():
         if value.shape[0] != num_nodes:
             raise ValueError(
@@ -99,7 +98,7 @@ def graph_from_points(
 
     nodes[keys.POSITIONS] = pos
 
-    graph_globals = graph_globals or {}
+    graph_globals = dict(graph_globals) if graph_globals else {}
     if pbc is not None:
         graph_globals[keys.PBC] = np_.array(pbc, dtype=bool)
     if cell is not None:
@@ -143,7 +142,7 @@ def with_edge_vectors(
     that they will not be recalculated if already done so.
     """
     nodes = cast("dict[str, Any]", graph.nodes)
-    edges = cast("dict[str, Any]", graph.edges)
+    edges = dict(cast("dict[str, Any]", graph.edges))
     globals_dict = cast("dict[str, Any]", graph.globals)
     pos = nodes[keys.POSITIONS]
     edge_vecs = pos[graph.receivers] - pos[graph.senders]
@@ -196,7 +195,7 @@ def _pairwise_sq_distances(pos: Array, mask: Array | None) -> Array:
 def _update_positions(
     padded_graph: jraph.GraphsTuple, new_pos: Array, r_max: float
 ) -> jraph.GraphsTuple:
-    nodes_dict = cast("dict[str, Any]", padded_graph.nodes)
+    nodes_dict = dict(cast("dict[str, Any]", padded_graph.nodes))
     edges_dict = cast("dict[str, Any]", padded_graph.edges)
     if not nodes_dict[keys.POSITIONS].shape == new_pos.shape:
         raise ValueError(

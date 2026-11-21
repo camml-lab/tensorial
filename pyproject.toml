@@ -224,6 +224,7 @@ exclude = [
     'tests/unit/gcnn/test_metrics.py',
     'tests/unit/gcnn/test_modules.py',
     'tests/unit/gcnn/test_nequip.py',
+    'tests/unit/gcnn/test_no_mutation.py',
     'tests/unit/gcnn/test_nodewise.py',
     'tests/unit/gcnn/test_packing.py',
     'tests/unit/gcnn/test_product_basis.py',

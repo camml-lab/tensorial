@@ -35,12 +35,12 @@ def spatial_graph(
         rng_key, subkey = jax.random.split(rng_key)
         pos = jax.random.uniform(subkey, shape=(num_nodes, 3))
 
-        if nodes is not None:
-            for key, value in nodes.items():
-                value, rng_key = _create_attributes(value, rng_key, num_nodes)
-                nodes[key] = value
+        # Build a fresh dict for each graph, leaving the caller's specification untouched
+        graph_nodes = {}
+        for key, value in (nodes or {}).items():
+            graph_nodes[key], rng_key = _create_attributes(value, rng_key, num_nodes)
 
-        graphs.append(_spatial.graph_from_points(pos, r_max=cutoff, nodes=nodes))
+        graphs.append(_spatial.graph_from_points(pos, r_max=cutoff, nodes=graph_nodes))
 
     if num_graphs is None:
         return graphs[0]

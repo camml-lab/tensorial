@@ -42,7 +42,7 @@ class EdgewiseLinear(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple):
-        edges = cast("dict[str, Any]", graph.edges)
+        edges = dict(cast("dict[str, Any]", graph.edges))
         edges[self.out_field] = self.linear(edges[self.field])
         return graph._replace(edges=edges)
 
@@ -71,7 +71,7 @@ class EdgewiseEmbedding(linen.Module):
         # Create the encoding
         encoded = base.create_tensor(self.attrs, graph.edges)
         # Store in output field
-        edges = cast("dict[str, Any]", graph.edges)
+        edges = dict(cast("dict[str, Any]", graph.edges))
         edges[self.out_field] = encoded
         return graph._replace(edges=edges)
 
@@ -89,7 +89,7 @@ class EdgewiseDecoding(linen.Module):
         # Here, we need to split up the direct sum of irreps in the in field, and save the values
         # in the edges dict corresponding to the attrs keys
         idx = 0
-        edges_dict = cast("dict[str, Any]", graph.edges)
+        edges_dict = dict(cast("dict[str, Any]", graph.edges))
         irreps_tensor = edges_dict[self.in_field]
         for key, value in base.tensorial_attrs(self.attrs).items():
             irreps = base.irreps(value)

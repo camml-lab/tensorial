@@ -56,7 +56,7 @@ class NodewiseLinear(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
-        nodes = cast("dict[str, Any]", graph.nodes)
+        nodes = dict(cast("dict[str, Any]", graph.nodes))
         if self.num_types:
             # We are using weights indexed by the type
             features = self.linear(nodes[self._types_field][:, 0], nodes[self.field])
@@ -138,7 +138,7 @@ class NodewiseEmbedding(linen.Module):
 
     @_base.shape_check
     def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
-        nodes = cast("dict[str, Any]", graph.nodes)
+        nodes = dict(cast("dict[str, Any]", graph.nodes))
         if isinstance(self.attrs, (dict, linen.FrozenDict)):
             values = []
             for key, attr in self.attrs.items():
@@ -206,7 +206,7 @@ class NodewiseDecoding(linen.Module):
         # Here, we need to split up the direct sum of irreps in the in field, and save the values
         # in the nodes dict corresponding to the attrs keys
         idx = 0
-        nodes_dict = cast("dict[str, Any]", graph.nodes)
+        nodes_dict = dict(cast("dict[str, Any]", graph.nodes))
         irreps_tensor = nodes_dict[self.in_field]
         for key, value in base.tensorial_attrs(self.attrs).items():
             irreps = base.irreps(value)
