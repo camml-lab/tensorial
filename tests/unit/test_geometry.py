@@ -377,3 +377,32 @@ def test_periodic_boundary_positions_outside_cell(backend, pbc):
     vectors = geometry.unit_cells.get_edge_vectors(positions, edges, cell)
     valid = np.asarray(edges.to_idx) >= 0
     assert np.all(np.linalg.norm(np.asarray(vectors)[valid], axis=1) < cutoff)
+
+
+@pytest.mark.parametrize("cutoff", [2, 2.0, np.float32(2.0), jnp.float32(2.0), jnp.array(2.0)])
+@pytest.mark.parametrize("module", [geometry.np_neighbours, jax_neighbours])
+@pytest.mark.parametrize("pbc", [None, (True, True, True)])
+def test_neighbour_finder_accepts_real_scalar_cutoffs(module, cutoff, pbc):
+    """Any concrete real scalar is a valid cutoff (e.g. an integer `r_max` from a config file), and
+    gives the same neighbours as the equivalent float."""
+    rng = np.random.default_rng(0)
+    cell = np.eye(3) * 3.0 if pbc else None
+    positions = rng.uniform(0.0, 3.0, size=(6, 3))
+
+    finder = module.neighbour_finder(cutoff, cell, pbc=pbc)
+    reference = module.neighbour_finder(2.0, cell, pbc=pbc)
+    assert _edge_set(finder.get_neighbours(positions).get_edges()) == _edge_set(
+        reference.get_neighbours(positions).get_edges()
+    )
+
+
+def test_jax_periodic_boundary_default_pbc_is_fully_periodic():
+    """Regression test: the default `pbc=None` crashed before being resolved to all-periodic."""
+    cell = np.diag([3.0, 3.5, 4.0])
+    positions = jnp.asarray(np.random.default_rng(0).uniform(0.0, 3.0, size=(5, 3)))
+
+    default = jax_neighbours.PeriodicBoundary(cell, 2.5).get_neighbours(positions)
+    explicit = jax_neighbours.PeriodicBoundary(cell, 2.5, pbc=(True, True, True)).get_neighbours(
+        positions
+    )
+    assert _edge_set(default.get_edges()) == _edge_set(explicit.get_edges())

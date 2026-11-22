@@ -7,6 +7,7 @@ signatures so users can write, e.g.,
     ``IrrepsArrayShape["n_node 9"]``
     ``CellType``
     ``PbcType``
+    ``RealScalar``
 
 instead of repeating the full ``jaxtyping``/``Annotated`` spellings.
 """
@@ -16,7 +17,7 @@ from typing import Annotated, Generic, TypeVar
 
 import e3nn_jax as e3j
 import jax.typing
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Real
 import numpy as np
 
 __all__ = (
@@ -28,6 +29,7 @@ __all__ = (
     "IndexArray",
     "CellType",
     "PbcType",
+    "RealScalar",
 )
 
 
@@ -68,4 +70,8 @@ CellType = Annotated[Float[ArrayType, "3 3"], "Unit cell array i.e. rows contain
 PbcType = Annotated[
     tuple[bool, bool, bool] | Bool[jax.typing.ArrayLike, "3"],
     "Boolean sequence indicating whether boundaries are periodic in each a, b, c directions",
+]
+RealScalar = Annotated[
+    Real[jax.typing.ArrayLike, ""],
+    "A concrete real scalar: a Python int or float, a NumPy scalar or a 0-d (non-traced) array",
 ]

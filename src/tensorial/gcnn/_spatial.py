@@ -1,5 +1,4 @@
 import logging
-import numbers
 from typing import Final, cast
 
 import e3nn_jax as e3j
@@ -9,7 +8,7 @@ import jraph
 import numpy as np
 from reax.utils import masking
 
-from tensorial.typing import Array, CellType, PbcType
+from tensorial.typing import Array, CellType, PbcType, RealScalar
 
 from .. import base, geometry, nn_utils
 from . import keys
@@ -21,7 +20,7 @@ __all__ = ("graph_from_points", "with_edge_vectors")
 
 def graph_from_points(
     pos: Float[Array, "n_nodes 3"],
-    r_max: numbers.Number,
+    r_max: RealScalar,
     *,
     fractional_positions: bool = False,
     self_interaction: bool = True,

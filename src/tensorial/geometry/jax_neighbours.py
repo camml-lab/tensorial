@@ -7,7 +7,6 @@ factory to construct the right backend for a given boundary condition.
 """
 
 import functools
-import numbers
 
 import beartype
 import jax
@@ -15,7 +14,7 @@ import jax.numpy as jnp
 import jaxtyping as jt
 import reax.pytree
 
-from tensorial.typing import CellType, PbcType
+from tensorial.typing import CellType, PbcType, RealScalar
 
 from . import distances, unit_cells
 
@@ -118,7 +117,7 @@ class OpenBoundary(NeighbourFinder):
     _cutoff: float = reax.pytree.field(static=True)
     _include_self: bool = reax.pytree.field(static=True)
 
-    def __init__(self, cutoff: numbers.Number, include_self=False):
+    def __init__(self, cutoff: RealScalar, include_self=False):
         """Initialise with a cutoff radius and (optionally) include self-neighbours."""
         self._cutoff = float(cutoff)
         self._include_self = include_self
@@ -181,7 +180,7 @@ class PeriodicBoundary(NeighbourFinder):
     def __init__(
         self,
         cell: CellType,
-        cutoff: numbers.Number,
+        cutoff: RealScalar,
         pbc: PbcType | None = None,
         *,
         max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
@@ -200,15 +199,16 @@ class PeriodicBoundary(NeighbourFinder):
         """
         self._cell = jnp.asarray(cell)
         self._cutoff = float(cutoff)
+        # Resolve the default before building the cell list, which needs a concrete `pbc`
+        self._pbc = (True, True, True) if pbc is None else tuple(bool(p) for p in pbc)
         self._cell_list, self._grid_points = get_cell_list(
-            self._cell, cutoff, pbc, max_cell_multiples=max_cell_multiples
+            self._cell, self._cutoff, self._pbc, max_cell_multiples=max_cell_multiples
         )
         self._self_cell = jnp.argwhere(
             jax.vmap(jnp.array_equal, (0, None))(self._cell_list, jnp.zeros(3, dtype=i32))
         )[0, 0].item()
         self._include_self = include_self
         self._include_images = include_images
-        self._pbc = (True, True, True) if pbc is None else tuple(bool(p) for p in pbc)
 
     def get_neighbours(
         self, positions: jt.ArrayLike, max_neighbours: int | None = None
@@ -273,7 +273,7 @@ class PeriodicBoundary(NeighbourFinder):
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def neighbour_finder(
-    cutoff: numbers.Number,
+    cutoff: RealScalar,
     cell: CellType | None = None,
     pbc: PbcType | None = None,
     include_self: bool = False,
@@ -307,7 +307,7 @@ def generate_positions(cell: jax.Array, positions: jax.Array, cell_shifts: jax.A
 
 def get_cell_list(
     cell: CellType,
-    cutoff: numbers.Number,
+    cutoff: RealScalar,
     pbc: PbcType | None = (True, True, True),
     max_cell_multiples: int = DEFAULT_MAX_CELL_MULTIPLES,
 ) -> tuple[jax.Array, jax.Array]:

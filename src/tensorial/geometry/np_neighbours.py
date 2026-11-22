@@ -1,13 +1,11 @@
 """NumPy-based neighbour-finder backends (open and periodic boundaries)."""
 
-import numbers
-
 from jaxtyping import Bool, Float, Int
 import numpy as np
 import scipy.spatial.distance as ssd
 from typing_extensions import override
 
-from tensorial.typing import Array, CellType, PbcType
+from tensorial.typing import Array, CellType, PbcType, RealScalar
 
 from . import distances, unit_cells
 
@@ -129,7 +127,7 @@ class NeighbourList(distances.NeighbourList):
 class OpenBoundary(distances.NeighbourFinder):
     """Open-boundary neighbour finder: a simple cutoff sphere, no periodic images."""
 
-    def __init__(self, cutoff: numbers.Number, include_self: bool = False):
+    def __init__(self, cutoff: RealScalar, include_self: bool = False):
         """Initialise with a cutoff radius and (optionally) include self-neighbours."""
         self._cutoff = float(cutoff)
         self._include_self = include_self
@@ -158,7 +156,7 @@ class PeriodicBoundary(distances.NeighbourFinder):
     def __init__(
         self,
         cell: CellType,
-        cutoff: numbers.Number,
+        cutoff: RealScalar,
         pbc: PbcType,
         *,
         include_self=False,
@@ -177,13 +175,15 @@ class PeriodicBoundary(distances.NeighbourFinder):
                 repetitions of the central unit cell as neighbours
         """
         self._cell = cell
-        self._cutoff = cutoff
+        self._cutoff = float(cutoff)
         self._pbc = pbc
         self._include_self = include_self
         self._include_images = include_images
 
         # Create the integer grid of points representing the lattice
-        ranges: tuple[Range, Range, Range] = unit_cells.get_cell_multiple_ranges(cell, cutoff, pbc)
+        ranges: tuple[Range, Range, Range] = unit_cells.get_cell_multiple_ranges(
+            cell, self._cutoff, pbc
+        )
         aspace, bspace, cspace = tuple(
             map(
                 lambda x0x1: np.linspace(*x0x1, x0x1[1] - x0x1[0], endpoint=False, dtype=int),
@@ -230,7 +230,7 @@ class PeriodicBoundary(distances.NeighbourFinder):
 
 
 def neighbour_finder(
-    cutoff: numbers.Number,
+    cutoff: RealScalar,
     cell: CellType | None = None,
     pbc: PbcType | None = None,
     include_self: bool = False,

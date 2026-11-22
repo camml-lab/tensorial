@@ -1,11 +1,10 @@
 from collections.abc import Hashable, Iterable, Mapping, MutableMapping
-import numbers
 from typing import TYPE_CHECKING
 
 import jraph
 import numpy as np
 
-from tensorial.typing import Array, CellType, PbcType
+from tensorial.typing import Array, CellType, PbcType, RealScalar
 
 from ... import base, utils
 from .. import _spatial as gcnn_graphs
@@ -21,7 +20,7 @@ __all__ = "graph_from_pymatgen", "graph_from_ase"
 # too slow: @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_pymatgen(
     pymatgen_structure: "pymatgen.core.SiteCollection",
-    r_max: numbers.Number,
+    r_max: RealScalar,
     *,
     key_mapping: dict[str, str] | None = None,
     atom_include_keys: Iterable | None = ("numbers",),
@@ -102,7 +101,7 @@ def graph_from_pymatgen(
 # too slow: @jt.jaxtyped(typechecker=beartype.beartype)
 def graph_from_ase(
     ase_atoms: "ase.atoms.Atoms",
-    r_max: numbers.Number,
+    r_max: RealScalar,
     *,
     key_mapping: dict[str, str] | None = None,
     atom_include_keys: Iterable | None = ("numbers",),
