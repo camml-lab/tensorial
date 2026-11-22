@@ -121,8 +121,19 @@ class CalcStresses(linen.Module):
         )
         pos = pos + jax.vmap(jnp.matmul)(pos, all_displacements)
 
+        # Strain the cell too: edge vectors are `pos[j] - pos[i] + shift @ cell`, so straining
+        # only the positions misses the periodic-image part of every edge that crosses the cell
+        # boundary (and makes the result depend on whether the atoms are wrapped into the cell)
+        cell = cast(dict[str, Any], graph.globals)[keys.CELL]
+        cell = cell + jax.vmap(jnp.matmul)(cell, displacement)
+
         # Update the graph
-        graph = gcnn.experimental.update_graph(graph).set(f"nodes.{keys.POSITIONS}", pos).get()
+        graph = (
+            gcnn.experimental.update_graph(graph)
+            .set(f"nodes.{keys.POSITIONS}", pos)
+            .set(f"globals.{keys.CELL}", cell)
+            .get()
+        )
 
         # Get the total energies
         return self.energy_fn(graph)
