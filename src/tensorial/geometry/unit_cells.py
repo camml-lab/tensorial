@@ -27,6 +27,30 @@ def get_cell_multiple_range(cell: jt.ArrayLike, cell_vector: int, cutoff: float)
     return -math.ceil(multiplier), math.ceil(multiplier) + 1
 
 
+def wrap_offsets(positions, cell, pbc, np_=np):
+    """Integer cell offsets that wrap ``positions`` into the unit cell along periodic directions.
+
+    The image ranges of :func:`get_cell_multiple_ranges` cover every neighbour within the cutoff
+    only if all positions lie inside the cell (fractional coordinates in [0, 1)): two points
+    further apart need images beyond the range.  Neighbour finders therefore search with
+    ``positions - offsets @ cell`` and correct the cell shifts of an edge i → j by
+    ``offsets[i] - offsets[j]``, which leaves the edge vectors (and the caller's positions)
+    unchanged.
+
+    Args:
+        positions: (N, 3) Cartesian positions.
+        cell: the unit cell (rows are the three cell vectors).
+        pbc: which cell directions are periodic; non-periodic directions get offset 0.
+        np_: the array module (``numpy`` or ``jax.numpy``).
+
+    Returns:
+        (N, 3) integer offsets.
+    """
+    fractional = np_.linalg.solve(np_.asarray(cell).T, np_.asarray(positions).T).T
+    offsets = np_.floor(fractional).astype(int)
+    return np_.where(np_.asarray(pbc, dtype=bool)[None, :], offsets, 0)
+
+
 def get_cell_multiple_ranges(
     cell: CellType, cutoff: float, pbc: PbcType | None = (True, True, True)
 ) -> tuple[tuple[int, int], tuple[int, int], tuple[int, int]]:

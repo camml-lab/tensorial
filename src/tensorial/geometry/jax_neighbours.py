@@ -176,6 +176,7 @@ class PeriodicBoundary(NeighbourFinder):
     _include_self: bool = reax.pytree.field(static=True)
     _include_images: bool = reax.pytree.field(static=True)
     _self_cell: int = reax.pytree.field(static=True)
+    _pbc: tuple[bool, bool, bool] = reax.pytree.field(static=True)
 
     def __init__(
         self,
@@ -207,6 +208,7 @@ class PeriodicBoundary(NeighbourFinder):
         )[0, 0].item()
         self._include_self = include_self
         self._include_images = include_images
+        self._pbc = (True, True, True) if pbc is None else tuple(bool(p) for p in pbc)
 
     def get_neighbours(
         self, positions: jt.ArrayLike, max_neighbours: int | None = None
@@ -221,6 +223,11 @@ class PeriodicBoundary(NeighbourFinder):
         max_neighbours = (
             max_neighbours if max_neighbours is not None else self.estimate_neighbours(positions)
         )
+
+        # Search with the positions wrapped into the cell (the image range assumes it); the
+        # cell shifts are corrected below so they hold for the positions as given
+        offsets = unit_cells.wrap_offsets(positions, self._cell, self._pbc, np_=jnp)
+        positions = jnp.asarray(positions) - offsets @ self._cell
 
         neighbours = jax.vmap(lambda shift: shift + positions)(self._grid_points).reshape(-1, 3)
 
@@ -246,9 +253,13 @@ class PeriodicBoundary(NeighbourFinder):
         # Repeat the cells for each
         cells = jnp.repeat(self._cell_list, num_points, axis=0)
         cell_indices = jax.vmap(jnp.take, (None, 0, None))(cells, to_idx, 0)
+        to_points = jnp.where(to_idx == MASK_VALUE, MASK_VALUE, to_idx % num_points)
+        valid = (to_points != MASK_VALUE)[..., None]
+        correction = offsets[:, None, :] - offsets[jnp.where(valid[..., 0], to_points, 0)]
+        cell_indices = jnp.where(valid, cell_indices + correction, cell_indices)
 
         return NeighbourList(
-            jnp.where(to_idx == MASK_VALUE, MASK_VALUE, to_idx % num_points),
+            to_points,
             cell_indices,
             actual_max_neighbours=jnp.max(neigh_mask.sum(axis=1)),
             finder=self,

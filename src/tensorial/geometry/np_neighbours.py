@@ -202,6 +202,10 @@ class PeriodicBoundary(distances.NeighbourFinder):
     ) -> distances.NeighbourList:
         """Return the neighbour list across periodic images within the cutoff."""
         n_pts: int = positions.shape[0]
+        # Search with the positions wrapped into the cell (the image range assumes it), then
+        # shift the edges back so they hold for the positions as given
+        offsets = unit_cells.wrap_offsets(positions, self._cell, self._pbc)
+        positions = np.asarray(positions) - offsets @ np.asarray(self._cell)
 
         neigh_pos, neigh_idx, neigh_grid_coords = self._full_grid.bloom(positions)
         valid_masks = ssd.cdist(positions, neigh_pos) < self._cutoff
@@ -218,7 +222,7 @@ class PeriodicBoundary(distances.NeighbourFinder):
             n_neighbours = np.sum(mask).item()
             from_idx.append(np.full(n_neighbours, i, dtype=int))
             to_idx.append(neigh_idx[mask])
-            cell_idx.append(neigh_grid_coords[mask])
+            cell_idx.append(neigh_grid_coords[mask] + offsets[i] - offsets[neigh_idx[mask]])
 
         return NeighbourList(
             n_pts, distances.Edges(np.hstack(from_idx), np.hstack(to_idx), np.vstack(cell_idx))

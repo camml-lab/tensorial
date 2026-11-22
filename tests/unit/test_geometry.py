@@ -330,3 +330,50 @@ def test_jax_neighbour_finder_as_jit_argument(include_self):
     expected = periodic.get_neighbours(positions, max_neighbours=max_neighbours)
     assert jnp.array_equal(jitted.neighbours, expected.neighbours)
     assert jnp.array_equal(jitted.cell_indices, expected.cell_indices)
+
+
+def _edge_set(edges) -> set[tuple[int, ...]]:
+    from_idx, to_idx, shifts = (
+        np.asarray(x) for x in (edges.from_idx, edges.to_idx, edges.cell_shift)
+    )
+    keep = (to_idx >= 0) & (from_idx >= 0)  # drop padding entries
+    return {
+        (int(i), int(j), *map(int, s))
+        for i, j, s in zip(from_idx[keep], to_idx[keep], shifts[keep])
+    }
+
+
+@pytest.mark.parametrize("backend", ["numpy", "jax"])
+@pytest.mark.parametrize("pbc", [(True, True, True), (True, False, True)])
+def test_periodic_boundary_positions_outside_cell(backend, pbc):
+    """Positions outside the unit cell (common in DFT and CIF files, e.g. fractional -0.06 or
+    1.3) must give the same neighbours as ASE: the image range only covers the cutoff sphere
+    for points inside the cell, so the finders search with wrapped positions and correct the
+    cell shifts.  Regression test: before, skewed cells lost up to ~2% of neighbours (17% of the
+    Materials Cloud superconductor structures were affected at 5 Å)."""
+    rng = np.random.default_rng(0)
+    cutoff = 2.5
+    # A strongly skewed cell, like many primitive cells of low-symmetry crystals
+    cell = np.array([[2.9, 0.0, 0.0], [2.4, 1.3, 0.0], [-1.1, 0.7, 2.6]])
+    frac = rng.uniform(0.0, 1.0, size=(10, 3))
+    frac[:, np.asarray(pbc)] += rng.integers(-2, 3, size=(10, int(np.sum(pbc))))  # leave the cell
+    positions = frac @ cell
+
+    if backend == "numpy":
+        finder = geometry.np_neighbours.PeriodicBoundary(cell, cutoff, pbc=pbc)
+        edges = finder.get_neighbours(positions).get_edges()
+    else:
+        finder = jax_neighbours.PeriodicBoundary(cell, cutoff, pbc=pbc)
+        edges = finder.get_neighbours(jnp.asarray(positions)).get_edges()
+
+    i, j, s = ase.neighborlist.primitive_neighbor_list(
+        "ijS", pbc=pbc, cell=cell, positions=positions, cutoff=cutoff, self_interaction=False
+    )
+    expected = {(int(a), int(b), *map(int, c)) for a, b, c in zip(i, j, s)}
+    got = _edge_set(edges)
+    assert got == expected, f"missing {len(expected - got)}, extra {len(got - expected)}"
+
+    # The shifts hold for the positions as given: every edge vector is within the cutoff
+    vectors = geometry.unit_cells.get_edge_vectors(positions, edges, cell)
+    valid = np.asarray(edges.to_idx) >= 0
+    assert np.all(np.linalg.norm(np.asarray(vectors)[valid], axis=1) < cutoff)
