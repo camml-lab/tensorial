@@ -35,7 +35,7 @@ def test_graph_from_ase_info_extraction():
     assert jnp.all(graph.globals["test_key"] == jnp.array([1.0, 2.0]))
 
 
-def test_graph_from_ase(ase_cubic_si):  # pylint: disable=redefined-outer-name
+def test_graph_from_ase(ase_cubic_si):
     si_graph = atomic.graph_from_ase(ase_cubic_si, r_max=1.1)
 
     # Graph
@@ -51,7 +51,7 @@ def test_graph_from_ase(ase_cubic_si):  # pylint: disable=redefined-outer-name
     assert si_graph.nodes[atomic.ATOMIC_NUMBERS] == jnp.array([14.0])
 
 
-def test_graph_from_pymatgen(ase_cubic_si):  # pylint: disable=redefined-outer-name
+def test_graph_from_pymatgen(ase_cubic_si):
     pymatgen = pytest.importorskip("pymatgen")
     import pymatgen.io.ase  # noqa: F811
 
@@ -71,7 +71,7 @@ def test_graph_from_pymatgen(ase_cubic_si):  # pylint: disable=redefined-outer-n
     assert si_graph.nodes[atomic.ATOMIC_NUMBERS] == jnp.array([14.0])
 
 
-def test_species_transform(h2coh: ase.Atoms):  # pylint: disable=redefined-outer-name
+def test_species_transform(h2coh: ase.Atoms):
     atomic_numbers = np.unique(h2coh.numbers).tolist()
     num_atoms = len(h2coh)
     graph = atomic.graph_from_ase(h2coh, r_max=3.0)

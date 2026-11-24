@@ -4,6 +4,7 @@ from collections.abc import Mapping
 import logging
 
 from lightning_utilities.core import rank_zero
+from typing_extensions import override
 
 __all__ = ("RankedLogger", "RankFilter")
 
@@ -77,6 +78,7 @@ class RankedLogger(logging.LoggerAdapter):
         super().__init__(logger=logger, extra=extra)
         self.rank_zero_only = rank_zero_only
 
+    @override
     def isEnabledFor(self, level):
         """Return whether the logger is enabled for ``level``.
 
@@ -121,8 +123,7 @@ class RankedLogger(logging.LoggerAdapter):
             if self.rank_zero_only:
                 if current_rank == 0:
                     self.logger.log(level, msg, *args, **kwargs)
-            else:
-                if rank is None:
-                    self.logger.log(level, msg, *args, **kwargs)
-                elif current_rank == rank:
-                    self.logger.log(level, msg, *args, **kwargs)
+            elif rank is None:
+                self.logger.log(level, msg, *args, **kwargs)
+            elif current_rank == rank:
+                self.logger.log(level, msg, *args, **kwargs)

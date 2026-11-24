@@ -29,8 +29,6 @@ def _convert(*args, mask=None) -> tuple:
     return vals
 
 
-# pylint: disable=assignment-from-no-return
-
 EnergyPerAtomRmse = gcnn.graph_metric(
     reax.metrics.RootMeanSquareError.from_fun(_convert),
     targets="globals.energy",

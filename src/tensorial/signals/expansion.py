@@ -8,9 +8,7 @@ from . import bases, functions
 
 
 @functools.singledispatch
-def expand(  # pylint: disable=unused-argument
-    basis: bases.RadialSphericalBasis, function: functions.Function
-) -> jnp.ndarray:
+def expand(basis: bases.RadialSphericalBasis, function: functions.Function) -> jnp.ndarray:
     """Expand a function in the given basis.
 
     This is a singledispatch function: the implementation is chosen based on

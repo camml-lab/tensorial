@@ -202,7 +202,7 @@ class CartesianTensor(base.Attr[jt.ArrayLike]):
         self.formula = formula
         self.keep_ir = keep_ir
         self.irreps_dict = irreps_dict
-        self._indices = formula.split("=")[0].replace("-", "")
+        self._indices = formula.split("=", maxsplit=1)[0].replace("-", "")
 
         # Construct the change of basis arrays
         cob = e3j.reduced_tensor_product_basis(formula, keep_ir=self.keep_ir, **self.irreps_dict)
@@ -221,9 +221,7 @@ class CartesianTensor(base.Attr[jt.ArrayLike]):
         # Construct the einsum string dynamically based on the rank
         indices = self._indices
         einsum_str = f"...{indices},{indices}z->...z"
-        return super().create_tensor(  # pylint: disable=not-callable
-            jnp.einsum(einsum_str, value, self.change_of_basis)
-        )
+        return super().create_tensor(jnp.einsum(einsum_str, value, self.change_of_basis))
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def from_tensor(

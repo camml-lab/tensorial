@@ -72,7 +72,7 @@ class AseGraphs(Sequence[jraph.GraphsTuple]):
         if len(self) > 0:
             # Check that the parameters they passed are OK by requesting the first structure
             # to be converted
-            self[0]  # noqa, pylint: disable=pointless-statement
+            self[0]  # noqa: B018
 
     def __len__(self) -> int:
         return len(self._structures)
@@ -267,7 +267,7 @@ class AseDataLoader(Sequence[jraph.GraphsTuple]):
         if self._to_graphs and len(self) > 0:
             # Check that the parameters they passed are OK by requesting the first structure
             # to be converted
-            self[0]  # noqa, pylint: disable=pointless-statement
+            self[0]  # noqa: B018
 
     def __len__(self) -> int:
         return len(self._data)
@@ -369,7 +369,6 @@ def ase_graph_module_kfold(
 
 
 def ase_graph_module_from_datasets(
-    # pylint: disable=arguments-differ
     as_graphs: dict[str, Any],
     *,
     train=None,

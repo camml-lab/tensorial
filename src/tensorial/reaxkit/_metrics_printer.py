@@ -295,7 +295,4 @@ def is_scalar(value) -> bool:
         return True
 
     # Example for potential JAX/Numpy scalar check (untested without environment)
-    if hasattr(value, "shape") and value.shape == ():
-        return True
-
-    return False
+    return hasattr(value, "shape") and value.shape == ()

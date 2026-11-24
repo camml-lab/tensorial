@@ -34,7 +34,7 @@ class UpdateDict(collections.abc.MutableMapping):
             return value
 
         value = self._updating.__getitem__(item)
-        if type(value) is dict:  # pylint: disable=unidiomatic-typecheck
+        if type(value) is dict:
             value = UpdateDict(value)
             self._overrides[item] = value
 
@@ -67,9 +67,8 @@ class UpdateDict(collections.abc.MutableMapping):
             if key in self._updating:
                 if value is self.DELETED:
                     count -= 1
-            else:
-                if value is not self.DELETED:
-                    count += 1
+            elif value is not self.DELETED:
+                count += 1
         return count
 
     def _asdict(self) -> dict:

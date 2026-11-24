@@ -32,7 +32,6 @@ class SymmetricContraction(linen.Module):
     param_dtype: DTypeLike = jnp.float32
 
     def setup(self):
-        # pylint: disable=attribute-defined-outside-init
         # Gradient normalisation
         gradient_normalisation = self.gradient_normalisation
         if gradient_normalisation is None:
@@ -184,12 +183,11 @@ class SymmetricContraction(linen.Module):
         return output
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def _contract_per_order(
+    def _contract_per_order(  # noqa: PLR0912
         self,
         inputs: IrrepsArrayShape["n_feats irreps_in"],
         input_type: IndexArray[""] | None,
     ) -> dict[int, IrrepsArrayShape["n_feats irreps_out"]]:
-        # pylint: disable=too-many-branches
         outputs_by_order: dict[int, dict[e3j.Irrep, Array]] = {
             o: {} for o in range(1, self.correlation_order + 1)
         }
@@ -305,7 +303,6 @@ class EquivariantProductBasisBlock(linen.Module):
     off_diagonal: bool = False
 
     def setup(self):
-        # pylint: disable=attribute-defined-outside-init
         self._target_irreps = e3j.Irreps(self.irreps_out)
         self.symmetric_contractions = SymmetricContraction(
             keep_irrep_out={ir for _, ir in e3j.Irreps(self._target_irreps)},
@@ -348,7 +345,6 @@ class _OrderedSymmetricTerm(linen.Module):
 
     def setup(self):
         """Initialise the keep_irrep_out set for filtering tensor product outputs."""
-        # pylint: disable=attribute-defined-outside-init
         kio = self.keep_irrep_out
         if kio is None:
             self._keep_irrep_out = None
@@ -471,7 +467,6 @@ class JointProductBasisBlock(linen.Module):
     param_dtype: DTypeLike = jnp.float32
 
     def setup(self):
-        # pylint: disable=attribute-defined-outside-init
         target_irreps = e3j.Irreps(self.irreps_out)
         self._target_irreps = target_irreps
 

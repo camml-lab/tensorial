@@ -38,7 +38,7 @@ def evaluate(cfg: omegaconf.DictConfig) -> tuple[dict[str, Any], dict[str, Any]]
     """
     _LOGGER.info(
         "Instantiating datamodule <%s>",
-        cfg[keys.DATA]._target_,  # pylint: disable=protected-access
+        cfg[keys.DATA]._target_,
     )
     datamodule: reax.DataModule = tconfig.instantiate(cfg.data, _convert_="none")
 
@@ -47,7 +47,7 @@ def evaluate(cfg: omegaconf.DictConfig) -> tuple[dict[str, Any], dict[str, Any]]
 
     _LOGGER.info(
         "Instantiating trainer <%s>",
-        cfg[keys.TRAINER]._target_,  # pylint: disable=protected-access
+        cfg[keys.TRAINER]._target_,
     )
     trainer: reax.Trainer = tconfig.instantiate(cfg[keys.TRAINER], _convert_="none", logger=logger)
     model: reaxkit.ReaxModule = config.load_module(cfg[keys.CONFIG_PATH], cfg[keys.CKPT_PATH])

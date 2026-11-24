@@ -54,7 +54,6 @@ def graph_from_pymatgen(
     Returns:
         the atomic graph
     """
-    # pylint: disable=too-many-branches
     key_mapping = key_mapping or {}
     _key_mapping = {
         "forces": keys.FORCES,
@@ -131,7 +130,6 @@ def graph_from_ase(
     Returns:
         the atomic graph
     """
-    # pylint: disable=too-many-branches
     singlepoint = utils.optional_import("ase.calculators.singlepoint")
     ase_stress = utils.optional_import("ase.stress")
 

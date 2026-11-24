@@ -35,7 +35,6 @@ class NodewiseLinear(linen.Module):
     types_field: str | None = None
 
     def setup(self):
-        # pylint: disable=attribute-defined-outside-init
         self.linear = e3j.flax.Linear(
             irreps_out=self.irreps_out,
             irreps_in=self.irreps_in,
@@ -98,7 +97,6 @@ class NodewiseReduce(linen.Module):
     as_array: bool = False
 
     def setup(self):
-        # pylint: disable=attribute-defined-outside-init
         if self.reduce not in ("sum", "mean", "normalized_sum"):
             raise ValueError(self.reduce)
 

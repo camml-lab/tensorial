@@ -4,8 +4,6 @@ from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
 import numpy as np
 
-# pylint: skip-file
-
 
 def _write_n2p2(fid, atoms, comment="", with_charges=False, with_energy_and_forces="auto"):
     # float_form = "{: 13.8f}" # looks nicer but, results can be very sensitive

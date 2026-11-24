@@ -62,7 +62,7 @@ def cube_graph() -> jraph.GraphsTuple:
 
 
 @pytest.fixture
-def cube_graph_gcnn(cube_graph):  # pylint: disable=redefined-outer-name
+def cube_graph_gcnn(cube_graph):
     nodes = cube_graph.nodes
     nodes[keys.FEATURES] = nodes[keys.ATTRIBUTES]
     edges = cube_graph.edges

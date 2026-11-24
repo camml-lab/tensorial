@@ -124,9 +124,8 @@ class ParityPlotter(reax.TrainerListener):
         """
         return {(None, None): self.get_target_predicted(batch, outputs)}
 
-    def _series_labels(self, key: SeriesKey) -> tuple[str, str, str]:
+    def _series_labels(self, key: SeriesKey) -> tuple[str, str, str]:  # noqa: ARG002
         """Return the ``(x label, y label, description)`` of a series, used in its plots."""
-        # pylint: disable=unused-argument
         return self._x_label, self._y_label, "True vs. Predicted"
 
     def _series_figure_name(self, key: SeriesKey, stage_name: str) -> str:

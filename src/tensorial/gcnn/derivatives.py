@@ -255,7 +255,6 @@ class Grad(linen.Module):
 
     def setup(self):
         """Resolve the of/wrt paths and build the underlying JAX gradient function."""
-        # pylint: disable=attribute-defined-outside-init
         self._of = _tree.to_paths(self.of)[0]
         self._wrt = _tree.to_paths(self.wrt)
         self._out_field = _out_derivative_keys(self._of, self._wrt, self.out_field)
@@ -294,7 +293,6 @@ class Jacobian(linen.Module):
 
     def setup(self):
         """Resolve the of/wrt paths and build the underlying JAX Jacobian function."""
-        # pylint: disable=attribute-defined-outside-init
         self._of = _tree.to_paths(self.of)[0]
         self._wrt = _tree.to_paths(self.wrt)
         self._out_field = _out_derivative_keys(self._of, self._wrt, self.out_field)
@@ -331,7 +329,6 @@ class Jacfwd(linen.Module):
 
     def setup(self):
         """Resolve the of/wrt paths and build the underlying JAX Jacobian function."""
-        # pylint: disable=attribute-defined-outside-init
         self._of = _tree.to_paths(self.of)[0]
         self._wrt = _tree.to_paths(self.wrt)
         self._out_field = _out_derivative_keys(self._of, self._wrt, self.out_field)

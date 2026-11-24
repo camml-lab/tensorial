@@ -51,7 +51,6 @@ class MessagePassingConvolution(linen.Module):
     radial_activation: str | nn_utils.ActivationFunction = "swish"
 
     def setup(self):
-        # pylint: disable=attribute-defined-outside-init
         self._radial_act = nn_utils.get_jaxnn_activation(self.radial_activation)
         if isinstance(self.avg_num_neighbours, linen.FrozenDict):
             self._types = jnp.array(list(self.avg_num_neighbours.keys()))

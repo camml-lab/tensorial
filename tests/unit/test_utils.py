@@ -153,11 +153,11 @@ def test_make_irreps_sh_matches_spherical_harmonics():
 
 def test_make_irreps_parity_is_keyword_only():
     with pytest.raises(TypeError):
-        utils.make_irreps(8, 2, "e + o")  # pylint: disable=too-many-function-args
+        utils.make_irreps(8, 2, "e + o")
 
 
 def test_make_irreps_is_exported_at_top_level():
-    import tensorial  # pylint: disable=import-outside-toplevel
+    import tensorial
 
     assert tensorial.make_irreps is utils.make_irreps
 

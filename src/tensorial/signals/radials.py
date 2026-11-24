@@ -61,7 +61,7 @@ class RadialBasis(tensorial.Attr[Array]):
     @override
     def create_tensor(self, value) -> e3j.IrrepsArray:
         """Wrap the evaluated coefficients into an :class:`e3nn_jax.IrrepsArray`."""
-        return super().create_tensor(self.evaluate(value))  # pylint: disable=not-callable
+        return super().create_tensor(self.evaluate(value))
 
 
 class E3nnRadial(RadialBasis):

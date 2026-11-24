@@ -37,12 +37,12 @@ class TypeContributionLstsq(reax.metrics.Metric[Array]):
 
     @classmethod
     @override
-    def empty(cls) -> "TypeContributionLstsq":  # pylint: disable=arguments-differ
+    def empty(cls) -> "TypeContributionLstsq":
         return cls()
 
     @classmethod
     @override
-    def create(  # pylint: disable=arguments-differ
+    def create(
         cls,
         type_counts: Int[Array, "batch_size n_types"] | Float[Array, "batch_size n_types"],
         values: Float[Array, "batch_size ..."],
@@ -90,7 +90,7 @@ class TypeContributionLstsq(reax.metrics.Metric[Array]):
         return TypeContributionLstsq(xtx=batch_xtx, xty=batch_xty)
 
     @override
-    def update(  # pylint: disable=arguments-differ
+    def update(
         self,
         type_counts: Int[Array, "batch_size n_types"] | Float[Array, "batch_size n_types"],
         values: Float[Array, "batch_size ..."],
@@ -130,7 +130,6 @@ class TypeContributionLstsq(reax.metrics.Metric[Array]):
             raise RuntimeError("This metric is empty, cannot compute!")
 
         # Allow more mathsy names
-        # pylint: disable=invalid-name
 
         np_ = utils.infer_backend(self.xtx)
 
@@ -139,7 +138,7 @@ class TypeContributionLstsq(reax.metrics.Metric[Array]):
 
         # 1. Since XtX is symmetric, eigh is more efficient and stable than SVD
         # s: eigenvalues, V: eigenvectors
-        s, V = np_.linalg.eigh(self.xtx)
+        s, V = np_.linalg.eigh(self.xtx)  # noqa: N806
 
         # 2. Determine the threshold for 'zero' eigenvalues
         # Standard practice is a fraction of the largest eigenvalue
@@ -219,7 +218,7 @@ class PropertyContributionLstsq(reax.Metric):
 
     @override
     def merge(self, other: "PropertyContributionLstsq") -> "PropertyContributionLstsq":
-        if other._metric is None:  # pylint: disable=protected-access
+        if other._metric is None:  # noqa: SLF001
             return self
         if self._metric is None:
             return other
@@ -229,7 +228,7 @@ class PropertyContributionLstsq(reax.Metric):
             self._type_source,
             type_map=self._type_map,
             normalize=self._normalize,
-            metric=self._metric.merge(other._metric),  # pylint: disable=protected-access
+            metric=self._metric.merge(other._metric),  # noqa: SLF001
         )
 
     @override

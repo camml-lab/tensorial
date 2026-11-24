@@ -254,7 +254,7 @@ def test_diff_irreps_array_without_reduction(jit, mode):
     ``IrrepsArray`` with respect to a variable that carries no graph index -- e.g. one external
     field shared by the whole batch -- failed in the final permutation with an AttributeError.
     """
-    import e3nn_jax as e3j  # pylint: disable=import-outside-toplevel
+    import e3nn_jax as e3j
 
     graph = gcnn.graph_from_points(jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]), r_max=2.0)
     graph = graph._replace(globals={"field": jnp.zeros(3)})

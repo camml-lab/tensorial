@@ -67,7 +67,6 @@ class Rescale(linen.Module):
     scale: jax.typing.ArrayLike = 1.0
 
     def setup(self):
-        # pylint: disable=attribute-defined-outside-init
         shift_fields = (
             self.shift_fields if not isinstance(self.shift_fields, str) else [self.shift_fields]
         )
@@ -90,7 +89,7 @@ class Rescale(linen.Module):
 
     @linen.compact
     @_base.shape_check
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         graph_dict = utils.UpdateDict(graph._asdict())
 
         # Scale first
@@ -162,7 +161,6 @@ class IndexedRescale(linen.Module):
     shift_init: linen.initializers.Initializer = linen.initializers.zeros_init()
 
     def setup(self):
-        # pylint: disable=attribute-defined-outside-init
         self._index_field = utils.path_from_str(self.index_field)
         self._field = utils.path_from_str(self.field)
         self._out_field = (
@@ -263,7 +261,7 @@ class IndexedLinear(linen.Module):
 
     @linen.compact
     @_base.shape_check
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         index_field = utils.path_from_str(self.index_field)
         field: gcnn.TreePath = utils.path_from_str(self.field)
         out_field = field if self.out_field is None else utils.path_from_str(self.out_field)

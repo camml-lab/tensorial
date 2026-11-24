@@ -67,7 +67,6 @@ dev = [
     'pytest-env',
     "pytest-codspeed",
     'pre-commit',
-    'pylint',
     'ruff',
     'ty==0.0.109',
     # Optional external libraries that we interact with
@@ -127,17 +126,73 @@ select = [
     'C90',  # mccabe complexity
     'I',    # isort
     'UP',   # pyupgrade
+    # Ported from pylint: its own checks, plus pylint's default checks that ruff implements
+    # under other plugins
+    'PL',      # pylint
+    'N',       # pep8-naming (invalid-name)
+    'ARG',     # unused-argument
+    'A001',    # redefined-builtin
+    'A002',    # redefined-builtin (arguments)
+    'BLE001',  # broad-exception-caught
+    'SLF001',  # protected-access
+    'B006',    # dangerous-default-value
+    'B012',    # lost-exception
+    'B018',    # pointless-statement, expression-not-assigned
+    'B023',    # cell-var-from-loop
+    'B033',    # duplicate-value
+    'B904',    # raise-missing-from
+    'C401',    # consider-using-set-comprehension
+    'C402',    # consider-using-dict-comprehension
+    'C416',    # unnecessary-comprehension
+    'C419',    # consider-using-generator
+    'COM818',  # trailing-comma-tuple
+    'G001',    # logging-format-interpolation
+    'G002',    # logging-not-lazy
+    'G003',    # logging-not-lazy
+    'G004',    # logging-fstring-interpolation
+    'PIE790',  # unnecessary-pass
+    'RET501',  # inconsistent-return-statements
+    'RET502',  # inconsistent-return-statements
+    'RET503',  # inconsistent-return-statements
+    'RET505',  # no-else-return
+    'RET506',  # no-else-raise
+    'RET507',  # no-else-continue
+    'RET508',  # no-else-break
+    'S102',    # exec-used
+    'S113',    # missing-timeout
+    'S307',    # eval-used
+    'SIM101',  # consider-merging-isinstance
+    'SIM103',  # simplifiable-if-statement
+    'SIM115',  # consider-using-with
+    'SIM118',  # consider-iterating-dictionary
+    'SIM210',  # simplifiable-if-expression
+    'SIM211',  # simplifiable-if-expression
+    'TRY002',  # broad-exception-raised
+    'TRY203',  # try-except-raise
 ]
 extend-ignore = [
     'E203',  # Whitespace before punctuation
     'E266',  # Too many leading '#' for block comment
-    'E501',  # Line too long (handled by formatter)
     'F403',  # 'from module import *' used; unable to detect undefined names
     'F401',  # module imported but unused
     'F821',  # undefined name
     'F722',  # error message is string constant
     'UP037', # Remove quotes from type annotation
+    'PLC0415', # import-outside-toplevel
+    'PLR0913', # too-many-arguments
+    'PLR2004', # magic-value-comparison (an optional pylint extension)
+    'PLW2901', # redefined-loop-name (an optional pylint extension)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# pylint was never run on the tests, so only apply the ported checks that make sense there
+'tests/**' = ['A001', 'ARG', 'N806', 'SLF001']
+# Legacy module, exempt from the ported pylint checks
+'src/tensorial/mlip/io/n2p2.py' = ['E501', 'N', 'RET', 'SIM', 'SLF001']
+
+[tool.ruff.lint.pylint]
+max-branches = 14
+max-positional-args = 11
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true
@@ -239,30 +294,6 @@ exclude = [
     'tests/unit/test_utils.py',
     'tests/utils.py',
 ]
-
-[tool.pylint.format]
-max-line-length = 100
-
-[tool.pylint.messages_control]
-disable = [
-    # Unfortunately jaxtyping decorator creates a function that seems to mistakenly be identified as
-    # not returning anything, so we have to disable the error below for now
-    'assignment-from-no-return',
-    'duplicate-code',
-    'import-outside-toplevel',
-    'missing-docstring',
-    'locally-disabled',
-    'too-few-public-methods',
-    'too-many-arguments',
-    'too-many-instance-attributes',
-    'use-dict-literal',
-    'fixme',
-]
-
-[tool.pylint.design]
-max-locals = 20
-max-positional-arguments = 11
-max-branches = 14
 
 [pytest]
 log_cli = "True"

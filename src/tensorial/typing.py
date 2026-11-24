@@ -33,8 +33,6 @@ __all__ = (
 )
 
 
-# pylint: disable=invalid-name
-
 ArrayT = TypeVar("ArrayT")
 ValueT = TypeVar("ValueT")
 
@@ -65,7 +63,7 @@ IrrepsArrayShape = _Helper(e3j.IrrepsArray, Float)
 Array = jax.Array | np.ndarray
 ArrayType = jax.Array | np.ndarray
 # "Integer array that is used as an index"
-IndexArray = _Helper(Array, Int)  # pylint: disable=invalid-name
+IndexArray = _Helper(Array, Int)
 CellType = Annotated[Float[ArrayType, "3 3"], "Unit cell array i.e. rows containing cell vectors"]
 PbcType = Annotated[
     tuple[bool, bool, bool] | Bool[jax.typing.ArrayLike, "3"],

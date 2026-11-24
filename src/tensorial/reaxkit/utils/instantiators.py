@@ -38,7 +38,7 @@ def instantiate_listeners(
         if isinstance(cb_conf, omegaconf.DictConfig) and "_target_" in cb_conf:
             _LOGGER.info(
                 "Instantiating listener <%s>",
-                cb_conf._target_,  # pylint: disable=protected-access
+                cb_conf._target_,
             )
             listeners.append(tconfig.instantiate(cb_conf, _convert_="none"))
 
@@ -68,7 +68,7 @@ def instantiate_loggers(logger_cfg: omegaconf.DictConfig) -> list[reax.Logger]:
         if isinstance(lg_conf, omegaconf.DictConfig) and "_target_" in lg_conf:
             _LOGGER.info(
                 "Instantiating logger <%s>",
-                lg_conf._target_,  # pylint: disable=protected-access
+                lg_conf._target_,
             )
             logger.append(tconfig.instantiate(lg_conf, _convert_="none"))
 

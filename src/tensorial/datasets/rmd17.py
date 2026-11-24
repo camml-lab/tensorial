@@ -135,7 +135,7 @@ class Rmd17(data.DataFetcher[_datamodule.PreSplitDataset]):
             self._data_dir.mkdir(parents=True, exist_ok=True)
             url = _FIGSHARE_URL.format(file_id)
             _LOGGER.info("downloading %s from %s", filename, url)
-            urls._download(url, path)  # pylint: disable=protected-access
+            urls._download(url, path)  # noqa: SLF001
         return path
 
     def _make_sequence(self, npz, indices: np.ndarray):

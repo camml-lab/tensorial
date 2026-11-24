@@ -169,7 +169,7 @@ def optional_import(name: str, extra: str | None = None):
         if extra:
             hint = f" Install it with `pip install mylib[{extra}]`."
         else:
-            hint = f" Install it with `pip install {name.split('.')[0]}`."
+            hint = f" Install it with `pip install {name.split('.', maxsplit=1)[0]}`."
 
         raise ImportError(
             f"'{name}' is required for this feature but is not installed.{hint}"

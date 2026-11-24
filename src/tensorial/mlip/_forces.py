@@ -18,7 +18,6 @@ class CalcForces(linen.Module):
     @override
     def setup(self):
         """Initializes the internal virial function used to compute stress-related quantities."""
-        # pylint: disable=attribute-defined-outside-init
 
         self._forces_fn = gcnn.diff(
             self.energy_fn,
@@ -30,9 +29,7 @@ class CalcForces(linen.Module):
         )
 
     @override
-    def __call__(  # pylint: disable=arguments-differ
-        self, graph: jraph.GraphsTuple, /
-    ) -> jraph.GraphsTuple:
+    def __call__(self, graph: jraph.GraphsTuple, /) -> jraph.GraphsTuple:
         nodes = cast("dict[str, Any]", graph.nodes)
         forces, graph = self._forces_fn(graph, nodes[keys.POSITIONS])
         return gcnn.experimental.update_graph(graph).set(("nodes", self.out_key), forces).get()

@@ -170,7 +170,7 @@ def find_iterpol(root, path=()):
     for key, value in root.items():
         if isinstance(value, str):
             if omegaconf.OmegaConf.is_interpolation(root, key):
-                if not isinstance(root[key], (int, float, list)):
+                if not isinstance(value, (int, float, list)):
                     yield path, key
         elif omegaconf.OmegaConf.is_dict(value):
             yield from find_iterpol(value, (key,))

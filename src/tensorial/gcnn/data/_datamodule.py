@@ -630,7 +630,6 @@ class GraphDataModule(Generic[D], reax.DataModule[jraph.GraphsTuple, jraph.Graph
 
     @classmethod
     def from_datasets(
-        # pylint: disable=arguments-differ
         cls,
         dataset: "tensorial.data.DataFetcher[gcnn.data.PreSplitDataset] | PreSplitDataset",
         *,

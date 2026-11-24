@@ -41,7 +41,7 @@ class SpeciesTransform(reax.pytree.PyTree):
         self.out_field = out_field
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         nodes = dict(cast("dict[str, Any]", graph.nodes))
         nodes[self.out_field] = nn_utils.vwhere(nodes[self.field], self.atomic_numbers)
 

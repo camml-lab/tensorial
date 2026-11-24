@@ -199,10 +199,10 @@ def test_nodewise_encoding_compilation(rng_key):
 
     jitted = jax.jit(encoding.apply)
 
-    updated = jitted(params, graph)  # pylint: disable=not-callable
-    updated = jitted(params, updated)  # pylint: disable=not-callable
-    updated = jitted(params, updated)  # pylint: disable=not-callable
-    updated = jitted(params, updated)  # pylint: disable=not-callable
+    updated = jitted(params, graph)
+    updated = jitted(params, updated)
+    updated = jitted(params, updated)
+    updated = jitted(params, updated)
 
 
 def test_nodewise_decoding(rng_key):

@@ -20,8 +20,6 @@ FORCE_PREDICTIONS = np.random.rand(NUM_GRAPHS, NUM_NODES, 3)
 FORCE_TARGETS = np.random.rand(NUM_GRAPHS, NUM_NODES, 3)
 FORCE_MASKS = np.random.choice(2, (NUM_GRAPHS, NUM_NODES)).astype(bool)
 
-# pylint: disable=redefined-outer-name
-
 
 @pytest.fixture
 def graph_batch() -> jraph.GraphsTuple:

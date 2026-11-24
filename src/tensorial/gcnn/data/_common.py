@@ -15,7 +15,7 @@ class GraphBatch(tuple):
     targets: Any | None
 
 
-GraphDataset = reax.data.Dataset[GraphBatch]  # pylint: disable=invalid-name
+GraphDataset = reax.data.Dataset[GraphBatch]
 GraphPadding = collections.namedtuple("GraphPadding", ["n_nodes", "n_edges", "n_graphs"])
 
 

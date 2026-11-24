@@ -89,7 +89,6 @@ class GraphMetric(reax.Metric):
 
     @override
     def create(
-        # pylint: disable=arguments-differ
         self,
         predictions: jraph.GraphsTuple,
         targets: jraph.GraphsTuple | None = None,
@@ -151,7 +150,7 @@ class GraphMetric(reax.Metric):
         if self.is_empty:
             return other
 
-        return type(self)(self._state.merge(other._state))  # pylint: disable=protected-access
+        return type(self)(self._state.merge(other._state))  # noqa: SLF001
 
     @override
     def compute(self) -> OutT:
@@ -215,15 +214,14 @@ class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
         return AvgNumNeighboursByType(self._node_types)
 
     def merge(self, other: "AvgNumNeighboursByType") -> "AvgNumNeighboursByType":
-        # pylint: disable=protected-access
-        if self._node_types.shape != other._node_types.shape or not bool(
-            jnp.all(self._node_types == other._node_types)
+        if self._node_types.shape != other._node_types.shape or not bool(  # noqa: SLF001
+            jnp.all(self._node_types == other._node_types)  # noqa: SLF001
         ):
             raise ValueError(
-                f"Type maps must match, got {self._node_types} and {other._node_types}"
+                f"Type maps must match, got {self._node_types} and {other._node_types}"  # noqa: SLF001
             )
 
-        if other.is_empty:  # pylint: disable=protected-access
+        if other.is_empty:
             return self
         if self.is_empty:
             return other
@@ -234,22 +232,18 @@ class AvgNumNeighboursByType(reax.Metric[dict[int, jax.Array]]):
                 avg.merge(other_avg)
                 for avg, other_avg in zip(
                     self._state,
-                    other._state,  # pylint: disable=protected-access
+                    other._state,  # noqa: SLF001
                 )
             ],
         )
 
-    def create(  # pylint: disable=arguments-differ
-        self, graphs: jraph.GraphsTuple, *_
-    ) -> "AvgNumNeighboursByType":
-        state = self._calc_averages(graphs)  # pylint: disable=not-callable
+    def create(self, graphs: jraph.GraphsTuple, *_) -> "AvgNumNeighboursByType":
+        state = self._calc_averages(graphs)
         return AvgNumNeighboursByType(
             node_types=self._node_types, type_field=self._type_field, state=state
         )
 
-    def update(  # pylint: disable=arguments-differ
-        self, graphs: jraph.GraphsTuple, *_
-    ) -> "AvgNumNeighboursByType":
+    def update(self, graphs: jraph.GraphsTuple, *_) -> "AvgNumNeighboursByType":
         if self.is_empty:
             return self.create(graphs)
 

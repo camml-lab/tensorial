@@ -22,27 +22,6 @@ jobs:
       - name: Run pre-commit
         run: uv run pre-commit run --all-files || ( git status --short ; git diff ; exit 1 )
 
-  pylint:
-    name: pylint
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-          python-version: '3.12'
-
-      # Installs exactly what you locked + extra dependencies instantly
-      - name: Install python dependencies
-        run: uv sync --extra dev
-
-      - name: Run pylint checks
-        run: |
-          uv run pre-commit run --hook-stage manual pylint-with-spelling --all-files
-
   tests:
     runs-on: ubuntu-latest
     strategy:
@@ -95,7 +74,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    needs: [ pre-commit, pylint, tests ]
+    needs: [ pre-commit, tests ]
     if: >
       github.repository == 'camml-lab/tensorial' &&
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||

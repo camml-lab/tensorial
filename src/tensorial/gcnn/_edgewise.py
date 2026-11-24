@@ -33,7 +33,6 @@ class EdgewiseLinear(linen.Module):
     out_field: str | None = keys.FEATURES
 
     def setup(self):
-        # pylint: disable=attribute-defined-outside-init
         self.linear = e3j.flax.Linear(
             irreps_out=self.irreps_out,
             irreps_in=self.irreps_in,
@@ -67,7 +66,7 @@ class EdgewiseEmbedding(linen.Module):
     out_field: str = keys.ATTRIBUTES
 
     @_base.shape_check
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         # Create the encoding
         encoded = base.create_tensor(self.attrs, graph.edges)
         # Store in output field
@@ -128,8 +127,7 @@ class RadialBasisEdgeEmbedding(linen.Module):
     envelope: bool | Callable = False
 
     def setup(self):
-        # pylint: disable=attribute-defined-outside-init
-        self.radial_embedding = functools.partial(  # pylint: disable=attribute-defined-outside-init
+        self.radial_embedding = functools.partial(
             e3j.bessel,
             x_max=self.r_max,
             n=self.num_basis,
@@ -144,7 +142,7 @@ class RadialBasisEdgeEmbedding(linen.Module):
         return None
 
     @_base.shape_check
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         edge_dict = cast("dict[str, Any]", _spatial.with_edge_vectors(graph).edges)
         r = base.as_array(edge_dict[keys.EDGE_LENGTHS])[:, 0]
         embedded = self.radial_embedding(r)
@@ -164,7 +162,7 @@ class EdgeVectors(linen.Module):
 
     @linen.compact
     @_base.shape_check
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         return _spatial.with_edge_vectors(
             graph, with_lengths=True, as_irreps_array=self.as_irreps_arrays
         )

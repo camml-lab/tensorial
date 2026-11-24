@@ -26,7 +26,6 @@ class Sequential(linen.Module):
 
     def setup(self) -> None:
         """Run the Flax :meth:`setup` hook, building the internal module list."""
-        # pylint: disable=attribute-defined-outside-init
         self._layers: list[linen.Module] = _layers(self.layers)
 
     def __post_init__(self):
@@ -56,7 +55,7 @@ class Sequential(linen.Module):
         for layer in self._layers[1:]:
             if isinstance(outputs, dict):
                 outputs = layer(**outputs)
-            elif type(outputs) is tuple:  # pylint: disable=unidiomatic-typecheck
+            elif type(outputs) is tuple:
                 outputs = layer(*outputs)
             else:
                 outputs = layer(outputs)

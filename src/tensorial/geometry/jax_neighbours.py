@@ -18,7 +18,7 @@ from tensorial.typing import CellType, PbcType, RealScalar
 
 from . import distances, unit_cells
 
-i32 = jnp.int32  # pylint: disable=invalid-name
+i32 = jnp.int32
 
 DEFAULT_MAX_CELL_MULTIPLES = 10_000
 MASK_VALUE = -1

@@ -37,8 +37,6 @@ class StepOutput(Generic[OutputT_co], TypedDict):
 class ReaxModule(reax.Module[InputT, OutputT_co]):
     """Tensorial REAX module."""
 
-    # pylint: disable=method-hidden
-
     _model: linen.Module
     _loss_fn: LossFn
     _metrics: reax.metrics.MetricCollection | None
@@ -374,11 +372,10 @@ class ReaxModule(reax.Module[InputT, OutputT_co]):
     def _prep_batch(self, batch) -> tuple[InputT, OutputT_co | None]:
         if isinstance(batch, jraph.GraphsTuple):
             inputs = outputs = batch
+        elif len(batch) == 1:
+            inputs = outputs = batch[0]
         else:
-            if len(batch) == 1:
-                inputs = outputs = batch[0]
-            else:
-                inputs, outputs = batch
+            inputs, outputs = batch
 
         return inputs, outputs
 

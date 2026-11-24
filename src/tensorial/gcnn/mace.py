@@ -78,7 +78,6 @@ class InteractionBlock(linen.Module):
 
     def setup(self):
         """Build the message-passing convolution and the down-projection to ``irreps_out``."""
-        # pylint: disable=attribute-defined-outside-init
         self._target_irreps = e3j.Irreps(self.irreps_out)
 
         self._message_passing = _message_passing.MessagePassingConvolution(
@@ -151,7 +150,6 @@ class NonLinearReadoutBlock(linen.Module):
 
     def setup(self) -> None:
         """Build the projection + gated non-linearity and output projection linear layers."""
-        # pylint: disable=attribute-defined-outside-init
         hidden_irreps = e3j.Irreps(self.hidden_irreps)
         output_irreps = e3j.Irreps(self.output_irreps)
 
@@ -216,7 +214,6 @@ class MaceLayer(linen.Module):
 
     def setup(self):
         """Resolve target irreps and build the interaction + readout block."""
-        # pylint: disable=attribute-defined-outside-init
         interaction_irreps = e3j.Irreps(self.interaction_irreps)
         hidden_irreps = e3j.Irreps(self.hidden_irreps)
 
@@ -450,7 +447,6 @@ class Mace(linen.Module):
 
     def setup(self):
         """Resolve irreps, build the interaction stack and the read-out head."""
-        # pylint: disable=attribute-defined-outside-init
         hidden_irreps, irreps_out, non_scalar_irreps_out = self._init_irreps(
             self.hidden_irreps, self.irreps_out
         )

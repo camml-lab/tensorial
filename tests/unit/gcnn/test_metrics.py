@@ -255,7 +255,7 @@ def test_graph_metric_normalise_by_target():
 
 def test_avg_num_neighbours_by_type_compute():
     metric = gcnn.metrics.AvgNumNeighboursByType([1, 2])
-    result = metric.create(_graphs()).compute()  # pylint: disable=not-callable
+    result = metric.create(_graphs()).compute()
 
     assert set(result) == {1, 2}
     assert result[1] == 1.0  # node 0 has two edges, node 2 has none
@@ -295,11 +295,14 @@ def test_avg_num_neighbours_by_type_empty_resets_state():
     assert emptied is not populated
     assert emptied.is_empty
     # The type map is preserved
-    assert emptied._node_types.tolist() == [1, 2]  # pylint: disable=protected-access
+    assert emptied._node_types.tolist() == [1, 2]
 
 
 def test_avg_num_neighbours_by_type_merge_type_mismatch_raises():
-    """Merging metrics whose type maps differ must raise ``ValueError`` (not a JAX broadcast error)."""
+    """Merging metrics whose type maps differ must raise ``ValueError``.
+
+    (Rather than a JAX broadcast error.)
+    """
     left = gcnn.metrics.AvgNumNeighboursByType([1, 2])
     for right_types in ([1, 5], [1, 2, 3]):
         with pytest.raises(ValueError, match="Type maps must match"):
@@ -323,4 +326,4 @@ def test_avg_num_neighbours_by_type_compute_empty_raises():
     metric = gcnn.metrics.AvgNumNeighboursByType([1, 2])
 
     with pytest.raises(RuntimeError):
-        metric.compute()  # pylint: disable=not-callable
+        metric.compute()

@@ -67,7 +67,7 @@ class Calculator(calculator.Calculator):
             checkpointing = reax.training.get_default_checkpointing()
 
         ckpt = checkpointing.load(checkpoint_path)
-        params = ckpt[reax.training._checkpointing.PARAMS]  # pylint: disable=protected-access
+        params = ckpt[reax.training._checkpointing.PARAMS]  # noqa: SLF001
 
         return cls(model, params, r_max=cfg["r_max"], **kwargs)
 

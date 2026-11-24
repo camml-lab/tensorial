@@ -88,7 +88,6 @@ class InteractionBlock(linen.Module):
 
     def setup(self):
         """Build the underlying `MessagePassingConvolution` for this block."""
-        # pylint: disable=attribute-defined-outside-init
         self._message_passing = _message_passing.MessagePassingConvolution(
             self.irreps_out,
             avg_num_neighbours=self.avg_num_neighbours,
@@ -218,7 +217,6 @@ class NequipLayer(linen.Module):
 
     def setup(self):
         """Build the interaction block (and invariant layers) for the NequIP layer."""
-        # pylint: disable=attribute-defined-outside-init
         if self.interaction_block is None:
             self._interaction_block = InteractionBlock(
                 self.irreps_out,
@@ -237,7 +235,7 @@ class NequipLayer(linen.Module):
     @linen.compact
     @jt.jaxtyped(typechecker=beartype.beartype)
     @_base.shape_check
-    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:  # pylint: disable=arguments-differ
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         """Apply a standard NequIP layer followed by an optional resnet step
 
         Args:
@@ -348,7 +346,6 @@ class Nequip(linen.Module):
 
     def setup(self):
         """Build the stack of interaction layers."""
-        # pylint: disable=attribute-defined-outside-init
         if self.num_layers < 1:
             raise ValueError(f"'num_layers' must be at least 1, got {self.num_layers}")
 

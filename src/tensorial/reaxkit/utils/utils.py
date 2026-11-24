@@ -103,7 +103,7 @@ def task_wrapper(task_func: Callable) -> Callable:
 
             # always close wandb run (even if exception occurs so multirun won't fail)
             if find_spec("wandb"):  # check if wandb is installed
-                import wandb  # pylint: disable=import-error
+                import wandb
 
                 if wandb.run:
                     _LOGGER.info("Closing wandb!")

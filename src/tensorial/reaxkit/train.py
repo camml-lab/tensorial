@@ -47,7 +47,7 @@ def train(cfg: omegaconf.DictConfig | dict):
 
     rank_zero.rank_zero_debug(
         "Instantiating trainer <%s>",
-        cfg[keys.TRAINER]._target_,  # pylint: disable=protected-access
+        cfg[keys.TRAINER]._target_,
     )
     trainer: reax.Trainer = tconfig.instantiate(
         cfg[keys.TRAINER],
@@ -62,12 +62,12 @@ def train(cfg: omegaconf.DictConfig | dict):
 
     rank_zero.rank_zero_debug(
         "Instantiating datamodule <%s>",
-        cfg.data._target_,  # pylint: disable=protected-access
+        cfg.data._target_,
     )
     datamodule: reax.DataModule = tconfig.instantiate(cfg.data)
 
     if cfg.get(keys.FROM_DATA):
-        from_data_stage = from_data.FromData(  # pylint: disable=no-member
+        from_data_stage = from_data.FromData(
             cfg[keys.FROM_DATA], trainer.engine, datamodule=datamodule
         )
         stage = trainer.run(from_data_stage)
@@ -80,7 +80,7 @@ def train(cfg: omegaconf.DictConfig | dict):
 
     rank_zero.rank_zero_debug(
         "Instantiating model <%s>",
-        cfg[keys.MODEL]._target_,  # pylint: disable=protected-access
+        cfg[keys.MODEL]._target_,
     )
     model: reax.Module = tconfig.instantiate(cfg[keys.MODEL])
 

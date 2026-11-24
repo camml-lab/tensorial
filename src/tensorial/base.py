@@ -115,7 +115,7 @@ class Attr(reax.pytree.PyTree, Generic[T]):
 
     irreps: e3j.Irreps = reax.pytree.field(static=True)
 
-    def __init__(self, irreps: IntoIrreps) -> None:  # pylint: disable=redefined-outer-name
+    def __init__(self, irreps: IntoIrreps) -> None:
         self.irreps = e3j.Irreps(irreps)
 
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -309,17 +309,13 @@ def _create_tensor_frozen_dict(tensorial: linen.FrozenDict, value):
 
 
 @create_tensor.register
-def _create_tensor_irreps(  # pylint: disable=redefined-outer-name
-    irreps: e3j.Irreps, value: Array
-) -> e3j.IrrepsArray:
+def _create_tensor_irreps(irreps: e3j.Irreps, value: Array) -> e3j.IrrepsArray:
     """Irreps leaf: wrap the value in an IrrepsArray"""
     return e3j.IrrepsArray(irreps, value)
 
 
 @create_tensor.register
-def _create_tensor_str(  # pylint: disable=redefined-outer-name
-    irreps: str, value: Array
-) -> e3j.IrrepsArray:
+def _create_tensor_str(irreps: str, value: Array) -> e3j.IrrepsArray:
     """String leaf: build the irreps from the string and wrap the value"""
     return e3j.IrrepsArray(irreps, value)
 
@@ -392,9 +388,7 @@ def _from_tensor_frozen_dict(tensorial: linen.FrozenDict, value):
 
 
 @from_tensor.register
-def _from_tensor_irreps(  # pylint: disable=redefined-outer-name
-    irreps: e3j.Irreps, value: e3j.IrrepsArray
-) -> e3j.IrrepsArray:
+def _from_tensor_irreps(irreps: e3j.Irreps, value: e3j.IrrepsArray) -> e3j.IrrepsArray:
     """Irreps leaf: check the incoming tensor has matching irreps."""
     if not irreps == value.irreps:
         raise ValueError(f"Irreps mismatch: {irreps} != {value.irreps}")

@@ -71,10 +71,9 @@ class GraphLoss(reax.pytree.PyTree):
         return self._call(predictions, targets)
 
     def is_active(
-        # pylint: disable=unused-argument
         self,
-        predictions: jraph.GraphsTuple,
-        targets: jraph.GraphsTuple,
+        predictions: jraph.GraphsTuple,  # noqa: ARG002
+        targets: jraph.GraphsTuple,  # noqa: ARG002
     ) -> bool:
         """Whether this loss applies to the given batch.
 
@@ -315,12 +314,11 @@ class WeightedLoss(GraphLoss):
 
         if weights is None:
             weights = (1.0,) * len(loss_fns)
-        else:
-            if len(weights) != len(loss_fns):
-                raise ValueError(
-                    f"the number of weights and loss functions must be equal, got {len(weights)} "
-                    f"and {len(loss_fns)}"
-                )
+        elif len(weights) != len(loss_fns):
+            raise ValueError(
+                f"the number of weights and loss functions must be equal, got {len(weights)} "
+                f"and {len(loss_fns)}"
+            )
 
         self._weights = tuple(
             weights

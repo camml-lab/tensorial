@@ -132,10 +132,11 @@ class OpenBoundary(distances.NeighbourFinder):
         self._cutoff = float(cutoff)
         self._include_self = include_self
 
+    @override
     def get_neighbours(
         self,
         positions: Float[Array, "N 3"],
-        max_neighbours: int | None = None,  # pylint: disable=unused-argument
+        max_neighbours: int | None = None,
     ) -> distances.NeighbourList:
         """All (i, j) pairs with ``|p_i - p_j| < cutoff`` (and self-neighbours if requested)."""
         npts = positions.shape[0]
@@ -195,10 +196,11 @@ class PeriodicBoundary(distances.NeighbourFinder):
         self._full_grid = GridCells(cell, grid_idx)
         self._full_grid.flatten()
 
+    @override
     def get_neighbours(
         self,
         positions: Float[Array, "N 3"],
-        max_neighbours: int | None = None,  # pylint: disable=unused-argument
+        max_neighbours: int | None = None,
     ) -> distances.NeighbourList:
         """Return the neighbour list across periodic images within the cutoff."""
         n_pts: int = positions.shape[0]

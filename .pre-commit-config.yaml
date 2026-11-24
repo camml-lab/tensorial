@@ -14,7 +14,7 @@ repos:
 
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.9
+    rev: v0.17.6
     hooks:
       - id: ruff-check
         args: [ --fix ]
@@ -37,23 +37,6 @@ repos:
     rev: '1.0.6'
     hooks:
       - id: flynt
-
-  - repo: https://github.com/PyCQA/pylint
-    # Configuration help can be found here:
-    # https://pylint.pycqa.org/en/latest/user_guide/installation/pre-commit-integration.html
-    rev: v4.0.8
-    hooks:
-      - id: pylint
-        alias: pylint-with-spelling
-        stages: [ manual ]
-        language: system
-        types: [ python ]
-        require_serial: true
-        exclude:
-          (?x)^(
-          docs/.*|
-          tests/.*
-          )$
 
   - repo: https://github.com/srstevenson/nb-clean
     rev: 4.0.1

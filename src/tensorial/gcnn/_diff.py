@@ -10,6 +10,7 @@ import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 import jraph
+from typing_extensions import override
 
 from .. import base
 from . import _base, _tree
@@ -460,6 +461,7 @@ class MultiDerivative(Derivative):
     def __iter__(self):
         yield from self.parts.__iter__()
 
+    @override
     def build_derivative_fn(
         self, func: DerivableGraphFunction, return_graph: bool, argnum: int, mode: str = "rev"
     ) -> DerivableGraphFunction:

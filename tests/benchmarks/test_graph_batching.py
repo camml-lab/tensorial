@@ -118,7 +118,8 @@ def test_benchmark_message_passing(cube_graph, pad_multiple, bitwidth, benchmark
     def _cast(x):
         if hasattr(x, "dtype"):
             if jnp.issubdtype(x.dtype, jnp.integer):
-                # Only cast integer if it's not n_node or n_edge, to avoid early overflow before batching?
+                # Only cast integer if it's not n_node or n_edge, to avoid early overflow before
+                # batching?
                 # Actually, jraph might promote during padding/batching. Let's cast all.
                 return x.astype(int_dtype)
             if jnp.issubdtype(x.dtype, jnp.floating) and float_dtype is not None:

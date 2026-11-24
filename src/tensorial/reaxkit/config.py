@@ -49,7 +49,7 @@ def load_module(
 
     _LOGGER.info(
         "Instantiating model <%s>",
-        cfg[keys.MODEL]._target_,  # pylint: disable=protected-access
+        cfg[keys.MODEL]._target_,
     )
     module: reaxkit.ReaxModule = tconfig.instantiate(cfg[keys.MODEL])
 

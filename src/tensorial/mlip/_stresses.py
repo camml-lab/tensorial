@@ -41,7 +41,6 @@ class CalcStresses(linen.Module):
 
     def setup(self):
         """Initializes the internal virial function used to compute stress-related quantities."""
-        # pylint: disable=attribute-defined-outside-init
         self._virial_fn = gcnn.diff(
             self.virial_fn,
             f"globals.{keys.predicted(keys.TOTAL_ENERGY)}:gk",
@@ -50,9 +49,7 @@ class CalcStresses(linen.Module):
             return_graph=True,
         )
 
-    def __call__(  # pylint: disable=arguments-differ
-        self, graph: jraph.GraphsTuple
-    ) -> jraph.GraphsTuple:
+    def __call__(self, graph: jraph.GraphsTuple) -> jraph.GraphsTuple:
         """Computes and adds virials and stresses to the graph nodes.
 
         The virial tensor is computed via automatic differentiation of the energy
