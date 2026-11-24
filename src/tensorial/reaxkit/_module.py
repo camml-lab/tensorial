@@ -1,5 +1,5 @@
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Final, Generic, NotRequired, TypeVar, cast
+from typing import Any, Final, Generic, NotRequired, TypedDict, TypeVar, cast
 
 import beartype
 from flax import linen
@@ -9,7 +9,7 @@ import jraph
 import optax
 import reax
 import reax.utils
-from typing_extensions import TypedDict, override
+from typing_extensions import override
 
 from ..gcnn.data import _graph_padding
 
