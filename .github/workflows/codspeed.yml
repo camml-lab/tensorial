@@ -1,9 +1,9 @@
 name: CodSpeed Benchmarks
 
+# Disabled: automatic runs on push/PR are turned off because the benchmarks
+# weren't working reliably. Re-add the push/pull_request triggers to re-enable.
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   benchmarks:
