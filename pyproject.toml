@@ -69,7 +69,7 @@ dev = [
     'pre-commit',
     'pylint',
     'ruff',
-    'ty==0.0.84',
+    'ty==0.0.109',
     # Optional external libraries that we interact with
     "pymatgen",
 ]
